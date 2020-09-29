@@ -1,0 +1,4 @@
+build
+*.charm
+venv
+**/__pycache__
