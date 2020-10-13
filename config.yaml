@@ -8,3 +8,6 @@ options:
     default: 'quay.io/prometheus/alertmanager'
     description: The docker image to use
     type: string
+  pagerduty_key:
+    default: ''
+    type: string

@@ -3,11 +3,12 @@
 # See LICENSE file for licensing details.
 
 import logging
+import sys
 
 from ops.charm import CharmBase
 from ops.main import main
 from ops.framework import StoredState
-from ops.model import ActiveStatus, MaintenanceStatus
+from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
 
 log = logging.getLogger(__name__)
 CONFIG_CONTENT = """
@@ -16,14 +17,7 @@ route:
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 3h
-  receiver: slack_prometheus
-  routes:
-  - match:
-      severity: critical
-      receiver: critical_alert
-  - match:
-      severity: warning
-      receiver: slack_prometheus
+  receiver: default_pagerduty
 inhibit_rules:
 - source_match:
     severity: 'critical'
@@ -31,11 +25,13 @@ inhibit_rules:
     severity: 'warning'
   equal: ['cluster', 'service']
 receivers:
-- name: critical_alert
+- name: default_pagerduty
   pagerduty_configs:
    - send_resolved:  true
-     service_key: 'helloworld'
+     service_key: '{pagerduty_key}'
 """
+
+HTTP_PORT = 9093
 
 
 class AlertmanagerCharm(CharmBase):
@@ -60,15 +56,30 @@ class AlertmanagerCharm(CharmBase):
         log.debug('Building pod spec.')
 
         pod_spec = self._build_pod_spec()
+        log.debug('Setting pod spec.')
         self.model.pod.set_spec(pod_spec)
 
         self.unit.status = ActiveStatus()
         log.debug('Pod spec set successfully.')
 
+    def build_config_file(self):
+        """Create the alertmanager config file from self.model.config"""
+        config = self.model.config
+
+        if not self.model.config["pagerduty_key"]:
+            self.unit.status = BlockedStatus('Missing pagerduty_key config value')
+            sys.exit()
+
+
+        return CONFIG_CONTENT.format(pagerduty_key=self.model.config["pagerduty_key"])
+
+
     def _build_pod_spec(self):
         """Builds the pod spec based on available info in datastore`."""
 
         config = self.model.config
+
+        config_file_contents = self.build_config_file()
 
         # set image details based on what is defined in the charm configuation
         image_details = {
@@ -80,10 +91,33 @@ class AlertmanagerCharm(CharmBase):
             'containers': [{
                 'name': self.app.name,  # self.app.name is defined in metadata.yaml
                 'imageDetails': image_details,
+                'args': [
+                    '--config.file=/etc/alertmanager/alertmanager.yaml',
+                    '--storage.path=/alertmanager',
+                ],
                 'ports': [{
-                    'containerPort': 9093,
+                    'containerPort': HTTP_PORT,
                     'protocol': 'TCP'
                 }],
+                'kubernetes': {
+                    'readinessProbe': {
+                        'httpGet': {
+                            'path': '/-/ready',
+                            'port': HTTP_PORT
+                        },
+                        'initialDelaySeconds': 10, 
+                        'timeoutSeconds': 30
+                    },
+                    'livenessProbe': {
+                        'httpGet': {
+                            'path': '/-/healthy',
+                            'port': HTTP_PORT
+                        },
+                        'initialDelaySeconds': 30, 
+                        'timeoutSeconds': 30
+                    }
+                },
+
 
                 # this where we define any files necessary for configuration
                 # Juju gives developers a nice way of directly defining what
@@ -93,15 +127,15 @@ class AlertmanagerCharm(CharmBase):
                 # replacement for "files"
                 'volumeConfig': [{
                     'name': 'config',
-                    'mountPath': '/etc/prometheus',
+                    'mountPath': '/etc/alertmanager',
                     'files': [{
-                        'path': 'alertmanager.yml',
+                        'path': 'alertmanager.yaml',
 
                         # this is a very basic configuration file with
                         # some hard coded options for demonstration
                         # consider adding this kind of information in
                         # `config.yaml` in production charms
-                        'content': CONFIG_CONTENT.format()
+                        'content': config_file_contents
                     }],
                 }],
             }]
