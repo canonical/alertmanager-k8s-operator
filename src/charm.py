@@ -2,8 +2,8 @@
 # Copyright 2020 dylan
 # See LICENSE file for licensing details.
 
+import functools
 import logging
-import sys
 
 from ops.charm import CharmBase
 from ops.main import main
@@ -34,28 +34,50 @@ receivers:
 HTTP_PORT = 9093
 
 
+class BlockedStatusError(Exception):
+    pass
+
+
+def status_catcher(func):
+    @functools.wraps(func)
+    def new_func(self, *args, **kwargs):
+        try:
+            func(self, *args, **kwargs)
+        except BlockedStatusError as e:
+            self.unit.status = BlockedStatus(str(e))
+    return new_func
+
+
 class AlertmanagerCharm(CharmBase):
     _stored = StoredState()
 
     def __init__(self, *args):
         log.debug('Initializing charm.')
         super().__init__(*args)
-        self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.config_changed, self.on_config_changed)
+        self.framework.observe(self.on['alerting'].relation_changed, self.on_alerting_changed)
 
-    def _on_config_changed(self, _):
-        """Set Juju / Kubernetes pod spec built from `_build_pod_spec()`."""
+    @status_catcher
+    def on_alerting_changed(self, event):
+        if self.unit.is_leader():
+            event.relation.data[self.app]['port'] = str(HTTP_PORT)
+
+    @status_catcher
+    def on_config_changed(self, _):
+        """Set Juju / Kubernetes pod spec built from `build_pod_spec()`."""
 
         # even though we won't be supporting peer relations in this tutorial
         # it is best practice to check whether this unit is the leader unit
         if not self.unit.is_leader():
             log.debug('Unit is not leader. Cannot set pod spec.')
+            self.unit.status = ActiveStatus()
             return
 
         # setting pod spec and associated logging
         self.unit.status = MaintenanceStatus('Building pod spec.')
         log.debug('Building pod spec.')
 
-        pod_spec = self._build_pod_spec()
+        pod_spec = self.build_pod_spec()
         log.debug('Setting pod spec.')
         self.model.pod.set_spec(pod_spec)
 
@@ -64,17 +86,12 @@ class AlertmanagerCharm(CharmBase):
 
     def build_config_file(self):
         """Create the alertmanager config file from self.model.config"""
-        config = self.model.config
-
         if not self.model.config["pagerduty_key"]:
-            self.unit.status = BlockedStatus('Missing pagerduty_key config value')
-            sys.exit()
-
+            raise BlockedStatusError('Missing pagerduty_key config value')
 
         return CONFIG_CONTENT.format(pagerduty_key=self.model.config["pagerduty_key"])
 
-
-    def _build_pod_spec(self):
+    def build_pod_spec(self):
         """Builds the pod spec based on available info in datastore`."""
 
         config = self.model.config
@@ -105,7 +122,7 @@ class AlertmanagerCharm(CharmBase):
                             'path': '/-/ready',
                             'port': HTTP_PORT
                         },
-                        'initialDelaySeconds': 10, 
+                        'initialDelaySeconds': 10,
                         'timeoutSeconds': 30
                     },
                     'livenessProbe': {
@@ -113,7 +130,7 @@ class AlertmanagerCharm(CharmBase):
                             'path': '/-/healthy',
                             'port': HTTP_PORT
                         },
-                        'initialDelaySeconds': 30, 
+                        'initialDelaySeconds': 30,
                         'timeoutSeconds': 30
                     }
                 },
