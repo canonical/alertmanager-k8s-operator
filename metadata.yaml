@@ -11,3 +11,6 @@ tags:
   - monitoring
 series:
   - kubernetes
+provides:
+  alerting:
+    interface: alertmanager
