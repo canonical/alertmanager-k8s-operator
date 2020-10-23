@@ -31,8 +31,6 @@ receivers:
      service_key: '{pagerduty_key}'
 """
 
-HTTP_PORT = 9093
-
 
 class BlockedStatusError(Exception):
     pass
@@ -60,7 +58,7 @@ class AlertmanagerCharm(CharmBase):
     @status_catcher
     def on_alerting_changed(self, event):
         if self.unit.is_leader():
-            event.relation.data[self.app]['port'] = str(HTTP_PORT)
+            event.relation.data[self.app]['port'] = str(self.model.config['port'])
 
     @status_catcher
     def on_config_changed(self, _):
@@ -113,14 +111,14 @@ class AlertmanagerCharm(CharmBase):
                     '--storage.path=/alertmanager',
                 ],
                 'ports': [{
-                    'containerPort': HTTP_PORT,
+                    'containerPort': config['port'],
                     'protocol': 'TCP'
                 }],
                 'kubernetes': {
                     'readinessProbe': {
                         'httpGet': {
                             'path': '/-/ready',
-                            'port': HTTP_PORT
+                            'port': config['port']
                         },
                         'initialDelaySeconds': 10,
                         'timeoutSeconds': 30
@@ -128,7 +126,7 @@ class AlertmanagerCharm(CharmBase):
                     'livenessProbe': {
                         'httpGet': {
                             'path': '/-/healthy',
-                            'port': HTTP_PORT
+                            'port': config['port']
                         },
                         'initialDelaySeconds': 30,
                         'timeoutSeconds': 30
