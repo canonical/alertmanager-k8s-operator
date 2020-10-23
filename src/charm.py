@@ -64,8 +64,6 @@ class AlertmanagerCharm(CharmBase):
     def on_config_changed(self, _):
         """Set Juju / Kubernetes pod spec built from `build_pod_spec()`."""
 
-        # even though we won't be supporting peer relations in this tutorial
-        # it is best practice to check whether this unit is the leader unit
         if not self.unit.is_leader():
             log.debug('Unit is not leader. Cannot set pod spec.')
             self.unit.status = ActiveStatus()
