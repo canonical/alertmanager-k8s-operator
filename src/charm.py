@@ -58,6 +58,7 @@ class AlertmanagerCharm(CharmBase):
     @status_catcher
     def on_alerting_changed(self, event):
         if self.unit.is_leader():
+            log.info('Setting relation data')
             event.relation.data[self.app]['port'] = str(self.model.config['port'])
 
     @status_catcher
@@ -69,6 +70,8 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = ActiveStatus()
             return
 
+        self.framework.breakpoint()
+
         # setting pod spec and associated logging
         self.unit.status = MaintenanceStatus('Building pod spec.')
         log.debug('Building pod spec.')
@@ -76,6 +79,11 @@ class AlertmanagerCharm(CharmBase):
         pod_spec = self.build_pod_spec()
         log.debug('Setting pod spec.')
         self.model.pod.set_spec(pod_spec)
+
+        for relation in self.model.relations['alerting']:
+            if str(self.model.config['port']) != relation.data[self.app]['port']:
+                log.info('Setting relation data')
+                relation.data[self.app]['port'] = str(self.model.config['port'])
 
         self.unit.status = ActiveStatus()
         log.debug('Pod spec set successfully.')
