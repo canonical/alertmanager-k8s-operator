@@ -2,35 +2,25 @@
 # See LICENSE file for licensing details.
 
 import unittest
-from unittest.mock import Mock
+import yaml
 
 from ops.testing import Harness
-from charm import TmpCharm
+from charm import AlertmanagerCharm
 
 
 class TestCharm(unittest.TestCase):
+    def setUp(self):
+        self.harness = Harness(AlertmanagerCharm)
+        self.addCleanup(self.harness.cleanup)
+        self.harness.begin()
+        self.harness.set_leader(True)
+
     def test_config_changed(self):
-        harness = Harness(TmpCharm)
-        # from 0.8 you should also do:
-        # self.addCleanup(harness.cleanup)
-        harness.begin()
-        self.assertEqual(list(harness.charm._stored.things), [])
-        harness.update_config({"thing": "foo"})
-        self.assertEqual(list(harness.charm._stored.things), ["foo"])
+        self.harness.update_config({'pagerduty_key': 'abc'})
+        config = self.get_config()
+        self.assertEqual(config['receivers'][0]['pagerduty_configs'][0]['service_key'], 'abc')
 
-    def test_action(self):
-        harness = Harness(TmpCharm)
-        harness.begin()
-        # the harness doesn't (yet!) help much with actions themselves
-        action_event = Mock(params={"fail": ""})
-        harness.charm._on_fortune_action(action_event)
-
-        self.assertTrue(action_event.set_results.called)
-
-    def test_action_fail(self):
-        harness = Harness(TmpCharm)
-        harness.begin()
-        action_event = Mock(params={"fail": "fail this"})
-        harness.charm._on_fortune_action(action_event)
-
-        self.assertEqual(action_event.fail.call_args, [("fail this",)])
+    def get_config(self):
+        pod_spec = self.harness.get_pod_spec()
+        config_yaml = pod_spec[0]['containers'][0]['volumeConfig'][0]['files'][0]['content']
+        return(yaml.safe_load(config_yaml))
