@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash
 # Copyright 2020 dylan
 # See LICENSE file for licensing details.
 
@@ -13,4 +13,9 @@ else
 fi
 
 flake8
-python3 -m unittest -v "$@"
+which pytest > /dev/null
+if [ $? -eq 0 ]; then
+    python3 -m pytest -v "$@"
+else
+    python3 -m unittest -v "$@"
+fi
