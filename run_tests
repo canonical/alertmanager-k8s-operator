@@ -13,6 +13,7 @@ else
 fi
 
 flake8
+black --diff
 which pytest > /dev/null
 if [ $? -eq 0 ]; then
     python3 -m pytest -v "$@"
