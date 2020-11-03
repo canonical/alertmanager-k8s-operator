@@ -12,8 +12,8 @@ else
     export PYTHONPATH="src:$PYTHONPATH"
 fi
 
-flake8
-black --diff
+flake8 || exit $?
+black --diff --check --skip-string-normalization src tests || exit $?
 which pytest > /dev/null
 if [ $? -eq 0 ]; then
     python3 -m pytest -v "$@"
