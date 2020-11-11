@@ -3,11 +3,11 @@
 # See LICENSE file for licensing details.
 
 import functools
+import json
 import logging
 
 from ops.charm import CharmBase
 from ops.main import main
-from ops.framework import StoredState
 from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
 
 log = logging.getLogger(__name__)
@@ -31,6 +31,9 @@ receivers:
      service_key: '{pagerduty_key}'
 """
 
+HA_PORT = '9094'
+UNIT_ADDRESS = '{}-{}.{}-endpoints.{}.svc.cluster.local'
+
 
 class BlockedStatusError(Exception):
     pass
@@ -47,30 +50,62 @@ def status_catcher(func):
 
 
 class AlertmanagerCharm(CharmBase):
-    _stored = StoredState()
 
     def __init__(self, *args):
         log.debug('Initializing charm.')
         super().__init__(*args)
         self.framework.observe(self.on.config_changed, self.on_config_changed)
         self.framework.observe(self.on['alerting'].relation_changed, self.on_alerting_changed)
+        self.framework.observe(self.on['alertmanager'].relation_changed, self.on_alertmanager_changed)
+        self.framework.observe(self.on['alertmanager'].relation_departed, self.on_alertmanager_departed)
 
     @status_catcher
     def on_alerting_changed(self, event):
+        self.update_alerting(event.relation)
+
+    def update_alerting(self, relation):
         if self.unit.is_leader():
-            log.info('Setting relation data')
-            event.relation.data[self.app]['port'] = str(self.model.config['port'])
+            log.info('Setting relation data: port')
+            if str(self.model.config['port']) != relation.data[self.app].get('port', None):
+                relation.data[self.app]['port'] = str(self.model.config['port'])
+
+            log.info('Setting relation data: addrs')
+            addrs = []
+            num_units = self.num_units()
+            for i in range(num_units):
+                addrs.append(UNIT_ADDRESS.format(self.meta.name, i, self.meta.name, self.model.name))
+            if addrs != json.loads(relation.data[self.app].get('addrs', 'null')):
+                relation.data[self.app]['addrs'] = json.dumps(addrs)
+
+    @status_catcher
+    def on_alertmanager_changed(self, event):
+        if self.unit.is_leader():
+            self.configure()
+            for relation in self.model.relations['alerting']:
+                self.update_alerting(relation)
+
+    @status_catcher
+    def on_alertmanager_departed(self, event):
+        if self.unit.is_leader():
+            self.configure()
+            for relation in self.model.relations['alerting']:
+                self.update_alerting(relation)
 
     @status_catcher
     def on_config_changed(self, _):
+        self.configure()
+        for relation in self.model.relations['alerting']:
+            self.update_alerting(relation)
+
+    def configure(self):
         """Set Juju / Kubernetes pod spec built from `build_pod_spec()`."""
+
+        self.framework.breakpoint()
 
         if not self.unit.is_leader():
             log.debug('Unit is not leader. Cannot set pod spec.')
             self.unit.status = ActiveStatus()
             return
-
-        self.framework.breakpoint()
 
         # setting pod spec and associated logging
         self.unit.status = MaintenanceStatus('Building pod spec.')
@@ -79,11 +114,6 @@ class AlertmanagerCharm(CharmBase):
         pod_spec = self.build_pod_spec()
         log.debug('Setting pod spec.')
         self.model.pod.set_spec(pod_spec)
-
-        for relation in self.model.relations['alerting']:
-            if str(self.model.config['port']) != relation.data[self.app]['port']:
-                log.info('Setting relation data')
-                relation.data[self.app]['port'] = str(self.model.config['port'])
 
         self.unit.status = ActiveStatus()
         log.debug('Pod spec set successfully.')
@@ -107,6 +137,13 @@ class AlertmanagerCharm(CharmBase):
             'imagePath': config['alertmanager_image_path']
         }
 
+        ha_targets = []
+        num_units = self.num_units()
+        if num_units > 1:
+            for i in range(num_units):
+                cluster_address = UNIT_ADDRESS.format(self.meta.name, i, self.meta.name, self.model.name)
+                ha_targets.append(f'--cluster.peer={cluster_address}:{HA_PORT}')
+
         spec = {
             'version': 3,
             'containers': [{
@@ -115,7 +152,8 @@ class AlertmanagerCharm(CharmBase):
                 'args': [
                     '--config.file=/etc/alertmanager/alertmanager.yaml',
                     '--storage.path=/alertmanager',
-                ],
+                    f'--web.listen-address=:{config["port"]}'
+                ] + ha_targets,
                 'ports': [{
                     'containerPort': config['port'],
                     'protocol': 'TCP'
@@ -163,6 +201,11 @@ class AlertmanagerCharm(CharmBase):
         }
 
         return spec
+
+    def num_units(self):
+        relation = self.model.get_relation('alertmanager')
+        # The relation does not list ourself as a unit so we must add 1
+        return len(relation.units) + 1 if relation is not None else 1
 
 
 if __name__ == "__main__":
