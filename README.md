@@ -2,15 +2,18 @@
 
 ## Description
 
-The [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/)
-operator provides an alerting solution for the [Prometheus
-Operator](https://github.com/canonical/prometheus-operator). It is
-part of an Obervability stack in the [Juju](https://jaas.ai/) charm
-[ecosystem]((https://charmhub.io/). Alertmanager accepts alerts from
-Prometheus, then deduplicates, groups and routes them to the selected
-receiver, based on a set of alerting rules. These alerting rules may
-be set by any supported [charm](https://charmhub.io/) that uses the
-services of Prometheus by forming a relation with it.
+The [Alertmanager] operator provides an alerting solution for the
+[Prometheus Operator]. It is part of an Observability stack in the [Juju] charm
+[ecosystem]. Alertmanager accepts alerts from Prometheus, then deduplicates, groups
+and routes them to the selected receiver, based on a set of alerting rules. These
+alerting rules may be set by any supported [charm] that uses the services of
+Prometheus by forming a relation with it.
+
+[Alertmanager]: https://prometheus.io/docs/alerting/latest/alertmanager/
+[Prometheus Operator]: https://github.com/canonical/prometheus-operator
+[Juju]: https://jaas.ai/
+[ecosystem]: https://charmhub.io/
+[charm]: https://charmhub.io/
 
 ## Setup
 
