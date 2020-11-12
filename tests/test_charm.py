@@ -16,11 +16,15 @@ class TestCharm(unittest.TestCase):
         self.harness.set_leader(True)
 
     def test_config_changed(self):
-        self.harness.update_config({'pagerduty_key': 'abc'})
+        self.harness.update_config({"pagerduty_key": "abc"})
         config = self.get_config()
-        self.assertEqual(config['receivers'][0]['pagerduty_configs'][0]['service_key'], 'abc')
+        self.assertEqual(
+            config["receivers"][0]["pagerduty_configs"][0]["service_key"], "abc"
+        )
 
     def get_config(self):
         pod_spec = self.harness.get_pod_spec()
-        config_yaml = pod_spec[0]['containers'][0]['volumeConfig'][0]['files'][0]['content']
-        return(yaml.safe_load(config_yaml))
+        config_yaml = pod_spec[0]["containers"][0]["volumeConfig"][0]["files"][0][
+            "content"
+        ]
+        return yaml.safe_load(config_yaml)

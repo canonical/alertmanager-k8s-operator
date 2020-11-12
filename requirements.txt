@@ -1,1 +1,3 @@
-ops
+# ops 1.0.0 can not get addresses on kubernetes due
+# to the fact that the interfaces have no names
+ops>=1.0.1
