@@ -53,7 +53,7 @@ these receivers relavent configuration information is required at
 deployment or subsequently. Without any configured receiver
 Alertmanager will enter a blocked state.
 
-Deploy Alertmanager with PagerDuty configuration
+### Deploy Alertmanager with PagerDuty configuration
 
     juju deploy ./alertmanager.charm --config pagerduty_key='your-key'
 
