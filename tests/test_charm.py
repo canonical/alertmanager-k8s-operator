@@ -14,12 +14,23 @@ class TestCharm(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
         self.harness.begin()
         self.harness.set_leader(True)
+        self.harness.update_config({"pagerduty_key": "123"})
 
     def test_config_changed(self):
         self.harness.update_config({"pagerduty_key": "abc"})
         config = self.get_config()
         self.assertEqual(
             config["receivers"][0]["pagerduty_configs"][0]["service_key"], "abc"
+        )
+
+    def test_port_change(self):
+        rel_id = self.harness.add_relation("alerting", "prometheus")
+        self.assertIsInstance(rel_id, int)
+        self.harness.add_relation_unit(rel_id, "prometheus/0")
+        self.harness.update_config({"port": "9096"})
+        self.assertEqual(
+            self.harness.get_relation_data(rel_id, self.harness.model.app.name)["port"],
+            "9096",
         )
 
     def get_config(self):
