@@ -2,6 +2,7 @@
 # See LICENSE file for licensing details.
 
 import unittest
+import ops
 import yaml
 
 from ops.testing import Harness
@@ -32,6 +33,10 @@ class TestCharm(unittest.TestCase):
             self.harness.get_relation_data(rel_id, self.harness.model.app.name)["port"],
             "9096",
         )
+
+    def test_bad_config(self):
+        self.harness.update_config({"pagerduty_key": ""})
+        self.assertEqual(type(self.harness.model.unit.status), ops.model.BlockedStatus)
 
     def get_config(self):
         pod_spec = self.harness.get_pod_spec()
