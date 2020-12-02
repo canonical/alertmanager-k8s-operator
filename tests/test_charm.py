@@ -38,6 +38,8 @@ class TestCharm(unittest.TestCase):
         self.harness.update_config({"pagerduty_key": ""})
         self.assertEqual(type(self.harness.model.unit.status), ops.model.BlockedStatus)
 
+    # TODO figure out how to test scaling up the application
+
     def get_config(self):
         pod_spec = self.harness.get_pod_spec()
         config_yaml = pod_spec[0]["containers"][0]["volumeConfig"][0]["files"][0][
