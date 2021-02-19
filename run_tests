@@ -7,13 +7,13 @@ if [ -z "$VIRTUAL_ENV" -a -d venv/ ]; then
 fi
 
 if [ -z "$PYTHONPATH" ]; then
-    export PYTHONPATH=src
+    export PYTHONPATH="src:lib"
 else
-    export PYTHONPATH="src:$PYTHONPATH"
+    export PYTHONPATH="src:lib:$PYTHONPATH"
 fi
 
 flake8 || exit $?
-black --diff --check src tests || exit $?
+black --diff --check src tests lib || exit $?
 which pytest > /dev/null
 if [ $? -eq 0 ]; then
     python3 -m pytest -v "$@"

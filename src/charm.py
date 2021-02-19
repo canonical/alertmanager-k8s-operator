@@ -3,12 +3,13 @@
 # See LICENSE file for licensing details.
 
 import functools
-import json
 import logging
 
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
+
+from charms.alertmanager.v1.alertmanager import send_relation_data
 
 log = logging.getLogger(__name__)
 CONFIG_CONTENT = """
@@ -71,13 +72,8 @@ class AlertmanagerCharm(CharmBase):
 
     def update_alerting(self, relation):
         if self.unit.is_leader():
-            log.info("Setting relation data: port")
-            if str(self.model.config["port"]) != relation.data[self.app].get(
-                "port", None
-            ):
-                relation.data[self.app]["port"] = str(self.model.config["port"])
-
-            log.info("Setting relation data: addrs")
+            log.info("Setting relation data")
+            port = str(self.model.config["port"])
             addrs = []
             num_units = self.num_units()
             for i in range(num_units):
@@ -86,8 +82,7 @@ class AlertmanagerCharm(CharmBase):
                         self.meta.name, i, self.meta.name, self.model.name
                     )
                 )
-            if addrs != json.loads(relation.data[self.app].get("addrs", "null")):
-                relation.data[self.app]["addrs"] = json.dumps(addrs)
+            send_relation_data(relation, self.app, port, addrs)
 
     @status_catcher
     def on_alertmanager_changed(self, event):
