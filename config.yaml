@@ -1,8 +1,9 @@
-# Copyright 2020 dylan
+# Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 #
 # This is only an example, and you should edit to suit your needs.
 # If you don't need config, you can remove the file entirely.
+
 options:
   alertmanager_image_path:
     default: 'quay.io/prometheus/alertmanager'

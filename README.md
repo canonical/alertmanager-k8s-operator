@@ -2,14 +2,15 @@
 
 ## Description
 
-The [Alertmanager] operator provides an alerting solution for the
-[Prometheus Operator]. It is part of an Observability stack in the [Juju] charm
+The [Alertmanager] operator provides an alerting solution for the 
+[Prometheus][Prometheus Docs] [Operator][Prometheus Operator]. It is part of an Observability stack in the [Juju] charm
 [ecosystem]. Alertmanager accepts alerts from Prometheus, then deduplicates, groups
 and routes them to the selected receiver, based on a set of alerting rules. These
 alerting rules may be set by any supported [charm] that uses the services of
 Prometheus by forming a relation with it.
 
 [Alertmanager]: https://prometheus.io/docs/alerting/latest/alertmanager/
+[Prometheus Docs]: https://prometheus.io/docs/introduction/overview/
 [Prometheus Operator]: https://github.com/canonical/prometheus-operator
 [Juju]: https://jaas.ai/
 [ecosystem]: https://charmhub.io/
@@ -43,7 +44,7 @@ Create a Juju model (say "lma") for your observability operators
 
     juju add-model lma
 
-First deploy Prometheus following instructions from the its
+First deploy Prometheus following instructions from its
 [repository](https://github.com/canonical/prometheus-operator). You
 may also deploy Prometheus using [Charmhub](https://charmhub.io/)
 
@@ -106,3 +107,7 @@ Install the development requirements
 Just run `run_tests`:
 
     ./run_tests
+
+## External links
+- [Logging, Monitoring, and Alerting](https://discourse.ubuntu.com/t/logging-monitoring-and-alerting/19151) (LMA) - 
+  a tutorial for running Prometheus, Grafana and Alertmanager with LXD.   

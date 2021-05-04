@@ -1,4 +1,4 @@
-# Copyright 2020 dylan
+# Copyright 2020 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 import unittest
