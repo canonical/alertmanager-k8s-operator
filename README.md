@@ -36,7 +36,7 @@ Install the charmcraft tool
 
 Build the charm in this git repository using
 
-    charmcraft build
+    charmcraft pack
 
 ## Usage
 
@@ -56,39 +56,38 @@ Alertmanager will enter a blocked state.
 
 ### Deploy Alertmanager with PagerDuty configuration
 
-    juju deploy ./alertmanager.charm --config pagerduty_key='your-key'
+    juju deploy ./alertmanager.charm \
+      --resource alertmanager-image=quay.io/prometheus/alertmanager \
+      --config pagerduty_key='your-key'
 
+Alternatively you may deploy Alertmanger without a pagerduty key to let it enter the
+blocked state, and provide a key later on to unblock Alertmanager:
 
-Alternatively you may just deploy Alertmanger and let it enter the
-blocked state as in
+    juju deploy ./alertmanager.charm \
+      --resource alertmanager-image=quay.io/prometheus/alertmanager
+    
+    # Later on, unblock with:
+    # juju config alertmanager pagerduty_key='your-key'
 
-    juju deploy ./alertmanager.charm
-
-Subsequently you can then specify the receiver configuration as in
-
-    juju config alertmanager pagerduty_key='your-key'
-
-This should unblock Alertmanager.
-
-Finally add a relation between Prometheus and Alertmanager.
+Finally, add a relation between Prometheus and Alertmanager:
 
     juju add-relation prometheus alertmanager
 
 ### Scale Out Usage
 
-You may add additional  Alertmanager units for high availability
+You may add additional Alertmanager units for high availability
 
     juju add-unit alertmanager
 
 ## Relations
 
-   Currently supported relations are
-   - [Prometheus](https://github.com/canonical/prometheus-operator)
+Currently supported relations are
+  - [Prometheus](https://github.com/canonical/prometheus-operator)
 
 ## Receivers
 
-   Currently supported receivers are
-   - [PagerDuty](https://www.pagerduty.com/)
+Currently supported receivers are
+  - [PagerDuty](https://www.pagerduty.com/)
 
 ## Developing
 
@@ -108,6 +107,7 @@ Just run `run_tests`:
 
     ./run_tests
 
-## External links
+
+## Additional information
 - [Logging, Monitoring, and Alerting](https://discourse.ubuntu.com/t/logging-monitoring-and-alerting/19151) (LMA) - 
   a tutorial for running Prometheus, Grafana and Alertmanager with LXD.   

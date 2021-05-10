@@ -1,3 +1,2 @@
-# ops 1.0.0 can not get addresses on kubernetes due
-# to the fact that the interfaces have no names
-ops>=1.0.1
+#ops >= 1.2.0
+git+https://github.com/balbirthomas/operator@provider-consumer-lib

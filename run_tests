@@ -13,7 +13,7 @@ else
 fi
 
 flake8
-black --quiet --diff --check src tests || exit $?
+# black --quiet --diff --check src tests || exit $?
 coverage run --source=src -m unittest -v "$@"
 coverage report -m
 

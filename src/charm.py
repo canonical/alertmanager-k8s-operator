@@ -6,11 +6,14 @@ import functools
 import json
 import logging
 
+import ops
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
+# from ops.framework import StoredState
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+
 CONFIG_CONTENT = """
 route:
   group_by: ['alertname', 'cluster', 'service']
@@ -19,20 +22,39 @@ route:
   repeat_interval: 3h
   receiver: default_pagerduty
 inhibit_rules:
-- source_match:
-    severity: 'critical'
-  target_match:
-    severity: 'warning'
-  equal: ['cluster', 'service']
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['cluster', 'service']
 receivers:
-- name: default_pagerduty
-  pagerduty_configs:
-   - send_resolved:  true
-     service_key: '{pagerduty_key}'
+  - name: default_pagerduty
+    pagerduty_configs:
+     - send_resolved:  true
+       service_key: '{pagerduty_key}'
 """
 
 HA_PORT = "9094"
 UNIT_ADDRESS = "{}-{}.{}-endpoints.{}.svc.cluster.local"
+
+# path, inside the workload container, to the alertmanager configuration file
+CONFIG_PATH = "/etc/alertmanager/alertmanager.yml"
+
+# path, inside the workload container for alertmanager logs, e.g. 'nflogs', 'silences'.
+STORAGE_PATH = "/alertmanager"
+
+
+def restart(container: ops.model.Container, service: str):
+    logger.info("Restarting %s", service)
+    if container.get_service(service).is_running():
+        container.stop(service)
+    container.start(service)
+
+
+def make_started(container):
+    if not container.get_service("alertmanager").is_running():
+        logger.info("Starting Alertmanager")
+        container.start("alertmanager")
 
 
 class BlockedStatusError(Exception):
@@ -51,19 +73,67 @@ def status_catcher(func):
 
 
 class AlertmanagerCharm(CharmBase):
+    """Charm the service."""
+
     def __init__(self, *args):
-        log.debug("Initializing charm.")
+        logger.debug("Initializing charm.")
         super().__init__(*args)
-        self.framework.observe(self.on.config_changed, self.on_config_changed)
-        self.framework.observe(
-            self.on["alerting"].relation_changed, self.on_alerting_changed
-        )
-        self.framework.observe(
-            self.on["alertmanager"].relation_changed, self.on_alertmanager_changed
-        )
-        self.framework.observe(
-            self.on["alertmanager"].relation_departed, self.on_alertmanager_departed
-        )
+        self.framework.observe(self.on.alertmanager_pebble_ready,
+                               self._on_alertmanager_pebble_ready)
+        self.framework.observe(self.on.config_changed,
+                               self._on_config_changed)
+        self.framework.observe(self.on["alerting"].relation_changed,
+                               self.on_alerting_changed)
+        self.framework.observe(self.on["alertmanager"].relation_changed,
+                               self.on_alertmanager_changed)
+        self.framework.observe(self.on["alertmanager"].relation_departed,
+                               self.on_alertmanager_departed)
+
+    def _on_alertmanager_pebble_ready(self, event: ops.charm.PebbleReadyEvent):
+        """Define and start a workload using the Pebble API.
+        Learn more about Pebble layers at https://github.com/canonical/pebble
+        """
+        # Get a reference the container attribute on the PebbleReadyEvent
+        container = event.workload
+
+        # Add intial Pebble config layer using the Pebble API
+        container.add_layer("alertmanager", self._alertmanager_layer(), combine=True)
+
+        # Autostart any services that were defined with startup: enabled
+        container.autostart()
+
+    def _configure(self, event):
+        """Set Juju / Kubernetes pod spec built from `build_pod_spec()`."""
+
+        if not self.unit.is_leader():
+            # TODO is this relevant now? still need to push config?
+            logger.debug("Unit is not leader. Cannot set pod spec.")
+            self.unit.status = ActiveStatus()
+            return
+
+        # Get a reference to the container so we can manipulate it
+        container = self.unit.get_container("alertmanager")
+        container.push(CONFIG_PATH, self._config_file())
+
+        # All is well, set an ActiveStatus
+        self.unit.status = ActiveStatus()
+
+    def _alertmanager_layer(self) -> dict:
+        """Returns Pebble configuration layer for alertmanager"""
+        return {
+            "summary": "alertmanager layer",
+            "description": "pebble config layer for alertmanager",
+            "services": {
+                "alertmanager": {
+                    "override": "replace",
+                    "summary": "alertmanager service",
+                    "command": "/bin/alertmanager --config.file={} --storage.path={}".format(
+                        CONFIG_PATH, STORAGE_PATH),
+                    "startup": "enabled",
+                    # "environment": {"thing": self.model.config["thing"]},
+                }
+            },
+        }
 
     @status_catcher
     def on_alerting_changed(self, event):
@@ -71,20 +141,18 @@ class AlertmanagerCharm(CharmBase):
 
     def update_alerting(self, relation):
         if self.unit.is_leader():
-            log.info("Setting relation data: port")
+            logger.info("Setting relation data: port")
             if str(self.model.config["port"]) != relation.data[self.app].get(
                 "port", None
             ):
                 relation.data[self.app]["port"] = str(self.model.config["port"])
 
-            log.info("Setting relation data: addrs")
+            logger.info("Setting relation data: addrs")
             addrs = []
             num_units = self.num_units()
             for i in range(num_units):
                 addrs.append(
-                    UNIT_ADDRESS.format(
-                        self.meta.name, i, self.meta.name, self.model.name
-                    )
+                    UNIT_ADDRESS.format(self.meta.name, i, self.meta.name, self.model.name)
                 )
             if addrs != json.loads(relation.data[self.app].get("addrs", "null")):
                 relation.data[self.app]["addrs"] = json.dumps(addrs)
@@ -92,126 +160,34 @@ class AlertmanagerCharm(CharmBase):
     @status_catcher
     def on_alertmanager_changed(self, event):
         if self.unit.is_leader():
-            self.configure()
+            self._configure(event)
             for relation in self.model.relations["alerting"]:
                 self.update_alerting(relation)
 
     @status_catcher
     def on_alertmanager_departed(self, event):
         if self.unit.is_leader():
-            self.configure()
+            self._configure(event)
             for relation in self.model.relations["alerting"]:
                 self.update_alerting(relation)
 
     @status_catcher
-    def on_config_changed(self, _):
-        self.configure()
+    def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
+        self._configure(event)
         for relation in self.model.relations["alerting"]:
             self.update_alerting(relation)
-
-    def configure(self):
-        """Set Juju / Kubernetes pod spec built from `build_pod_spec()`."""
-
-        self.framework.breakpoint()
-
-        if not self.unit.is_leader():
-            log.debug("Unit is not leader. Cannot set pod spec.")
-            self.unit.status = ActiveStatus()
-            return
-
-        # setting pod spec and associated logging
-        self.unit.status = MaintenanceStatus("Building pod spec.")
-        log.debug("Building pod spec.")
-
-        pod_spec = self.build_pod_spec()
-        log.debug("Setting pod spec.")
-        self.model.pod.set_spec(pod_spec)
-
-        self.unit.status = ActiveStatus()
-        log.debug("Pod spec set successfully.")
-
-    def build_config_file(self):
-        """Create the alertmanager config file from self.model.config"""
-        if not self.model.config["pagerduty_key"]:
-            raise BlockedStatusError("Missing pagerduty_key config value")
-
-        return CONFIG_CONTENT.format(pagerduty_key=self.model.config["pagerduty_key"])
-
-    def build_pod_spec(self):
-        """Builds the pod spec based on available info in datastore`."""
-
-        config = self.model.config
-
-        config_file_contents = self.build_config_file()
-
-        # set image details based on what is defined in the charm configuation
-        image_details = {"imagePath": config["alertmanager_image_path"]}
-
-        ha_targets = []
-        num_units = self.num_units()
-        if num_units > 1:
-            for i in range(num_units):
-                cluster_address = UNIT_ADDRESS.format(
-                    self.meta.name, i, self.meta.name, self.model.name
-                )
-                ha_targets.append(f"--cluster.peer={cluster_address}:{HA_PORT}")
-
-        spec = {
-            "version": 3,
-            "containers": [
-                {
-                    "name": self.app.name,  # self.app.name is defined in metadata.yaml
-                    "imageDetails": image_details,
-                    "args": [
-                        "--config.file=/etc/alertmanager/alertmanager.yaml",
-                        "--storage.path=/alertmanager",
-                        f'--web.listen-address=:{config["port"]}',
-                    ]
-                    + ha_targets,
-                    "ports": [{"containerPort": config["port"], "protocol": "TCP"}],
-                    "kubernetes": {
-                        "readinessProbe": {
-                            "httpGet": {"path": "/-/ready", "port": config["port"]},
-                            "initialDelaySeconds": 10,
-                            "timeoutSeconds": 30,
-                        },
-                        "livenessProbe": {
-                            "httpGet": {"path": "/-/healthy", "port": config["port"]},
-                            "initialDelaySeconds": 30,
-                            "timeoutSeconds": 30,
-                        },
-                    },
-                    # this where we define any files necessary for configuration
-                    # Juju gives developers a nice way of directly defining what
-                    # the contents of files should be.
-                    # Note that "volumeConfig" is new in pod-spec v3 and is a
-                    # replacement for "files"
-                    "volumeConfig": [
-                        {
-                            "name": "config",
-                            "mountPath": "/etc/alertmanager",
-                            "files": [
-                                {
-                                    "path": "alertmanager.yaml",
-                                    # this is a very basic configuration file with
-                                    # some hard coded options for demonstration
-                                    # consider adding this kind of information in
-                                    # `config.yaml` in production charms
-                                    "content": config_file_contents,
-                                }
-                            ],
-                        }
-                    ],
-                }
-            ],
-        }
-
-        return spec
 
     def num_units(self):
         relation = self.model.get_relation("alertmanager")
         # The relation does not list ourself as a unit so we must add 1
         return len(relation.units) + 1 if relation is not None else 1
+
+    def _config_file(self):
+        """Create the alertmanager config file from self.model.config"""
+        if not self.model.config["pagerduty_key"]:
+            raise BlockedStatusError("Missing pagerduty_key config value")
+
+        return CONFIG_CONTENT.format(pagerduty_key=self.model.config["pagerduty_key"])
 
 
 if __name__ == "__main__":

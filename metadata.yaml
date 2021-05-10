@@ -1,23 +1,39 @@
 name: alertmanager
+
 summary: Alert management for charmed LMA stack
+
 maintainers:
   - Dylan Stephano-Shachter <dylan.stephano-shachter@canonical.com>
+
 description: |
   The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
+
 tags:
   - observability
   - lma
   - alertmanager
   - prometheus
   - monitoring
-series:
-  - kubernetes
+
+# workload containers
+containers:
+  alertmanager:  # container key used by pebble
+    resource: alertmanager-image
+
+# oci-image resources for each container defined above
+resources:
+  alertmanager-image:
+    type: oci-image
+    description: OCI image for alertmanager (quay.io/prometheus/alertmanager)
+
 provides:
   alerting:
     interface: alertmanager
+
 peers:
   alertmanager:
     interface: alertmanager
+
 storage:
   data:
     type: filesystem
