@@ -2,6 +2,8 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+from provider import AlertingProvider
+
 import functools
 import json
 import logging
@@ -10,7 +12,9 @@ import ops
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
-# from ops.framework import StoredState
+from ops.framework import StoredState
+
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +48,8 @@ CONFIG_PATH = "/etc/alertmanager/alertmanager.yml"
 STORAGE_PATH = "/alertmanager"
 
 
-def restart(container: ops.model.Container, service: str):
-    logger.info("Restarting %s", service)
+def restart_service(container: ops.model.Container, service: str):
+    logger.info("Restarting service %s", service)
     if container.get_service(service).is_running():
         container.stop(service)
     container.start(service)
@@ -66,8 +70,17 @@ def status_catcher(func):
     return new_func
 
 
+def _hash(hashable) -> str:
+    """Use instead of the builtin hash() for repeatable values"""
+    if isinstance(hashable, str):
+        hashable = hashable.encode('utf-8')
+    return hashlib.md5(hashable).hexdigest()
+
+
 class AlertmanagerCharm(CharmBase):
-    """Charm the service."""
+    """A Juju charm for Alertmanager"""
+
+    _stored = StoredState()
 
     def __init__(self, *args):
         logger.debug("Initializing charm.")
@@ -76,12 +89,17 @@ class AlertmanagerCharm(CharmBase):
                                self._on_alertmanager_pebble_ready)
         self.framework.observe(self.on.config_changed,
                                self._on_config_changed)
+        # TODO move relation events into provider
         self.framework.observe(self.on["alerting"].relation_changed,
                                self._on_alerting_relation_changed)
         self.framework.observe(self.on["replicas"].relation_changed,
-                               self._on_replcas_relation_changed)
+                               self._on_replicas_relation_changed)
         self.framework.observe(self.on["replicas"].relation_departed,
                                self._on_replicas_relation_departed)
+
+        self.provider = AlertingProvider(charm=self, relation_name="alerting", service="alertmanager")
+
+        self._stored.set_default(config_hash=None)
 
     def _on_alertmanager_pebble_ready(self, event: ops.charm.PebbleReadyEvent):
         """Define and start a workload using the Pebble API.
@@ -99,18 +117,27 @@ class AlertmanagerCharm(CharmBase):
     def _configure(self, event):
         """Set Juju / Kubernetes pod spec built from `build_pod_spec()`."""
 
+        # leader = podspec
+        # app relation = shared
         if not self.unit.is_leader():
             # TODO is this relevant now? still need to push config?
             logger.debug("Unit is not leader. Cannot set pod spec.")
             self.unit.status = ActiveStatus()
             return
 
-        # Get a reference to the container so we can manipulate it
-        container = self.unit.get_container("alertmanager")
-        container.push(CONFIG_PATH, self._config_file())
+        config_file = self._config_file()
+        config_hash = _hash(config_file)
+        if config_hash != self._stored.config_hash:
+            # Get a reference to the container so we can manipulate it
+            container = self.unit.get_container("alertmanager")
+            container.push(CONFIG_PATH, config_file)
+            self._stored.config_hash = config_hash
+            logger.debug("new config hash: %s", config_hash)
+            restart_service(container, "alertmanager")
 
         # All is well, set an ActiveStatus
         self.unit.status = ActiveStatus()
+        self.provider.ready()  # TODO here or elsewhere?
 
     def _alertmanager_layer(self) -> dict:
         """Returns Pebble configuration layer for alertmanager"""
@@ -133,6 +160,27 @@ class AlertmanagerCharm(CharmBase):
     def _on_alerting_relation_changed(self, event):
         self.update_alerting(event.relation)
 
+    @status_catcher
+    def _on_replicas_relation_changed(self, event):
+        if self.unit.is_leader():
+            self._configure(event)
+            for relation in self.model.relations["alerting"]:
+                self.update_alerting(relation)
+
+    @status_catcher
+    def _on_replicas_relation_departed(self, event):
+        if self.unit.is_leader():
+            self._configure(event)
+            for relation in self.model.relations["alerting"]:
+                self.update_alerting(relation)
+
+    @status_catcher
+    def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
+        # TODO validate config
+        self._configure(event)
+        for relation in self.model.relations["alerting"]:
+            self.update_alerting(relation)
+
     def update_alerting(self, relation):
         if self.unit.is_leader():
             logger.info("Setting relation data: port")
@@ -150,26 +198,6 @@ class AlertmanagerCharm(CharmBase):
             # if addrs != json.loads(relation.data[self.app].get("addrs", "null")):
             #     relation.data[self.app]["addrs"] = json.dumps(addrs)
             relation.data[self.app]["addrs"] = json.dumps(addrs)
-
-    @status_catcher
-    def _on_replcas_relation_changed(self, event):
-        if self.unit.is_leader():
-            self._configure(event)
-            for relation in self.model.relations["alerting"]:
-                self.update_alerting(relation)
-
-    @status_catcher
-    def _on_replicas_relation_departed(self, event):
-        if self.unit.is_leader():
-            self._configure(event)
-            for relation in self.model.relations["alerting"]:
-                self.update_alerting(relation)
-
-    @status_catcher
-    def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
-        self._configure(event)
-        for relation in self.model.relations["alerting"]:
-            self.update_alerting(relation)
 
     def num_units(self):
         relation = self.model.get_relation("alertmanager")
