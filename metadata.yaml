@@ -31,8 +31,8 @@ provides:
     interface: alertmanager
 
 peers:
-  alertmanager:
-    interface: alertmanager
+  replicas:
+    interface: alertmanager-replica
 
 storage:
   data:

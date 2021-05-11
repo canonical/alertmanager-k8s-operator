@@ -51,13 +51,7 @@ def restart(container: ops.model.Container, service: str):
     container.start(service)
 
 
-def make_started(container):
-    if not container.get_service("alertmanager").is_running():
-        logger.info("Starting Alertmanager")
-        container.start("alertmanager")
-
-
-class BlockedStatusError(Exception):
+class DeferEventError(Exception):
     pass
 
 
@@ -66,7 +60,7 @@ def status_catcher(func):
     def new_func(self, *args, **kwargs):
         try:
             func(self, *args, **kwargs)
-        except BlockedStatusError as e:
+        except DeferEventError as e:
             self.unit.status = BlockedStatus(str(e))
 
     return new_func
@@ -83,11 +77,11 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(self.on.config_changed,
                                self._on_config_changed)
         self.framework.observe(self.on["alerting"].relation_changed,
-                               self.on_alerting_changed)
-        self.framework.observe(self.on["alertmanager"].relation_changed,
-                               self.on_alertmanager_changed)
-        self.framework.observe(self.on["alertmanager"].relation_departed,
-                               self.on_alertmanager_departed)
+                               self._on_alerting_relation_changed)
+        self.framework.observe(self.on["replicas"].relation_changed,
+                               self._on_replcas_relation_changed)
+        self.framework.observe(self.on["replicas"].relation_departed,
+                               self._on_replicas_relation_departed)
 
     def _on_alertmanager_pebble_ready(self, event: ops.charm.PebbleReadyEvent):
         """Define and start a workload using the Pebble API.
@@ -136,16 +130,15 @@ class AlertmanagerCharm(CharmBase):
         }
 
     @status_catcher
-    def on_alerting_changed(self, event):
+    def _on_alerting_relation_changed(self, event):
         self.update_alerting(event.relation)
 
     def update_alerting(self, relation):
         if self.unit.is_leader():
             logger.info("Setting relation data: port")
-            if str(self.model.config["port"]) != relation.data[self.app].get(
-                "port", None
-            ):
-                relation.data[self.app]["port"] = str(self.model.config["port"])
+            # if str(self.model.config["port"]) != relation.data[self.app].get("port", None):
+            #     relation.data[self.app]["port"] = str(self.model.config["port"])
+            relation.data[self.app]["port"] = str(self.model.config["port"])
 
             logger.info("Setting relation data: addrs")
             addrs = []
@@ -154,18 +147,19 @@ class AlertmanagerCharm(CharmBase):
                 addrs.append(
                     UNIT_ADDRESS.format(self.meta.name, i, self.meta.name, self.model.name)
                 )
-            if addrs != json.loads(relation.data[self.app].get("addrs", "null")):
-                relation.data[self.app]["addrs"] = json.dumps(addrs)
+            # if addrs != json.loads(relation.data[self.app].get("addrs", "null")):
+            #     relation.data[self.app]["addrs"] = json.dumps(addrs)
+            relation.data[self.app]["addrs"] = json.dumps(addrs)
 
     @status_catcher
-    def on_alertmanager_changed(self, event):
+    def _on_replcas_relation_changed(self, event):
         if self.unit.is_leader():
             self._configure(event)
             for relation in self.model.relations["alerting"]:
                 self.update_alerting(relation)
 
     @status_catcher
-    def on_alertmanager_departed(self, event):
+    def _on_replicas_relation_departed(self, event):
         if self.unit.is_leader():
             self._configure(event)
             for relation in self.model.relations["alerting"]:
@@ -185,7 +179,7 @@ class AlertmanagerCharm(CharmBase):
     def _config_file(self):
         """Create the alertmanager config file from self.model.config"""
         if not self.model.config["pagerduty_key"]:
-            raise BlockedStatusError("Missing pagerduty_key config value")
+            raise DeferEventError("Missing pagerduty_key config value")
 
         return CONFIG_CONTENT.format(pagerduty_key=self.model.config["pagerduty_key"])
 
