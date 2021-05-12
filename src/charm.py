@@ -5,7 +5,6 @@
 from provider import AlertingProvider
 
 import functools
-import json
 import logging
 
 import ops
@@ -39,7 +38,6 @@ receivers:
 """
 
 HA_PORT = "9094"
-UNIT_ADDRESS = "{}-{}.{}-endpoints.{}.svc.cluster.local"
 
 # path, inside the workload container, to the alertmanager configuration file
 CONFIG_PATH = "/etc/alertmanager/alertmanager.yml"
@@ -50,6 +48,8 @@ STORAGE_PATH = "/alertmanager"
 
 def restart_service(container: ops.model.Container, service: str):
     logger.info("Restarting service %s", service)
+
+    # if the service does not exist, it will raise a ModelError
     if container.get_service(service).is_running():
         container.stop(service)
     container.start(service)
@@ -61,13 +61,13 @@ class DeferEventError(Exception):
 
 def status_catcher(func):
     @functools.wraps(func)
-    def new_func(self, *args, **kwargs):
+    def wrapped(self, *args, **kwargs):
         try:
             func(self, *args, **kwargs)
         except DeferEventError as e:
             self.unit.status = BlockedStatus(str(e))
 
-    return new_func
+    return wrapped
 
 
 def _hash(hashable) -> str:
@@ -89,22 +89,22 @@ class AlertmanagerCharm(CharmBase):
                                self._on_alertmanager_pebble_ready)
         self.framework.observe(self.on.config_changed,
                                self._on_config_changed)
-        # TODO move relation events into provider
-        self.framework.observe(self.on["alerting"].relation_changed,
-                               self._on_alerting_relation_changed)
+
+        self.framework.observe(self.on["replicas"].relation_joined,
+                               self._on_replicas_relation_joined)
         self.framework.observe(self.on["replicas"].relation_changed,
                                self._on_replicas_relation_changed)
         self.framework.observe(self.on["replicas"].relation_departed,
                                self._on_replicas_relation_departed)
 
-        self.provider = AlertingProvider(charm=self, relation_name="alerting", service="alertmanager")
+        self.provider = AlertingProvider(self)
 
         self._stored.set_default(config_hash=None)
 
     def _on_alertmanager_pebble_ready(self, event: ops.charm.PebbleReadyEvent):
         """Define and start a workload using the Pebble API.
-        Learn more about Pebble layers at https://github.com/canonical/pebble
         """
+        logger.debug("pebble ready")
         # Get a reference the container attribute on the PebbleReadyEvent
         container = event.workload
 
@@ -117,14 +117,6 @@ class AlertmanagerCharm(CharmBase):
     def _configure(self, event):
         """Set Juju / Kubernetes pod spec built from `build_pod_spec()`."""
 
-        # leader = podspec
-        # app relation = shared
-        if not self.unit.is_leader():
-            # TODO is this relevant now? still need to push config?
-            logger.debug("Unit is not leader. Cannot set pod spec.")
-            self.unit.status = ActiveStatus()
-            return
-
         config_file = self._config_file()
         config_hash = _hash(config_file)
         if config_hash != self._stored.config_hash:
@@ -133,11 +125,10 @@ class AlertmanagerCharm(CharmBase):
             container.push(CONFIG_PATH, config_file)
             self._stored.config_hash = config_hash
             logger.debug("new config hash: %s", config_hash)
-            restart_service(container, "alertmanager")
 
         # All is well, set an ActiveStatus
+        self.provider.ready()
         self.unit.status = ActiveStatus()
-        self.provider.ready()  # TODO here or elsewhere?
 
     def _alertmanager_layer(self) -> dict:
         """Returns Pebble configuration layer for alertmanager"""
@@ -157,52 +148,34 @@ class AlertmanagerCharm(CharmBase):
         }
 
     @status_catcher
-    def _on_alerting_relation_changed(self, event):
-        self.update_alerting(event.relation)
+    def _on_replicas_relation_joined(self, event: ops.charm.RelationJoinedEvent):
+        logger.debug("relation joined")
 
-    @status_catcher
-    def _on_replicas_relation_changed(self, event):
         if self.unit.is_leader():
             self._configure(event)
             for relation in self.model.relations["alerting"]:
-                self.update_alerting(relation)
+                self.provider.update_alerting(relation)
 
     @status_catcher
-    def _on_replicas_relation_departed(self, event):
+    def _on_replicas_relation_changed(self, event: ops.charm.RelationChangedEvent):
         if self.unit.is_leader():
             self._configure(event)
             for relation in self.model.relations["alerting"]:
-                self.update_alerting(relation)
+                self.provider.update_alerting(relation)
+
+    @status_catcher
+    def _on_replicas_relation_departed(self, event: ops.charm.RelationDepartedEvent):
+        if self.unit.is_leader():
+            self._configure(event)
+            for relation in self.model.relations["alerting"]:
+                self.provider.update_alerting(relation)
 
     @status_catcher
     def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
         # TODO validate config
         self._configure(event)
         for relation in self.model.relations["alerting"]:
-            self.update_alerting(relation)
-
-    def update_alerting(self, relation):
-        if self.unit.is_leader():
-            logger.info("Setting relation data: port")
-            # if str(self.model.config["port"]) != relation.data[self.app].get("port", None):
-            #     relation.data[self.app]["port"] = str(self.model.config["port"])
-            relation.data[self.app]["port"] = str(self.model.config["port"])
-
-            logger.info("Setting relation data: addrs")
-            addrs = []
-            num_units = self.num_units()
-            for i in range(num_units):
-                addrs.append(
-                    UNIT_ADDRESS.format(self.meta.name, i, self.meta.name, self.model.name)
-                )
-            # if addrs != json.loads(relation.data[self.app].get("addrs", "null")):
-            #     relation.data[self.app]["addrs"] = json.dumps(addrs)
-            relation.data[self.app]["addrs"] = json.dumps(addrs)
-
-    def num_units(self):
-        relation = self.model.get_relation("alertmanager")
-        # The relation does not list ourself as a unit so we must add 1
-        return len(relation.units) + 1 if relation is not None else 1
+            self.provider.update_alerting(relation)
 
     def _config_file(self):
         """Create the alertmanager config file from self.model.config"""
