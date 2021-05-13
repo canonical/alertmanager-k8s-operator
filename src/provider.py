@@ -33,13 +33,13 @@ class AlertingProvider(ProviderBase):
         self.framework.observe(events.relation_broken, self._on_relation_broken)
 
     def _on_relation_joined(self, event: ops.charm.RelationJoinedEvent):
-        pass
+        self.update_alerting(event.relation)
 
     def _on_relation_changed(self, event: ops.charm.RelationChangedEvent):
         self.update_alerting(event.relation)
 
     def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
-        pass
+        self.update_alerting(event.relation)
 
     def update_alerting(self, relation):
         if self.charm.unit.is_leader():
@@ -50,8 +50,7 @@ class AlertingProvider(ProviderBase):
 
             logger.info("Setting relation data: addrs")
             addrs = []
-            num_units = self.charm.num_units()
-            for i in range(num_units):
+            for i in range(self.num_units()):
                 addrs.append(
                     UNIT_ADDRESS.format(self.charm.meta.name, i, self.charm.meta.name, self.charm.model.name)
                 )
