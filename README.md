@@ -101,12 +101,14 @@ Install the development requirements
 
     pip install -r requirements-dev.txt
 
-## Testing
+### Testing
 
 Just run `run_tests`:
 
     ./run_tests
 
+## Roadmap
+- Add additional receivers: slack, telegram bot
 
 ## Additional information
 - [Logging, Monitoring, and Alerting](https://discourse.ubuntu.com/t/logging-monitoring-and-alerting/19151) (LMA) - 

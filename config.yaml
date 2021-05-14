@@ -9,10 +9,6 @@ options:
     type: string
     description: The docker image to use
     default: 'quay.io/prometheus/alertmanager'
-  port:
-    type: int
-    description: The port to serve over
-    default: 9093
   pagerduty_key:
     type: string
-    default: ''
+    default: '0a1b2c3d4e5f'

@@ -25,39 +25,39 @@ class AlertingProvider(ProviderBase):
         # self._stored.set_default(consumers={})
 
         events = self.charm.on[self._relation_name]
-        self.framework.observe(events.relation_joined, self._on_relation_joined)
+        # self.framework.observe(events.relation_joined, self._on_relation_joined)
         self.framework.observe(events.relation_changed, self._on_relation_changed)
         self.framework.observe(events.relation_broken, self._on_relation_broken)
 
-    def _on_relation_joined(self, event: ops.charm.RelationJoinedEvent):
-        # TODO needed in addition to _on_relation_changed?
-        self.update_alerting(event.relation)
+    # def _on_relation_joined(self, event: ops.charm.RelationJoinedEvent):
+    #     # TODO needed in addition to _on_relation_changed?
+    #     self.update_alerting()
 
     def _on_relation_changed(self, event: ops.charm.RelationChangedEvent):
-        self.update_alerting(event.relation)
+        self.update_alerting()
 
     def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
         # TODO needed in addition to _on_relation_changed?
-        self.update_alerting(event.relation)
+        self.update_alerting()
 
-    def update_alerting(self, relation):
+    def update_alerting(self):
         """
         Update application data bucket for the "alerting" relation
         """
-        if self.charm.unit.is_leader():
-            # update application data bucket with the port used by alertmanager
-            logger.info("Setting relation data: port")
-            # if str(self.model.config["port"]) != relation.data[self.app].get("port", None):
-            #     relation.data[self.app]["port"] = str(self.model.config["port"])
-            relation.data[self.charm.app]["port"] = str(self.charm.model.config["port"])
+        # if not self.charm.unit.is_leader():
+        #     return
 
-            # update application data bucket with all the unit addresses
-            # From the alertmanager docs:
-            #  It's important not to load balance traffic between Prometheus and its Alertmanagers,
-            #  but instead, point Prometheus to a list of all Alertmanagers.
-            logger.info("Setting relation data: unit_addresses")
-            unit_addresses = list(map(self.charm.unit_address, range(self.charm.num_units())))
-            # if unit_addresses != json.loads(relation.data[self.app].get("unit_addresses", "null")):
-            #     relation.data[self.app]["unit_addresses"] = json.dumps(unit_addresses)
-            logger.debug("app data bucket ['addrs']: %s", unit_addresses)
-            relation.data[self.charm.app]["addrs"] = json.dumps(unit_addresses)
+        # update application data bucket with all the unit addresses
+        # From the alertmanager docs:
+        #  It's important not to load balance traffic between Prometheus and its Alertmanagers,
+        #  but instead, point Prometheus to a list of all Alertmanagers.
+
+        api_addresses = [address for address in self.charm.get_api_addresses() if address is not None]
+        logger.info("Setting app data: addrs: %s", api_addresses)
+        logger.info("existing 'alerting' relations: %s", self.charm.model.relations["alerting"])
+        api_addresses_as_json = json.dumps(api_addresses)
+        for relation in self.charm.model.relations["alerting"]:
+            # unit_addresses = [address + port for address in ...]
+            if api_addresses_as_json != relation.data[self.charm.app].get("addrs", "null"):
+                relation.data[self.charm.app]["addrs"] = api_addresses_as_json
+                logger.info("'alerting' relation data updated")
