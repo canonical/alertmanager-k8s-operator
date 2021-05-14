@@ -110,4 +110,5 @@ Just run `run_tests`:
 
 ## Additional information
 - [Logging, Monitoring, and Alerting](https://discourse.ubuntu.com/t/logging-monitoring-and-alerting/19151) (LMA) - 
-  a tutorial for running Prometheus, Grafana and Alertmanager with LXD.   
+  a tutorial for running Prometheus, Grafana and Alertmanager with LXD.
+- [Alertmanager README](https://github.com/prometheus/alertmanager)
