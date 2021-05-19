@@ -101,6 +101,10 @@ Install the development requirements
 
     pip install -r requirements-dev.txt
 
+Later on, upgrade packages as needed
+
+    pip install --upgrade -r requirements-dev.txt
+
 ### Testing
 
 Just run `run_tests`:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
+from subprocess import check_output
 
 from provider import AlertingProvider
 from utils import append_unless, md5, fetch_url
@@ -91,13 +92,31 @@ class ExtendedCharmBase(CharmBase):
 
     @property
     def private_address(self) -> IPv4Address:
-        relation = self.model.get_relation("replicas")
-        bind_address = self.model.get_binding(relation).network.bind_address
-        logger.info("in store address: relation = %s, address = %s (%s)", relation, bind_address, str(bind_address))
-        logger.info("all interfaces: %s",
-                    [(interface.name, interface.address) for interface in
-                     self.model.get_binding(relation).network.interfaces])
-        return bind_address
+        """
+        Get the unit's ip address.
+        This is a temporary place for this functionality, as it should be integrated in ops.
+
+        FIXME Currently, both get_relation() and unit-get may return None / empty string when
+              called from on_pebble_ready. This can be reproduced by adding ~3 units.
+              This seems like a bug, so the easiest workaround is to crash and let juju restart,
+              at which point an ip should be available.
+              Without being able to get an ip address reliably on unit startup, the only other
+              thing to rely on is the update_status event, whose frequency is configurable.
+        :return:
+        """
+        # relation = self.model.get_relation("replicas")
+        # bind_address = self.model.get_binding(relation).network.bind_address
+        # logger.info("in store address: relation = %s, address = %s (%s)", relation, bind_address, str(bind_address))
+        # logger.info("all interfaces: %s",
+        #             [(interface.name, interface.address) for interface in
+        #              self.model.get_binding(relation).network.interfaces])
+
+        bind_address = check_output(["unit-get", "private-address"]).decode().strip()
+
+        # if ip address is not yet available, raises AddressValueError('Address cannot be empty'),
+        # which is intentionally left to crash the unit, such that by next startup the ip address
+        # would already be available.
+        return IPv4Address(bind_address)
 
 
 class AlertmanagerCharm(ExtendedCharmBase):

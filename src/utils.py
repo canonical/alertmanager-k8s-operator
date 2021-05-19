@@ -32,7 +32,7 @@ def md5(hashable) -> str:
     return hashlib.md5(hashable).hexdigest()
 
 
-def fetch_url(url: Union[str, None]):
+def fetch_url(url: str) -> Union[str, None]:
     try:
         with urllib.request.urlopen(url) as response:
             html = response.read()
