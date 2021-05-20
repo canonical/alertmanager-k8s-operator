@@ -34,11 +34,13 @@ class AlertingProvider(ProviderBase):
     #     self.update_alerting()
 
     def _on_relation_changed(self, event: ops.charm.RelationChangedEvent):
-        self.update_alerting()
+        if self.charm.unit.is_leader():
+            self.update_alerting()
 
     def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
         # TODO needed in addition to _on_relation_changed?
-        self.update_alerting()
+        if self.charm.unit.is_leader():
+            self.update_alerting()
 
     def update_alerting(self):
         """

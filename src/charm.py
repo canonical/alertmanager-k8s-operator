@@ -12,7 +12,7 @@ from ops.main import main
 from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
 from ops.framework import StoredState
 
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional, Type
 import functools
 import urllib.parse
 import json
@@ -52,15 +52,17 @@ class DeferEventError(Exception):
     pass
 
 
-def status_catcher(func):
-    @functools.wraps(func)
-    def wrapped(self, *args, **kwargs):
-        try:
-            func(self, *args, **kwargs)
-        except DeferEventError as e:
-            self.unit.status = BlockedStatus(str(e))
-
-    return wrapped
+def defer_on(*exception_class: Type[Exception]):
+    def annotation(func):
+        @functools.wraps(func)
+        def wrapped(self, event: ops.charm.EventBase, *args, **kwargs):
+            try:
+                func(self, event, *args, **kwargs)
+            except exception_class as e:
+                self.unit.status = BlockedStatus(str(e))
+                event.defer()
+        return wrapped
+    return annotation
 
 
 class ExtendedCharmBase(CharmBase):
@@ -68,7 +70,7 @@ class ExtendedCharmBase(CharmBase):
     def unit_id(self):
         return int(self.unit.name.split('/')[1])
 
-    def is_service_running(self, service_name: str) -> bool:
+    def is_service_active(self, service_name: str) -> bool:
         # TODO avoid hard-coding string literals
         container = self.unit.get_container("alertmanager")
         return container.get_service(service_name).is_running()
@@ -81,7 +83,7 @@ class ExtendedCharmBase(CharmBase):
 
         try:
             # if the service does not exist, ModelError will be raised
-            if self.is_service_running(service_name):
+            if self.is_service_active(service_name):
                 container.stop(service_name)
             container.start(service_name)
         except ops.model.ModelError:
@@ -91,7 +93,7 @@ class ExtendedCharmBase(CharmBase):
             raise
 
     @property
-    def private_address(self) -> IPv4Address:
+    def private_address(self) -> Optional[IPv4Address]:
         """
         Get the unit's ip address.
         This is a temporary place for this functionality, as it should be integrated in ops.
@@ -104,19 +106,20 @@ class ExtendedCharmBase(CharmBase):
               thing to rely on is the update_status event, whose frequency is configurable.
         :return:
         """
-        # relation = self.model.get_relation("replicas")
-        # bind_address = self.model.get_binding(relation).network.bind_address
-        # logger.info("in store address: relation = %s, address = %s (%s)", relation, bind_address, str(bind_address))
+        relation = self.model.get_relation("replicas")
+        bind_address = self.model.get_binding(relation).network.bind_address
+        logger.info("in store address: relation = %s, address = %s (%s)", relation, bind_address, str(bind_address))
         # logger.info("all interfaces: %s",
         #             [(interface.name, interface.address) for interface in
         #              self.model.get_binding(relation).network.interfaces])
+        return bind_address
 
-        bind_address = check_output(["unit-get", "private-address"]).decode().strip()
+        # bind_address = check_output(["unit-get", "private-address"]).decode().strip()
 
         # if ip address is not yet available, raises AddressValueError('Address cannot be empty'),
         # which is intentionally left to crash the unit, such that by next startup the ip address
         # would already be available.
-        return IPv4Address(bind_address)
+        # return IPv4Address(bind_address)
 
 
 class AlertmanagerCharm(ExtendedCharmBase):
@@ -154,6 +157,14 @@ class AlertmanagerCharm(ExtendedCharmBase):
         status = fetch_url(status_url)
         if not status:
             logger.warning("alertmanager is down (determined by trying to fetch %s)", status_url)
+
+            # After a host reboot, bind_address returns the old ip address from before the reboot
+            # so update_status is the (only) opportunity to fix it.
+            # Need to update IPs and layer before restarting.
+            if self.get_stored_unit_address() != str(self.private_address):
+                self._store_private_address()
+                self.update_layer()
+
             self.restart_service("alertmanager")  # TODO no literals
         else:
             status = json.loads(status)
@@ -164,7 +175,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
         # TODO: fetch prometheus status (<prom_ip>:9090/api/v1/alertmanagers) and confirm that
         #  data.activeAlertmanagers count and IPs match ours
 
-    @status_catcher
+    @defer_on(DeferEventError)
     def _on_alertmanager_pebble_ready(self, event: ops.charm.PebbleReadyEvent):
         """Define and start a workload using the Pebble API.
         """
@@ -178,11 +189,12 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
         # TODO for some reason, upgrade-charm does not trigger alerting_relation_changed when a new
         #  ip address is written to the relation data, so calling it manually here
-        self.provider.update_alerting()
+        if self.unit.is_leader():
+            self.provider.update_alerting()
 
-        # Autostart any services that were defined with startup: enabled
-        container = event.workload
-        container.autostart()
+        # Not using autostart because after deferred re-entry the service is there but the process
+        # is not running, and autostart() will not start it
+        self.restart_service("alertmanager")
 
         # All is well, set an ActiveStatus
         self.provider.ready()
@@ -197,11 +209,11 @@ class AlertmanagerCharm(ExtendedCharmBase):
             return relation.data[self.unit]
         return relation.data[self.unit].get(key)
 
-    def _store_private_address(self) -> bool:
+    def _store_private_address(self):
         bind_address = self.private_address
         if bind_address is None:
-            logger.error("IP address not available")
-            return False
+            logger.warning("IP address not yet available")
+            raise DeferEventError("IP address not available")
 
         logger.info("bind_address: %s = %s", type(bind_address), bind_address)
         # if bind_address is None:
@@ -237,7 +249,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
     #
     #     self.update_layer(restart=True)
 
-    @status_catcher
+    @defer_on(DeferEventError)
     def _on_replicas_relation_changed(self, event: ops.charm.RelationChangedEvent):
         unit_num = self.unit.name.split('/')[1]
         logger.debug("relation changed meta={} model={} unit={}".format(self.meta.name, self.model.name, unit_num))
@@ -254,7 +266,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
         restart = self._unit_bucket("private-address") is not None
         self.update_layer(restart)
 
-    @status_catcher
+    @defer_on(DeferEventError)
     def _on_replicas_relation_departed(self, event: ops.charm.RelationDepartedEvent):
         if self.unit.is_leader():
             self.provider.update_alerting()
@@ -267,7 +279,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
         restart = self._unit_bucket("private-address") is not None
         self.update_layer(restart)
 
-    @status_catcher
+    @defer_on(DeferEventError)
     def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
         # restart only if called after ip address is assigned (after pebble_ready)
         restart = self._unit_bucket("private-address") is not None
@@ -293,16 +305,23 @@ class AlertmanagerCharm(ExtendedCharmBase):
         logger.debug("current unit: %s (%s); peer addresses: %s", self.unit_id, self_address, peer_ha_addresses)
         return peer_ha_addresses
 
+    def get_stored_unit_address(self):
+        # TODO rename to cached?
+        relation = self.model.get_relation("replicas")
+        return relation.data[self.unit].get('private-address', None)
+
     def get_unit_addresses(self) -> Dict[ops.model.Unit, Union[str, None]]:
         """
+        Get the _stored_ unit addresses.
         :return: a map from unit to bind address, no port numbers (None if not available yet)
         """
         # TODO avoid hard-coding string literals
         relation = self.model.get_relation("replicas")
+
         return {unit: relation.data[unit].get('private-address', None) for unit in relation.data
                 if isinstance(unit, ops.model.Unit)}
 
-    def get_api_address(self) -> Union[str, None]:
+    def get_api_address(self) -> Optional[str]:
         unit_address = self.get_unit_addresses()[self.unit]  # TODO make this less ugly
         return append_unless(None, unit_address, f":{self.API_PORT}")
 
