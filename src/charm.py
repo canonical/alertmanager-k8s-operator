@@ -47,6 +47,12 @@ CONFIG_PATH = "/etc/alertmanager/alertmanager.yml"
 # path, inside the workload container for alertmanager logs, e.g. 'nflogs', 'silences'.
 STORAGE_PATH = "/alertmanager"
 
+# String literals for this charm (must match metadata.yaml)
+PEER = "replicas"  # for HA relation
+SERVICE = "alertmanager"  # chosen arbitrarily to match charm name
+CONTAINER = "alertmanager"  # automatically determined from charm name
+LAYER = "alertmanager"  # layer label argument for container.add_layer
+
 
 class DeferEventError(Exception):
     pass
@@ -71,13 +77,11 @@ class ExtendedCharmBase(CharmBase):
         return int(self.unit.name.split('/')[1])
 
     def is_service_active(self, service_name: str) -> bool:
-        # TODO avoid hard-coding string literals
-        container = self.unit.get_container("alertmanager")
+        container = self.unit.get_container(CONTAINER)
         return container.get_service(service_name).is_running()
 
     def restart_service(self, service_name: str):
-        # TODO avoid hard-coding string literals
-        container = self.unit.get_container("alertmanager")
+        container = self.unit.get_container(CONTAINER)
 
         logger.info("Restarting service %s", service_name)
 
@@ -106,7 +110,7 @@ class ExtendedCharmBase(CharmBase):
               thing to rely on is the update_status event, whose frequency is configurable.
         :return:
         """
-        relation = self.model.get_relation("replicas")
+        relation = self.model.get_relation(PEER)
         bind_address = self.model.get_binding(relation).network.bind_address
         logger.info("in store address: relation = %s, address = %s (%s)", relation, bind_address, str(bind_address))
         # logger.info("all interfaces: %s",
@@ -141,14 +145,14 @@ class AlertmanagerCharm(ExtendedCharmBase):
         self.framework.observe(self.on.update_status,
                                self._on_update_status)
 
-        self.framework.observe(self.on["replicas"].relation_departed,
+        self.framework.observe(self.on[PEER].relation_departed,
                                self._on_replicas_relation_departed)
-        # self.framework.observe(self.on["replicas"].relation_joined,
+        # self.framework.observe(self.on[PEER].relation_joined,
         #                        self._on_replicas_relation_joined)
-        self.framework.observe(self.on["replicas"].relation_changed,
+        self.framework.observe(self.on[PEER].relation_changed,
                                self._on_replicas_relation_changed)
 
-        self.provider = AlertingProvider(self, "alerting", "alertmanager")
+        self.provider = AlertingProvider(self, "alerting", SERVICE)
 
         self._stored.set_default(config_hash=None)
 
@@ -165,12 +169,16 @@ class AlertmanagerCharm(ExtendedCharmBase):
                 self._store_private_address()
                 self.update_layer()
 
-            self.restart_service("alertmanager")  # TODO no literals
+            self.restart_service(SERVICE)
         else:
             status = json.loads(status)
-            logger.debug("alertmanager %s is up and running (uptime: %s)",
-                         status["versionInfo"]["version"],
-                         status["uptime"])
+
+            logger.info("alertmanager %s is up and running (uptime: %s); "
+                        "cluster mode: %s, with %d peers",
+                        status["versionInfo"]["version"],
+                        status["uptime"],
+                        status["cluster"]["status"],
+                        len(status["cluster"]["peers"]))
 
         # TODO: fetch prometheus status (<prom_ip>:9090/api/v1/alertmanagers) and confirm that
         #  data.activeAlertmanagers count and IPs match ours
@@ -194,7 +202,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
         # Not using autostart because after deferred re-entry the service is there but the process
         # is not running, and autostart() will not start it
-        self.restart_service("alertmanager")
+        self.restart_service(SERVICE)
 
         # All is well, set an ActiveStatus
         self.provider.ready()
@@ -204,7 +212,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
             self.app.status = ActiveStatus()
 
     def _unit_bucket(self, key: str = None):
-        relation = self.model.get_relation("replicas")
+        relation = self.model.get_relation(PEER)
         if key is None:
             return relation.data[self.unit]
         return relation.data[self.unit].get(key)
@@ -221,7 +229,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
         #     raise DeferEventError("IP address not ready")
 
         # TODO update only if changed (does writing the same value generate a relation-changed event?)
-        relation = self.model.get_relation("replicas")
+        relation = self.model.get_relation(PEER)
         relation.data[self.unit]['private-address'] = str(bind_address)
         logger.info("private address (%s): %s; unit bucket: %s", self.unit.name, str(bind_address), relation.data[self.unit])
 
@@ -233,7 +241,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
             "summary": "alertmanager layer",
             "description": "pebble config layer for alertmanager",
             "services": {
-                "alertmanager": {
+                SERVICE: {
                     "override": "replace",
                     "summary": "alertmanager service",
                     "command": self._command(),
@@ -307,7 +315,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
     def get_stored_unit_address(self):
         # TODO rename to cached?
-        relation = self.model.get_relation("replicas")
+        relation = self.model.get_relation(PEER)
         return relation.data[self.unit].get('private-address', None)
 
     def get_unit_addresses(self) -> Dict[ops.model.Unit, Union[str, None]]:
@@ -315,8 +323,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
         Get the _stored_ unit addresses.
         :return: a map from unit to bind address, no port numbers (None if not available yet)
         """
-        # TODO avoid hard-coding string literals
-        relation = self.model.get_relation("replicas")
+        relation = self.model.get_relation(PEER)
 
         return {unit: relation.data[unit].get('private-address', None) for unit in relation.data
                 if isinstance(unit, ops.model.Unit)}
@@ -365,20 +372,20 @@ class AlertmanagerCharm(ExtendedCharmBase):
         """
         overlay = self._alertmanager_layer()
 
-        container = self.unit.get_container("alertmanager")
+        container = self.unit.get_container(CONTAINER)
         plan = container.get_plan()
 
         is_changed = False
         # if this unit has just started, the services does not yet exist - using "get"
-        service = plan.services.get("alertmanager")
+        service = plan.services.get(SERVICE)
         logger.debug("service = %s", service)
-        if service is None or service.command != overlay["services"]["alertmanager"]["command"]:
+        if service is None or service.command != overlay["services"][SERVICE]["command"]:
             is_changed = True
-            logger.debug("overlay cmd: %s", overlay["services"]["alertmanager"]["command"])
-            container.add_layer("alertmanager", overlay, combine=True)
+            logger.debug("overlay cmd: %s", overlay["services"][SERVICE]["command"])
+            container.add_layer(LAYER, overlay, combine=True)
 
         if is_changed and restart:
-            self.restart_service("alertmanager")  # TODO literal
+            self.restart_service(SERVICE)
 
         return is_changed
 
@@ -393,13 +400,13 @@ class AlertmanagerCharm(ExtendedCharmBase):
         if config_hash != self._stored.config_hash:
             is_changed = True
             # Get a reference to the container so we can manipulate it
-            container = self.unit.get_container("alertmanager")
+            container = self.unit.get_container(CONTAINER)
             container.push(CONFIG_PATH, config_file)
             self._stored.config_hash = config_hash
             logger.debug("new config hash: %s", config_hash)
 
         if is_changed and restart:
-            self.restart_service("alertmanager")  # TODO literal
+            self.restart_service(SERVICE)
 
         return is_changed
 

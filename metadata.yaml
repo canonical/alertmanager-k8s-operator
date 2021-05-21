@@ -24,7 +24,7 @@ containers:
 resources:
   alertmanager-image:
     type: oci-image
-    description: OCI image for alertmanager (quay.io/prometheus/alertmanager)
+    description: OCI image for alertmanager
 
 provides:
   alerting:

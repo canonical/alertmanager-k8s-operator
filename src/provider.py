@@ -11,6 +11,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+RELATION = "alerting"
+
 
 # TODO: name class after the relation?
 class AlertingProvider(ProviderBase):
@@ -44,7 +46,7 @@ class AlertingProvider(ProviderBase):
 
     def update_alerting(self):
         """
-        Update application data bucket for the "alerting" relation
+        Update application data bucket for the relation
         """
         # if not self.charm.unit.is_leader():
         #     return
@@ -56,9 +58,9 @@ class AlertingProvider(ProviderBase):
 
         api_addresses = [address for address in self.charm.get_api_addresses() if address is not None]
         logger.info("Setting app data: addrs: %s", api_addresses)
-        logger.info("existing 'alerting' relations: %s", self.charm.model.relations["alerting"])
+        logger.info("existing 'alerting' relations: %s", self.charm.model.relations[RELATION])
         api_addresses_as_json = json.dumps(api_addresses)
-        for relation in self.charm.model.relations["alerting"]:
+        for relation in self.charm.model.relations[RELATION]:
             # unit_addresses = [address + port for address in ...]
             if api_addresses_as_json != relation.data[self.charm.app].get("addrs", "null"):
                 relation.data[self.charm.app]["addrs"] = api_addresses_as_json
