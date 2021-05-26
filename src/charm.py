@@ -17,6 +17,7 @@ import functools
 import urllib.parse
 import json
 from ipaddress import IPv4Address
+import requests
 import logging
 
 logger = logging.getLogger(__name__)
@@ -91,13 +92,13 @@ class ExtendedCharmBase(CharmBase):
                 container.stop(service_name)
             container.start(service_name)
         except ops.model.ModelError:
-            logger.warning("Service does not (yet?) exist; restart aborted")
+            logger.warning("Service does not (yet?) exist; (re)start aborted")
         except Exception as e:
             logger.warning("failed to (re)start service: %s", str(e))
             raise
 
     @property
-    def private_address(self) -> Optional[IPv4Address]:
+    def private_address(self) -> Optional[str]:
         """
         Get the unit's ip address.
         This is a temporary place for this functionality, as it should be integrated in ops.
@@ -112,11 +113,11 @@ class ExtendedCharmBase(CharmBase):
         """
         relation = self.model.get_relation(PEER)
         bind_address = self.model.get_binding(relation).network.bind_address
-        logger.info("in store address: relation = %s, address = %s (%s)", relation, bind_address, str(bind_address))
+        logger.info("in private address: relation = %s, address = %s (%s)", relation, bind_address, str(bind_address))
         # logger.info("all interfaces: %s",
         #             [(interface.name, interface.address) for interface in
         #              self.model.get_binding(relation).network.interfaces])
-        return bind_address
+        return None if bind_address is None else str(bind_address)
 
         # bind_address = check_output(["unit-get", "private-address"]).decode().strip()
 
@@ -157,6 +158,8 @@ class AlertmanagerCharm(ExtendedCharmBase):
         self._stored.set_default(config_hash=None)
 
     def _on_update_status(self, event: ops.charm.UpdateStatusEvent):
+        # TODO use api address only if it is not None, and remove the try below
+        # TODO store private address regardless, to simplify
         status_url = urllib.parse.urljoin(f"http://{self.get_api_address()}", "/api/v2/status")
         status = fetch_url(status_url)
         if not status:
@@ -165,8 +168,12 @@ class AlertmanagerCharm(ExtendedCharmBase):
             # After a host reboot, bind_address returns the old ip address from before the reboot
             # so update_status is the (only) opportunity to fix it.
             # Need to update IPs and layer before restarting.
-            if self.get_stored_unit_address() != str(self.private_address):
-                self._store_private_address()
+            if self.get_stored_unit_address() != self.private_address:
+                try:
+                    self._store_private_address()
+                except DeferEventError:
+                    # skip this update_status if an ip address is still unavailable
+                    return
                 self.update_layer()
 
             self.restart_service(SERVICE)
@@ -190,19 +197,18 @@ class AlertmanagerCharm(ExtendedCharmBase):
         logger.debug("pebble ready: setting ip address in unit relation bucket")
         self._store_private_address()  # may causes a replica relation change event
 
-        self.update_layer(restart=False)
-
-        # No need to restart because we have autostart right after
-        self.update_config_file(restart=False)
+        if self.update_layer(restart=False) or self.update_config(restart_on_failure=False):
+            # Not using autostart because after deferred re-entry the service is already running and autostart fails
+            self.restart_service(SERVICE)
+            # container = event.workload
+            # container.autostart()
+        else:
+            self.restart_service(SERVICE)
 
         # TODO for some reason, upgrade-charm does not trigger alerting_relation_changed when a new
         #  ip address is written to the relation data, so calling it manually here
         if self.unit.is_leader():
             self.provider.update_alerting()
-
-        # Not using autostart because after deferred re-entry the service is there but the process
-        # is not running, and autostart() will not start it
-        self.restart_service(SERVICE)
 
         # All is well, set an ActiveStatus
         self.provider.ready()
@@ -218,7 +224,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
         return relation.data[self.unit].get(key)
 
     def _store_private_address(self):
-        bind_address = self.private_address
+        bind_address: Optional[str] = self.private_address
         if bind_address is None:
             logger.warning("IP address not yet available")
             raise DeferEventError("IP address not available")
@@ -230,8 +236,8 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
         # TODO update only if changed (does writing the same value generate a relation-changed event?)
         relation = self.model.get_relation(PEER)
-        relation.data[self.unit]['private-address'] = str(bind_address)
-        logger.info("private address (%s): %s; unit bucket: %s", self.unit.name, str(bind_address), relation.data[self.unit])
+        relation.data[self.unit]['private-address'] = bind_address
+        logger.info("private address (%s): %s; unit bucket: %s", self.unit.name, bind_address, relation.data[self.unit])
 
         return True
 
@@ -272,6 +278,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
         #      use this code here instead of duplicating in "joined" and "departed".
         # restart only if called after ip address is assigned (after pebble_ready)
         restart = self._unit_bucket("private-address") is not None
+        logger.debug("_on_replicas_relation_changed: unit_bucket: %s, restart = %s", self._unit_bucket(), restart)
         self.update_layer(restart)
 
     @defer_on(DeferEventError)
@@ -289,9 +296,8 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
     @defer_on(DeferEventError)
     def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
-        # restart only if called after ip address is assigned (after pebble_ready)
-        restart = self._unit_bucket("private-address") is not None
-        self.update_config_file(restart)
+        logger.debug('_on_config_changed: self._unit_bucket("private-address") = %s (%s)', self._unit_bucket("private-address"), type(self._unit_bucket("private-address")))
+        self.update_config(restart_on_failure=True)
 
     def _config_file(self):
         """Create the alertmanager config file from self.model.config"""
@@ -313,7 +319,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
         logger.debug("current unit: %s (%s); peer addresses: %s", self.unit_id, self_address, peer_ha_addresses)
         return peer_ha_addresses
 
-    def get_stored_unit_address(self):
+    def get_stored_unit_address(self) -> Optional[str]:
         # TODO rename to cached?
         relation = self.model.get_relation(PEER)
         return relation.data[self.unit].get('private-address', None)
@@ -365,7 +371,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
                 listen_address_arg,
                 peer_cmd_args)
 
-    def update_layer(self, restart: bool = False) -> bool:
+    def update_layer(self, restart: bool = True) -> bool:
         """
         Update service layer to reflect changes in peers (replicas).
         :return: True if anything changed; False otherwise
@@ -389,7 +395,25 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
         return is_changed
 
-    def update_config_file(self, restart: bool = False) -> bool:
+    def reload_config(self) -> bool:
+        """
+        Send an HTTP POST to alertmanager to reload the config.
+        This reduces down-time compared to restarting the service.
+        """
+        if api_address := self.get_api_address():
+            url = urllib.parse.urljoin(f"http://{api_address}", "/-/reload")
+            try:
+                response = requests.post(url)
+                logger.info("config reload via %s: %d %s", url, response.status_code, response.reason)
+                return response.status_code == 200 and response.reason == 'OK'
+            except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout) as e:
+                logger.info("config reload error via %s: %s", url, str(e))
+                return False
+        else:
+            logger.info("config reload error: no ip address")
+            return False
+
+    def update_config(self, restart_on_failure: bool = False) -> bool:
         """
         :return: True if anything changed; False otherwise
         """
@@ -405,8 +429,11 @@ class AlertmanagerCharm(ExtendedCharmBase):
             self._stored.config_hash = config_hash
             logger.debug("new config hash: %s", config_hash)
 
-        if is_changed and restart:
-            self.restart_service(SERVICE)
+        if is_changed:
+            if not self.reload_config():
+                logger.warning("config reload via HTTP POST failed")
+                if restart_on_failure:
+                    self.restart_service(SERVICE)
 
         return is_changed
 

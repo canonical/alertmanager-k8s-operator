@@ -1,3 +1,4 @@
 #ops >= 1.2.0
 git+https://github.com/balbirthomas/operator/@provider-consumer-lib#egg=ops
 semantic-version
+requests

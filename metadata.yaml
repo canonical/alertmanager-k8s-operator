@@ -29,10 +29,12 @@ resources:
 provides:
   alerting:
     interface: alertmanager
+    # assumed network type: private
 
 peers:
   replicas:
     interface: alertmanager-replica
+    # assumed network type: private
 
 storage:
   data:
