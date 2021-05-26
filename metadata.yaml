@@ -1,4 +1,4 @@
-name: alertmanager
+name: alertmanager-k8s
 
 summary: Alert management for charmed LMA stack
 
