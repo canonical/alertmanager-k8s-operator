@@ -60,6 +60,8 @@ Just run `run_tests`:
     ./run_tests
 
 ## Roadmap
+- Reduce service restarts during scale-up/down
+- Update tests
 - Add additional receivers: slack, telegram bot
 
 ## Additional information

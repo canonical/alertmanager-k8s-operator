@@ -16,7 +16,6 @@ from typing import List, Dict, Union, Optional, Type
 import functools
 import urllib.parse
 import json
-from ipaddress import IPv4Address
 import requests
 import logging
 
@@ -174,8 +173,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
                 except DeferEventError:
                     # skip this update_status if an ip address is still unavailable
                     return
-                self.update_layer()
-
+            self._update_replicas()
             self.restart_service(SERVICE)
         else:
             status = json.loads(status)
@@ -195,20 +193,14 @@ class AlertmanagerCharm(ExtendedCharmBase):
         """Define and start a workload using the Pebble API.
         """
         logger.debug("pebble ready: setting ip address in unit relation bucket")
-        self._store_private_address()  # may causes a replica relation change event
-
-        if self.update_layer(restart=False) or self.update_config(restart_on_failure=False):
-            # Not using autostart because after deferred re-entry the service is already running and autostart fails
-            self.restart_service(SERVICE)
-            # container = event.workload
-            # container.autostart()
-        else:
-            self.restart_service(SERVICE)
+        self._store_private_address()
+        self.update_layer(restart=True)
+        self.update_config(restart_on_failure=True)
 
         # TODO for some reason, upgrade-charm does not trigger alerting_relation_changed when a new
         #  ip address is written to the relation data, so calling it manually here
-        if self.unit.is_leader():
-            self.provider.update_alerting()
+        # if self.unit.is_leader():
+        #     self.provider.update_alerting()
 
         # All is well, set an ActiveStatus
         self.provider.ready()
@@ -217,10 +209,8 @@ class AlertmanagerCharm(ExtendedCharmBase):
         if self.unit.is_leader():
             self.app.status = ActiveStatus()
 
-    def _unit_bucket(self, key: str = None):
+    def _unit_bucket(self, key: str) -> Optional[str]:
         relation = self.model.get_relation(PEER)
-        if key is None:
-            return relation.data[self.unit]
         return relation.data[self.unit].get(key)
 
     def _store_private_address(self):
@@ -263,41 +253,36 @@ class AlertmanagerCharm(ExtendedCharmBase):
     #
     #     self.update_layer(restart=True)
 
+    def _update_replicas(self):
+        self.update_config()
+
+        if self.unit.is_leader():
+            self.provider.update_alerting()  # TODO only if "private-address" present?
+
+        # restart only if called after ip address is assigned (after pebble_ready)
+        # restart = self._unit_bucket("private-address") is not None
+        # logger.debug("_on_replicas_relation_changed: unit_bucket: %s, restart = %s", self._unit_bucket(), restart)
+        self.update_layer()  # TODO remove this when canonical/operator/issues/542 is resolved?
+
     @defer_on(DeferEventError)
     def _on_replicas_relation_changed(self, event: ops.charm.RelationChangedEvent):
         unit_num = self.unit.name.split('/')[1]
         logger.debug("relation changed meta={} model={} unit={}".format(self.meta.name, self.model.name, unit_num))
-        if self.unit.is_leader():
-            self.provider.update_alerting()  # TODO only if "private-address" present?
-
-        # All is well, set an ActiveStatus
-        self.provider.ready()
-        self.unit.status = ActiveStatus()
-
-        # TODO when the bug is fixed and "relation_changed" is fired together with "departed",
-        #      use this code here instead of duplicating in "joined" and "departed".
-        # restart only if called after ip address is assigned (after pebble_ready)
-        restart = self._unit_bucket("private-address") is not None
-        logger.debug("_on_replicas_relation_changed: unit_bucket: %s, restart = %s", self._unit_bucket(), restart)
-        self.update_layer(restart)
+        self._update_replicas()
 
     @defer_on(DeferEventError)
     def _on_replicas_relation_departed(self, event: ops.charm.RelationDepartedEvent):
-        if self.unit.is_leader():
-            self.provider.update_alerting()
-
-        #address = event.relation.data[self.unit].pop('private-address', None)
-        #logger.debug("removed address: %s", address)
-        logger.info('relation unit bucket: %s -> %s', event.relation.data, event.relation.data[self.unit])
-
-        # restart only if called after ip address is assigned (after pebble_ready)
-        restart = self._unit_bucket("private-address") is not None
-        self.update_layer(restart)
+        logger.info('departed event relation unit bucket: %s -> %s', event.relation.data, event.relation.data[self.unit])
+        self._update_replicas()
 
     @defer_on(DeferEventError)
     def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
         logger.debug('_on_config_changed: self._unit_bucket("private-address") = %s (%s)', self._unit_bucket("private-address"), type(self._unit_bucket("private-address")))
-        self.update_config(restart_on_failure=True)
+
+        # consider restarting the service only if ip was already assigned, i.e.
+        # do not restart if this event is part of the startup sequence.
+        restart_on_failure = self.get_stored_unit_address() is not None
+        self.update_config(restart_on_failure)
 
     def _config_file(self):
         """Create the alertmanager config file from self.model.config"""
@@ -308,21 +293,20 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
     def get_peer_addresses(self) -> List[Union[str, None]]:
         unit_addresses = self.get_unit_addresses()
-        logger.debug("before pop: %s", unit_addresses)
+        # logger.debug("before pop: %s", unit_addresses)
         self_address = unit_addresses.pop(self.unit)
-        logger.debug("after pop: %s", unit_addresses)
+        # logger.debug("after pop: %s", unit_addresses)
         peer_ha_addresses = [append_unless(None,
                                            address,
                                            f":{self.HA_PORT}")
                              for address in unit_addresses.values()]
 
-        logger.debug("current unit: %s (%s); peer addresses: %s", self.unit_id, self_address, peer_ha_addresses)
+        logger.debug("current unit: %s (%s); peer addresses: %s (taken from %s)", self.unit_id, self_address, peer_ha_addresses, self.get_unit_addresses())
         return peer_ha_addresses
 
     def get_stored_unit_address(self) -> Optional[str]:
         # TODO rename to cached?
-        relation = self.model.get_relation(PEER)
-        return relation.data[self.unit].get('private-address', None)
+        return self._unit_bucket('private-address')
 
     def get_unit_addresses(self) -> Dict[ops.model.Unit, Union[str, None]]:
         """
@@ -330,6 +314,9 @@ class AlertmanagerCharm(ExtendedCharmBase):
         :return: a map from unit to bind address, no port numbers (None if not available yet)
         """
         relation = self.model.get_relation(PEER)
+
+        all_objects = {obj: relation.data[obj] for obj in relation.data}
+        logger.debug("stored unit address: all objs: %s", all_objects)
 
         return {unit: relation.data[unit].get('private-address', None) for unit in relation.data
                 if isinstance(unit, ops.model.Unit)}

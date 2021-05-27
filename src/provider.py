@@ -56,7 +56,7 @@ class AlertingProvider(ProviderBase):
         #  It's important not to load balance traffic between Prometheus and its Alertmanagers,
         #  but instead, point Prometheus to a list of all Alertmanagers.
 
-        api_addresses = [address for address in self.charm.get_api_addresses() if address is not None]
+        api_addresses = sorted([address for address in self.charm.get_api_addresses() if address is not None])
         logger.info("Setting app data: addrs: %s", api_addresses)
         logger.info("existing 'alerting' relations: %s", self.charm.model.relations[RELATION])
         api_addresses_as_json = json.dumps(api_addresses)
@@ -64,4 +64,4 @@ class AlertingProvider(ProviderBase):
             # unit_addresses = [address + port for address in ...]
             if api_addresses_as_json != relation.data[self.charm.app].get("addrs", "null"):
                 relation.data[self.charm.app]["addrs"] = api_addresses_as_json
-                logger.info("'alerting' relation data updated")
+                logger.info("'alerting' relation data updated for %s", relation)
