@@ -59,7 +59,7 @@ class DeferEventError(Exception):
 
 
 def defer_on(*exception_class: Type[Exception]):
-    def annotation(func):
+    def decorator(func):
         @functools.wraps(func)
         def wrapped(self, event: ops.charm.EventBase, *args, **kwargs):
             try:
@@ -68,7 +68,7 @@ def defer_on(*exception_class: Type[Exception]):
                 self.unit.status = BlockedStatus(str(e))
                 event.defer()
         return wrapped
-    return annotation
+    return decorator
 
 
 class ExtendedCharmBase(CharmBase):
@@ -116,6 +116,12 @@ class ExtendedCharmBase(CharmBase):
         # logger.info("all interfaces: %s",
         #             [(interface.name, interface.address) for interface in
         #              self.model.get_binding(relation).network.interfaces])
+
+        # if bind_address is None:
+        #     ip_a = check_output(["ip", "a"]).decode().strip()
+        #     ipv4s = [item for item in map(str.strip, ip_a.split('\n')) if 'inet ' in item]
+        #     logger.warning("ip address is none; ip a = %s", ipv4s)
+
         return None if bind_address is None else str(bind_address)
 
         # bind_address = check_output(["unit-get", "private-address"]).decode().strip()
@@ -147,8 +153,8 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
         self.framework.observe(self.on[PEER].relation_departed,
                                self._on_replicas_relation_departed)
-        # self.framework.observe(self.on[PEER].relation_joined,
-        #                        self._on_replicas_relation_joined)
+        self.framework.observe(self.on[PEER].relation_joined,
+                               self._on_replicas_relation_joined)
         self.framework.observe(self.on[PEER].relation_changed,
                                self._on_replicas_relation_changed)
 
@@ -198,10 +204,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
         self._store_private_address()
         self.update_layer(restart=True)
         self.update_config(restart_on_failure=True)
-
-        # TODO for some reason, upgrade-charm does not trigger alerting_relation_changed when a new
-        #  ip address is written to the relation data, so calling it manually here
-        # self._update_relations()
+        self.update_relations()
 
         # All is well, set an ActiveStatus
         self.provider.ready()
@@ -248,11 +251,14 @@ class AlertmanagerCharm(ExtendedCharmBase):
             },
         }
 
-    # @status_catcher
-    # def _on_replicas_relation_joined(self, event: ops.charm.RelationJoinedEvent):
-    #     logger.debug("relation changed meta={} model={} unit={}".format(self.meta.name, self.model.name, self.unit_id))
-    #
-    #     self.update_layer(restart=True)
+    @defer_on(DeferEventError)
+    def _on_replicas_relation_joined(self, event: ops.charm.RelationJoinedEvent):
+        # on "replicas joined" peer buckets are visible
+        logger.debug("relation joined meta={} model={} unit={}".format(self.meta.name, self.model.name, self.unit_id))
+
+        self.update_config()  # TODO remove
+        self.update_layer()
+        self.update_relations()
 
     def update_relations(self):
         if self.unit.is_leader():
@@ -262,14 +268,14 @@ class AlertmanagerCharm(ExtendedCharmBase):
     def _on_replicas_relation_changed(self, event: ops.charm.RelationChangedEvent):
         unit_num = self.unit.name.split('/')[1]
         logger.debug("relation changed meta={} model={} unit={}".format(self.meta.name, self.model.name, unit_num))
-        self.update_config()
+        self.update_config()  # TODO remove
         self.update_layer()
         self.update_relations()
 
     @defer_on(DeferEventError)
     def _on_replicas_relation_departed(self, event: ops.charm.RelationDepartedEvent):
         logger.info('departed event relation unit bucket: %s -> %s', event.relation.data, event.relation.data[self.unit])
-        self.update_config()
+        self.update_config()  # TODO remove
         self.update_layer()
         self.update_relations()
 
@@ -380,7 +386,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
         return is_changed
 
-    def reload_config(self) -> bool:
+    def _reload_config(self) -> bool:
         """
         Send an HTTP POST to alertmanager to reload the config.
         This reduces down-time compared to restarting the service.
@@ -415,7 +421,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
             logger.debug("new config hash: %s", config_hash)
 
         if is_changed:
-            if not self.reload_config():
+            if not self._reload_config():
                 logger.warning("config reload via HTTP POST failed")
                 if restart_on_failure:
                     self.restart_service(SERVICE)
