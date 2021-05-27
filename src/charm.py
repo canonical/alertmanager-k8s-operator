@@ -173,7 +173,9 @@ class AlertmanagerCharm(ExtendedCharmBase):
                 except DeferEventError:
                     # skip this update_status if an ip address is still unavailable
                     return
-            self._update_replicas()
+            self.update_config()
+            self.update_layer()
+            self.update_relations()
             self.restart_service(SERVICE)
         else:
             status = json.loads(status)
@@ -199,8 +201,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
         # TODO for some reason, upgrade-charm does not trigger alerting_relation_changed when a new
         #  ip address is written to the relation data, so calling it manually here
-        # if self.unit.is_leader():
-        #     self.provider.update_alerting()
+        # self._update_relations()
 
         # All is well, set an ActiveStatus
         self.provider.ready()
@@ -253,27 +254,24 @@ class AlertmanagerCharm(ExtendedCharmBase):
     #
     #     self.update_layer(restart=True)
 
-    def _update_replicas(self):
-        self.update_config()
-
+    def update_relations(self):
         if self.unit.is_leader():
             self.provider.update_alerting()  # TODO only if "private-address" present?
-
-        # restart only if called after ip address is assigned (after pebble_ready)
-        # restart = self._unit_bucket("private-address") is not None
-        # logger.debug("_on_replicas_relation_changed: unit_bucket: %s, restart = %s", self._unit_bucket(), restart)
-        self.update_layer()  # TODO remove this when canonical/operator/issues/542 is resolved?
 
     @defer_on(DeferEventError)
     def _on_replicas_relation_changed(self, event: ops.charm.RelationChangedEvent):
         unit_num = self.unit.name.split('/')[1]
         logger.debug("relation changed meta={} model={} unit={}".format(self.meta.name, self.model.name, unit_num))
-        self._update_replicas()
+        self.update_config()
+        self.update_layer()
+        self.update_relations()
 
     @defer_on(DeferEventError)
     def _on_replicas_relation_departed(self, event: ops.charm.RelationDepartedEvent):
         logger.info('departed event relation unit bucket: %s -> %s', event.relation.data, event.relation.data[self.unit])
-        self._update_replicas()
+        self.update_config()
+        self.update_layer()
+        self.update_relations()
 
     @defer_on(DeferEventError)
     def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
