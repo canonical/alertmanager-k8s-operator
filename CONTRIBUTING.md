@@ -7,7 +7,7 @@ to a [microk8s](https://microk8s.io/) cluster can be done using the
 following commands
 
     sudo snap install microk8s --classic
-    microk8s.enable dns storage registry dashboard
+    microk8s.enable dns storage
     sudo snap install juju --classic
     juju bootstrap microk8s microk8s
     juju create-storage-pool operator-storage kubernetes storage-class=microk8s-hostpath
