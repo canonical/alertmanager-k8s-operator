@@ -24,18 +24,20 @@ Prometheus by forming a relation with it.
 ### Receivers
 
 Currently, supported receivers are
-  - [PagerDuty](https://www.pagerduty.com/)
+  - [PagerDuty](https://www.pagerduty.com/) (set up with:
+    `juju config alertmanager-k8s pagerduty_key='your-key'`)
 
 ### Scale Out Usage
 
 You may add additional Alertmanager units for high availability
 
-    juju add-unit alertmanager
+    juju add-unit alertmanager-k8s
 
 ## Provided relations
 
 Currently, supported relations are:
-  - [Prometheus](https://github.com/canonical/prometheus-operator)
+  - [Prometheus](https://github.com/canonical/prometheus-operator) (set up with: 
+    `juju add-relation alertmanager-k8s:alerting prometheus-k8s:alertmanager`)
 
 ## Developing
 

@@ -1,17 +1,17 @@
-import functools
+# import functools
 import hashlib
 import urllib.request
 from typing import Union
 
 
-def leader_only(func):
-    @functools.wraps(func)
-    def wrapped(self, *args, **kwargs):
-        if not self.unit.is_leader():
-            return
-        func(*args, **kwargs)
-
-    return wrapped
+# def leader_only(func):
+#     @functools.wraps(func)
+#     def wrapped(self, *args, **kwargs):
+#         if not self.unit.is_leader():
+#             return
+#         func(*args, **kwargs)
+#
+#     return wrapped
 
 
 def append_unless(unless, base, appendable):
@@ -38,5 +38,5 @@ def fetch_url(url: str) -> Union[str, None]:
             html = response.read()
             code = response.getcode()
             return html if code < 400 else None
-    except:
+    except:  # noqa: E722 do not use bare 'except'
         return None

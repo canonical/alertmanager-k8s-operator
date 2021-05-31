@@ -1,20 +1,14 @@
 # Contributing to alertmanager-k8s
 
+## Bugs and pull requests
+
+All bugs and pull requests should be submitted to the [github repo](https://github.com/canonical/alertmanager-operator).
+
 ## Setup
 
 A typical setup using [snaps](https://snapcraft.io/), for deployments
-to a [microk8s](https://microk8s.io/) cluster can be done using the
-following commands
-
-    sudo snap install microk8s --classic
-    microk8s.enable dns storage
-    sudo snap install juju --classic
-    juju bootstrap microk8s microk8s
-    juju create-storage-pool operator-storage kubernetes storage-class=microk8s-hostpath
-
-Create a Juju model (say "lma") for your observability operators
-
-    juju add-model lma
+to a [microk8s](https://microk8s.io/) cluster can be found in the 
+[Juju docs](https://juju.is/docs/olm/microk8s).
 
 ## Build
 
@@ -56,3 +50,6 @@ Finally, add a relation between Prometheus and Alertmanager:
 
     juju add-relation prometheus-k8s:alertmanager alertmanager-k8s:alerting
 
+## Tests
+
+    ./run_tests

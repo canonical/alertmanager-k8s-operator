@@ -11,22 +11,20 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-RELATION = "alerting"
-
 
 # TODO: name class after the relation?
-class AlertingProvider(ProviderBase):
+class AlertmanagerProvider(ProviderBase):
 
     # _stored = StoredState()
+    _provider_relation_name = "alerting"
 
-    def __init__(self, charm, relation_name, service_name, version: str = None):
-        super().__init__(charm, relation_name, service_name, version)
+    def __init__(self, charm, service_name: str, version: str = None):
+        super().__init__(charm, self._provider_relation_name, service_name, version)
         self.charm = charm
-        self._relation_name = relation_name
         self._service_name = service_name
         # self._stored.set_default(consumers={})
 
-        events = self.charm.on[self._relation_name]
+        events = self.charm.on[self._provider_relation_name]
         # self.framework.observe(events.relation_joined, self._on_relation_joined)
         self.framework.observe(events.relation_changed, self._on_relation_changed)
         self.framework.observe(events.relation_broken, self._on_relation_broken)
@@ -36,11 +34,21 @@ class AlertingProvider(ProviderBase):
     #     self.update_alerting()
 
     def _on_relation_changed(self, event: ops.charm.RelationChangedEvent):
+        logger.info("ALERTING RELATION CHANGED")
+        if not self.charm._stored.started:
+            event.defer()
+            return
+
         if self.charm.unit.is_leader():
             self.update_alerting()
 
+    # TODO broken or departed?
     def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
-        # TODO needed in addition to _on_relation_changed?
+        logger.info("ALERTING RELATION BROKEN")
+        if not self.charm._stored.started:
+            event.defer()
+            return
+
         if self.charm.unit.is_leader():
             self.update_alerting()
 
@@ -56,12 +64,12 @@ class AlertingProvider(ProviderBase):
         #  It's important not to load balance traffic between Prometheus and its Alertmanagers,
         #  but instead, point Prometheus to a list of all Alertmanagers.
 
-        api_addresses = sorted([address for address in self.charm.get_api_addresses() if address is not None])
-        logger.info("Setting app data: addrs: %s", api_addresses)
-        logger.info("existing 'alerting' relations: %s", self.charm.model.relations[RELATION])
+        api_addresses = sorted([address for address in self.charm.get_api_addresses()
+                                if address is not None])
         api_addresses_as_json = json.dumps(api_addresses)
-        for relation in self.charm.model.relations[RELATION]:
-            # unit_addresses = [address + port for address in ...]
-            if api_addresses_as_json != relation.data[self.charm.app].get("addrs", "null"):
+        for relation in self.charm.model.relations[self._provider_relation_name]:
+            if api_addresses_as_json != relation.data[self.charm.app].get("addrs", json.dumps([])):
+                logger.info("Setting app data: addrs: %s", api_addresses)
+                logger.info("existing 'alerting' relations: %s",
+                            self.charm.model.relations[self._provider_relation_name])
                 relation.data[self.charm.app]["addrs"] = api_addresses_as_json
-                logger.info("'alerting' relation data updated for %s", relation)

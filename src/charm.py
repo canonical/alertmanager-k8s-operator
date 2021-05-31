@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
-from subprocess import check_output
 
-from provider import AlertingProvider
+from provider import AlertmanagerProvider
 from utils import append_unless, md5, fetch_url
 
 import ops
 from ops.charm import CharmBase
 from ops.main import main
-from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
+from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 from ops.framework import StoredState
 
-from typing import List, Dict, Union, Optional, Type
-import functools
+from typing import List, Dict, Union, Optional
 import urllib.parse
 import json
 import requests
@@ -54,24 +52,18 @@ CONTAINER = "alertmanager"  # automatically determined from charm name
 LAYER = "alertmanager"  # layer label argument for container.add_layer
 
 
-class DeferEventError(Exception):
+class AlertmanagerHTTPController:
     pass
 
 
-def defer_on(*exception_class: Type[Exception]):
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapped(self, event: ops.charm.EventBase, *args, **kwargs):
-            try:
-                func(self, event, *args, **kwargs)
-            except exception_class as e:
-                self.unit.status = BlockedStatus(str(e))
-                event.defer()
-        return wrapped
-    return decorator
+class AlertmanagerCharm(CharmBase):
+    """A Juju charm for Alertmanager"""
 
+    API_PORT: str = "9093"  # port to listen on for the web interface and API
+    HA_PORT: str = "9094"  # port for HA-communication between multiple instances of alertmanger
 
-class ExtendedCharmBase(CharmBase):
+    _stored = StoredState()
+
     @property
     def unit_id(self):
         return int(self.unit.name.split('/')[1])
@@ -90,81 +82,126 @@ class ExtendedCharmBase(CharmBase):
             if self.is_service_active(service_name):
                 container.stop(service_name)
             container.start(service_name)
+
         except ops.model.ModelError:
             logger.warning("Service does not (yet?) exist; (re)start aborted")
         except Exception as e:
             logger.warning("failed to (re)start service: %s", str(e))
             raise
 
+        # Update "launched with peers" flag.
+        # The service will be restarted when peers joined if this is False.
+        container = self.unit.get_container(CONTAINER)
+        plan = container.get_plan()
+        service = plan.services.get(SERVICE)
+        self._stored.launched_with_peers = "yes" if "--cluster.peer" in service.command else None
+
     @property
     def private_address(self) -> Optional[str]:
         """
         Get the unit's ip address.
-        This is a temporary place for this functionality, as it should be integrated in ops.
+        This is a temporary placeholder for this functionality, as it should be integrated in ops.
 
-        FIXME Currently, both get_relation() and unit-get may return None / empty string when
-              called from on_pebble_ready. This can be reproduced by adding ~3 units.
-              This seems like a bug, so the easiest workaround is to crash and let juju restart,
-              at which point an ip should be available.
-              Without being able to get an ip address reliably on unit startup, the only other
-              thing to rely on is the update_status event, whose frequency is configurable.
-        :return:
+        :return: None if called before unit "joined"; unit's ip address otherwise
         """
+
         relation = self.model.get_relation(PEER)
         bind_address = self.model.get_binding(relation).network.bind_address
-        logger.info("in private address: relation = %s, address = %s (%s)", relation, bind_address, str(bind_address))
-        # logger.info("all interfaces: %s",
-        #             [(interface.name, interface.address) for interface in
-        #              self.model.get_binding(relation).network.interfaces])
-
-        # if bind_address is None:
-        #     ip_a = check_output(["ip", "a"]).decode().strip()
-        #     ipv4s = [item for item in map(str.strip, ip_a.split('\n')) if 'inet ' in item]
-        #     logger.warning("ip address is none; ip a = %s", ipv4s)
+        # bind_address = check_output(["unit-get", "private-address"]).decode().strip()
 
         return None if bind_address is None else str(bind_address)
 
-        # bind_address = check_output(["unit-get", "private-address"]).decode().strip()
-
-        # if ip address is not yet available, raises AddressValueError('Address cannot be empty'),
-        # which is intentionally left to crash the unit, such that by next startup the ip address
-        # would already be available.
-        # return IPv4Address(bind_address)
-
-
-class AlertmanagerCharm(ExtendedCharmBase):
-    """A Juju charm for Alertmanager"""
-
-    API_PORT: str = "9093"  # port to listen on for the web interface and API
-    HA_PORT: str = "9094"  # port for HA-communication between multiple instances of alertmanger
-
-    _stored = StoredState()
+    @property
+    def peer_relation(self):
+        return self.model.get_relation(PEER)
 
     def __init__(self, *args):
-        logger.debug("Initializing charm.")
+        logger.info("Initializing charm.")
         super().__init__(*args)
         self.framework.observe(self.on.alertmanager_pebble_ready,
                                self._on_alertmanager_pebble_ready)
         self.framework.observe(self.on.config_changed,
                                self._on_config_changed)
 
+        self.framework.observe(self.on.start,
+                               self._on_start)
+
         self.framework.observe(self.on.update_status,
                                self._on_update_status)
 
         self.framework.observe(self.on[PEER].relation_departed,
                                self._on_replicas_relation_departed)
-        self.framework.observe(self.on[PEER].relation_joined,
-                               self._on_replicas_relation_joined)
         self.framework.observe(self.on[PEER].relation_changed,
                                self._on_replicas_relation_changed)
+        self.framework.observe(self.on[PEER].relation_joined,
+                               self._on_replicas_relation_joined)
 
-        self.provider = AlertingProvider(self, "alerting", SERVICE)
+        # link LeaderElected to RelationChanged because in case a departing unit is the leader, it
+        # is not guaranteed that LeaderElected would be emitted before RelationChanged, and
+        # therefore the "is_leader" guards would prevent key operator logic from being executed.
+        self.framework.observe(self.on.leader_elected,
+                               # self._on_replicas_relation_changed)
+                               self._on_leader_elected)
 
-        self._stored.set_default(config_hash=None)
+        self.provider = AlertmanagerProvider(self, SERVICE)
+
+        self._stored.set_default(
+            config_hash=None,
+            pebble_ready=None,
+            started=None,
+            launched_with_peers=None,
+            config_valid=None,
+        )
+
+    def _on_start(self, event: ops.charm.StartEvent):
+        logger.info("START")
+        if not all([self.private_address, self._stored.pebble_ready]):
+            logger.info("on_start: deferring because no private address or not pebble_ready")
+            event.defer()
+            self.update_unit_status()
+            return
+
+        # TODO make _store_private_address an inner function?
+        self._store_private_address()
+        # self.update_config()
+        self.update_layer()
+
+        logger.info("on_start: setting _stored.started = 'yes'")
+        self._stored.started = "yes"
+
+        self.update_unit_status()
+
+        if not self._stored.config_valid:
+            logger.info("StartEvent emitted before ConfigChangedEvent. "
+                        "This may prevent startup sequence from completing until "
+                        "ConfigChangedEvent is re-emitted, e.g. on the next UpdateStatusEvent.")
+
+        if self.unit.is_leader():
+            self.app.status = ActiveStatus()
+
+    def update_unit_status(self):
+        if self._stored.started and self._stored.config_valid:
+            # All is well, set an ActiveStatus
+            # self.provider.ready()
+            self.unit.status = ActiveStatus()
+        else:
+            # self.provider.unready()
+            if self._stored.started:
+                self.unit.status = BlockedStatus("PagerDuty service key missing")
+            elif self._stored.config_valid:
+                self.unit.status = WaitingStatus("Waiting for IP address")
+            else:  # neither "started" or "config_valid"
+                self.unit.status = WaitingStatus("Waiting for unit to start")
 
     def _on_update_status(self, event: ops.charm.UpdateStatusEvent):
+        logger.info("UPDATE STATUS")
         # TODO use api address only if it is not None, and remove the try below
         # TODO store private address regardless, to simplify
+
+        if not self.private_address:
+            logger.info("Skipping UpdateStatusEvent because ip address is not available")
+            return
+
         status_url = urllib.parse.urljoin(f"http://{self.get_api_address()}", "/api/v2/status")
         status = fetch_url(status_url)
         if not status:
@@ -174,11 +211,8 @@ class AlertmanagerCharm(ExtendedCharmBase):
             # so update_status is the (only) opportunity to fix it.
             # Need to update IPs and layer before restarting.
             if self.get_stored_unit_address() != self.private_address:
-                try:
-                    self._store_private_address()
-                except DeferEventError:
-                    # skip this update_status if an ip address is still unavailable
-                    return
+                self._store_private_address()
+
             self.update_config()
             self.update_layer()
             self.update_relations()
@@ -196,42 +230,31 @@ class AlertmanagerCharm(ExtendedCharmBase):
         # TODO: fetch prometheus status (<prom_ip>:9090/api/v1/alertmanagers) and confirm that
         #  data.activeAlertmanagers count and IPs match ours
 
-    @defer_on(DeferEventError)
     def _on_alertmanager_pebble_ready(self, event: ops.charm.PebbleReadyEvent):
-        """Define and start a workload using the Pebble API.
-        """
-        logger.debug("pebble ready: setting ip address in unit relation bucket")
-        self._store_private_address()
-        self.update_layer(restart=True)
-        self.update_config(restart_on_failure=True)
-        self.update_relations()
+        logger.info("PEBBLE READY")
+        self._stored.pebble_ready = "yes"
 
-        # All is well, set an ActiveStatus
-        self.provider.ready()
-        self.unit.status = ActiveStatus()
-
-        if self.unit.is_leader():
-            self.app.status = ActiveStatus()
+        if not self._stored.config_valid or not self._stored.started:
+            logger.info("PebbleReady emitted before StartEvent or ConfigChangedEvent. "
+                        "This may prevent startup sequence from completing until re-emission is "
+                        "triggered, e.g. on the next UpdateStatusEvent.")
 
     def _unit_bucket(self, key: str) -> Optional[str]:
-        relation = self.model.get_relation(PEER)
-        return relation.data[self.unit].get(key)
+        return self.peer_relation.data[self.unit].get(key)
 
     def _store_private_address(self):
+        """
+        Precondition: IP address is available
+        """
         bind_address: Optional[str] = self.private_address
-        if bind_address is None:
-            logger.warning("IP address not yet available")
-            raise DeferEventError("IP address not available")
-
-        logger.info("bind_address: %s = %s", type(bind_address), bind_address)
-        # if bind_address is None:
-        #     # This can happen, even when called from pebble_ready
-        #     raise DeferEventError("IP address not ready")
-
-        # TODO update only if changed (does writing the same value generate a relation-changed event?)
-        relation = self.model.get_relation(PEER)
-        relation.data[self.unit]['private-address'] = bind_address
-        logger.info("private address (%s): %s; unit bucket: %s", self.unit.name, bind_address, relation.data[self.unit])
+        if not bind_address:
+            logger.warning("bind_address is None")
+        # update only if changed
+        # TODO does writing the same value generate a relation-changed event?
+        if self.peer_relation.data[self.unit].get('private-address') != bind_address:
+            logger.info("changing private address from %s to %s",
+                        self.peer_relation.data[self.unit].get('private-address'), bind_address)
+            self.peer_relation.data[self.unit]['private-address'] = bind_address
 
         return True
 
@@ -251,65 +274,75 @@ class AlertmanagerCharm(ExtendedCharmBase):
             },
         }
 
-    @defer_on(DeferEventError)
-    def _on_replicas_relation_joined(self, event: ops.charm.RelationJoinedEvent):
-        # on "replicas joined" peer buckets are visible
-        logger.debug("relation joined meta={} model={} unit={}".format(self.meta.name, self.model.name, self.unit_id))
-
-        self.update_config()  # TODO remove
-        self.update_layer()
-        self.update_relations()
-
     def update_relations(self):
+        logger.info("update_relations: stored api addresses: %s", self.get_api_addresses())
         if self.unit.is_leader():
-            self.provider.update_alerting()  # TODO only if "private-address" present?
+            self.provider.update_alerting()
 
-    @defer_on(DeferEventError)
+    def _on_replicas_relation_joined(self, event: ops.charm.RelationJoinedEvent):
+        logger.info("REPLICAS RELATION JOINED (self: %s, remote: %s)",
+                    self.unit.name.split('/')[1], event.unit.name.split('/')[1])
+
+    def _on_leader_elected(self, event: ops.charm.LeaderElectedEvent):
+        logger.info("LEADER ELECTED")
+
+        self.update_layer(restart=not bool(self._stored.launched_with_peers))
+        self.update_relations()
+
     def _on_replicas_relation_changed(self, event: ops.charm.RelationChangedEvent):
-        unit_num = self.unit.name.split('/')[1]
-        logger.debug("relation changed meta={} model={} unit={}".format(self.meta.name, self.model.name, unit_num))
-        self.update_config()  # TODO remove
-        self.update_layer()
+        logger.info("REPLICAS RELATION CHANGED (self: %s, remote: %s)",
+                    self.unit.name.split('/')[1], event.unit.name.split('/')[1])
+        if not self._stored.started:
+            event.defer()
+            return
+
+        self.update_layer(restart=not bool(self._stored.launched_with_peers))
         self.update_relations()
 
-    @defer_on(DeferEventError)
     def _on_replicas_relation_departed(self, event: ops.charm.RelationDepartedEvent):
-        logger.info('departed event relation unit bucket: %s -> %s', event.relation.data, event.relation.data[self.unit])
-        self.update_config()  # TODO remove
-        self.update_layer()
+        logger.info("REPLICAS RELATIONS DEPARTED")
+        if not self._stored.started:
+            event.defer()
+            return
+
+        self.update_layer(restart=False)
         self.update_relations()
 
-    @defer_on(DeferEventError)
+    def is_config_valid(self) -> bool:
+        return bool(self.model.config.get("pagerduty_key"))
+
     def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
-        logger.debug('_on_config_changed: self._unit_bucket("private-address") = %s (%s)', self._unit_bucket("private-address"), type(self._unit_bucket("private-address")))
+        logger.info("CONFIG CHANGED")
+        if not self._stored.started:
+            event.defer()
+            self.update_unit_status()
+            return
+
+        # TODO rename from config_valid to config_pushed and move under `update_config`
+        self._stored.config_valid = "yes" if self.is_config_valid() else None
 
         # consider restarting the service only if ip was already assigned, i.e.
         # do not restart if this event is part of the startup sequence.
-        restart_on_failure = self.get_stored_unit_address() is not None
-        self.update_config(restart_on_failure)
+        # restart_on_failure = self.get_stored_unit_address() is not None
+        self.update_config(restart_on_failure=True)
 
-    def _config_file(self):
+        self.update_unit_status()
+
+    def _render_config_file(self):
         """Create the alertmanager config file from self.model.config"""
-        if not self.model.config["pagerduty_key"]:
-            raise DeferEventError("Missing pagerduty_key config value")
-
         return CONFIG_CONTENT.format(pagerduty_key=self.model.config["pagerduty_key"])
 
     def get_peer_addresses(self) -> List[Union[str, None]]:
         unit_addresses = self.get_unit_addresses()
-        # logger.debug("before pop: %s", unit_addresses)
-        self_address = unit_addresses.pop(self.unit)
-        # logger.debug("after pop: %s", unit_addresses)
+        unit_addresses.pop(self.unit)
         peer_ha_addresses = [append_unless(None,
                                            address,
                                            f":{self.HA_PORT}")
                              for address in unit_addresses.values()]
 
-        logger.debug("current unit: %s (%s); peer addresses: %s (taken from %s)", self.unit_id, self_address, peer_ha_addresses, self.get_unit_addresses())
         return peer_ha_addresses
 
     def get_stored_unit_address(self) -> Optional[str]:
-        # TODO rename to cached?
         return self._unit_bucket('private-address')
 
     def get_unit_addresses(self) -> Dict[ops.model.Unit, Union[str, None]]:
@@ -317,13 +350,9 @@ class AlertmanagerCharm(ExtendedCharmBase):
         Get the _stored_ unit addresses.
         :return: a map from unit to bind address, no port numbers (None if not available yet)
         """
-        relation = self.model.get_relation(PEER)
+        relation = self.peer_relation
 
-        all_objects = {obj: relation.data[obj] for obj in relation.data}
-        logger.debug("stored unit address: all objs: %s", all_objects)
-
-        return {unit: relation.data[unit].get('private-address', None) for unit in relation.data
-                if isinstance(unit, ops.model.Unit)}
+        return {unit: relation.data[unit].get('private-address', None) for unit in relation.units}
 
     def get_api_address(self) -> Optional[str]:
         unit_address = self.get_unit_addresses()[self.unit]  # TODO make this less ugly
@@ -331,8 +360,9 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
     def get_api_addresses(self) -> List[Union[str, None]]:
         """
-        :return: a list of all units' addresses, including the API port (or None if not available yet)
+        :return: a list of all units' addresses, including the API port (None if not available yet)
         """
+        logger.info("get_api_addresses: all addresses: %s", self.get_unit_addresses())
         return [append_unless(None,
                               address,
                               f":{self.API_PORT}")
@@ -356,17 +386,24 @@ class AlertmanagerCharm(ExtendedCharmBase):
 
         return "/bin/alertmanager --config.file={} --storage.path={} --web.listen-address=:{} " \
                "--cluster.listen-address={} {}".format(
-                CONFIG_PATH,
-                STORAGE_PATH,
-                self.API_PORT,
-                listen_address_arg,
-                peer_cmd_args)
+                   CONFIG_PATH,
+                   STORAGE_PATH,
+                   self.API_PORT,
+                   listen_address_arg,
+                   peer_cmd_args)
 
     def update_layer(self, restart: bool = True) -> bool:
         """
         Update service layer to reflect changes in peers (replicas).
         :return: True if anything changed; False otherwise
         """
+
+        # _store_private_address is here because of the "disappearing data buckets" phenomenon:
+        # [deploy 4 units -> add relation to prometheus -> config pager duty] - after config
+        # changed event, various unit buckets disappear one after the other, and as a result the ip
+        # addresses shows up as None.
+        self._store_private_address()
+
         overlay = self._alertmanager_layer()
 
         container = self.unit.get_container(CONTAINER)
@@ -375,10 +412,8 @@ class AlertmanagerCharm(ExtendedCharmBase):
         is_changed = False
         # if this unit has just started, the services does not yet exist - using "get"
         service = plan.services.get(SERVICE)
-        logger.debug("service = %s", service)
         if service is None or service.command != overlay["services"][SERVICE]["command"]:
             is_changed = True
-            logger.debug("overlay cmd: %s", overlay["services"][SERVICE]["command"])
             container.add_layer(LAYER, overlay, combine=True)
 
         if is_changed and restart:
@@ -395,21 +430,25 @@ class AlertmanagerCharm(ExtendedCharmBase):
             url = urllib.parse.urljoin(f"http://{api_address}", "/-/reload")
             try:
                 response = requests.post(url)
-                logger.info("config reload via %s: %d %s", url, response.status_code, response.reason)
+                logger.info("config reload via %s: %d %s",
+                            url, response.status_code, response.reason)
                 return response.status_code == 200 and response.reason == 'OK'
             except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout) as e:
-                logger.info("config reload error via %s: %s", url, str(e))
+                logger.error("config reload error via %s: %s", url, str(e))
                 return False
         else:
-            logger.info("config reload error: no ip address")
+            logger.error("config reload error: no ip address")
             return False
 
-    def update_config(self, restart_on_failure: bool = False) -> bool:
+    def update_config(self, restart_on_failure: bool = False) -> Optional[bool]:
         """
-        :return: True if anything changed; False otherwise
+        :return: None if failed, True if anything changed, False otherwise
         """
-        # TODO validate config
-        config_file = self._config_file()
+        if not self.is_config_valid():
+            logger.warning("Config is incomplete/invalid; skipping config update")
+            return None
+
+        config_file = self._render_config_file()
         config_hash = md5(config_file)
         is_changed = False
         if config_hash != self._stored.config_hash:
@@ -418,7 +457,7 @@ class AlertmanagerCharm(ExtendedCharmBase):
             container = self.unit.get_container(CONTAINER)
             container.push(CONFIG_PATH, config_file)
             self._stored.config_hash = config_hash
-            logger.debug("new config hash: %s", config_hash)
+            logger.info("new config hash: %s", config_hash)
 
         if is_changed:
             if not self._reload_config():
