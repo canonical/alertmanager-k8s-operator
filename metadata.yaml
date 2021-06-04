@@ -1,12 +1,15 @@
 name: alertmanager-k8s
 
-summary: Alert management for charmed LMA stack
+summary: |
+  Kubernetes charm for Alertmanager.
 
 maintainers:
   - Dylan Stephano-Shachter <dylan.stephano-shachter@canonical.com>
 
 description: |
-  The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
+  Alertmanager handles alerts sent by client applications such as the Prometheus server.
+  It takes care of deduplicating, grouping, and routing them to the correct receiver integrations
+  such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
 tags:
   - observability

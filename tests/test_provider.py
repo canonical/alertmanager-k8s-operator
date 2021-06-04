@@ -7,7 +7,6 @@ from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.testing import Harness
 
-import json
 import unittest
 from typing import List, Union
 
@@ -40,20 +39,17 @@ class TestProvider(unittest.TestCase):
         self.harness.set_leader(True)
         self.harness.begin()
 
-    def test_update_alerting(self):
+    def test_relation_joined(self):
         rel_id = self.harness.add_relation(relation_name="alerting",
                                            remote_app="alertmanager-k8s")
 
         rel_data = self.harness.get_relation_data(rel_id, "alertmanager-k8s")
         self.assertEqual({}, rel_data)
 
-        old_api_addresses = ["8.8.8.8:8888", "9.9.9.9:9999"]
-        self.harness.update_relation_data(
-            rel_id, "alertmanager-k8s", {"addrs": json.dumps(old_api_addresses)}
-        )
-        self.assertEqual({"addrs": json.dumps(old_api_addresses)},
-                         self.harness.get_relation_data(rel_id, "alertmanager-k8s"))
+        # rel = self.harness.charm.framework.model.get_relation("alerting", rel_id)
+        # TODO how to patch underlying call to
+        #  self.model.get_binding(event.relation).network.bind_address
+        # self.harness.charm.on["alerting"].relation_joined.emit(rel)
 
-        self.harness.charm.provider.update_alerting()
-        self.assertEqual({"addrs": json.dumps(["1.1.1.1:1111", "2.2.2.2:2222", "3.3.3.3:3333"])},
-                         self.harness.get_relation_data(rel_id, "alertmanager-k8s"))
+        rel_data = self.harness.get_relation_data(rel_id, "alertmanager-k8s")
+        # self.assertEqual(..., rel_data)
