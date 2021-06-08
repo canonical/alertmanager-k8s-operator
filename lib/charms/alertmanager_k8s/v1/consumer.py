@@ -74,6 +74,7 @@ class AlertmanagerConsumer(ConsumerBase):
 
             # TODO figure out how to emit instead
             self.charm._on_alertmanager_available(event)
+            # TODO test this: self.on[self._consumer_relation_name].available.emit()
 
     def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
         self._stored.alertmanagers.clear()

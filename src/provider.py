@@ -23,21 +23,13 @@ class AlertmanagerProvider(ProviderBase):
 
         events = self.charm.on[self._provider_relation_name]
         self.framework.observe(events.relation_joined, self._on_relation_joined)
-        self.framework.observe(events.relation_departed, self._on_relation_departed)
-        self.framework.observe(events.relation_broken, self._on_relation_broken)
+
+        # No need to observe `relation_departed` or `relation_broken`: data bags are auto-updated
+        # so both events are address on the consumer side.
+        self.framework.observe(events.relation_joined, self._on_relation_joined)
 
     def _on_relation_joined(self, event: ops.charm.RelationJoinedEvent):
         # "ingress-address" is auto-populated incorrectly so rolling my own, "public_address"
         event.relation.data[self.charm.unit]["public_address"] = str(
             self.model.get_binding(event.relation).network.bind_address
         )
-
-    def _on_relation_departed(self, event: ops.charm.RelationDepartedEvent):
-        # Nothing to do here: data bags are auto-updated and relation_departed is address
-        # on the consumer side.
-        pass
-
-    def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
-        # Nothing to do here: data bags are auto-updated and relation_departed is address
-        # on the consumer side.
-        pass
