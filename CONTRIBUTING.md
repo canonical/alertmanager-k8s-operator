@@ -1,8 +1,26 @@
 # Contributing to alertmanager-k8s
+Alertmanager, as the name suggests, filters incoming alerts and routes them to pre-defined 
+receivers. Alertmanager reads its configuration from an `alertmanager.yml`, some aspects of which 
+are exposed to the user via `juju config` calls (see [`config.yaml`](config.yaml)).
+In the future, integrator charms may be used for configuring Alertmanager.
+
+The intended use case of this operator is to be deployed together with the 
+[prometheus-k8s operator](https://github.com/canonical/prometheus-operator), although that is not 
+necessary, as [Alertmanager's HTTP API][Alertmanager API browser] could be 
+[used](https://github.com/prometheus/alertmanager/issues/437#issuecomment-263413632) instead.
+
+HA is achieved by providing each Alertmanager instance at least one IP address of another instance.
+The cluster would then auto-update with subsequent changes to the cluster.
+
+## Known issues
+1. Adding multiple receivers of the same type (e.g. PagerDuty) is not very scalable, due to the 
+   nature of the `juju config` command. This is likely to improve in the future by using integrator
+   charms.
 
 ## Bugs and pull requests
 
-All bugs and pull requests should be submitted to the [github repo](https://github.com/canonical/alertmanager-operator).
+All bugs and pull requests should be submitted to the 
+[github repo](https://github.com/canonical/alertmanager-operator).
 
 ## Setup
 
@@ -50,6 +68,9 @@ Finally, add a relation between Prometheus and Alertmanager:
 
     juju add-relation prometheus-k8s:alertmanager alertmanager-k8s:alerting
 
-## Tests
+## Testing
 
     ./run_tests
+
+## References
+- [Alertmanager API browser]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml

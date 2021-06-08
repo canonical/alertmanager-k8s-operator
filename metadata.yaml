@@ -3,9 +3,6 @@ name: alertmanager-k8s
 summary: |
   Kubernetes charm for Alertmanager.
 
-maintainers:
-  - Dylan Stephano-Shachter <dylan.stephano-shachter@canonical.com>
-
 description: |
   Alertmanager handles alerts sent by client applications such as the Prometheus server.
   It takes care of deduplicating, grouping, and routing them to the correct receiver integrations

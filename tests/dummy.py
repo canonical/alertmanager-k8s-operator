@@ -40,4 +40,3 @@ class DummyCharmForTestingConsumer(CharmBase):
 
     def _on_alertmanager_available(self, event):
         pass
-

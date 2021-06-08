@@ -2,8 +2,8 @@
 
 ## Description
 
-The [Alertmanager] operator provides an alerting solution for the 
-[Prometheus][Prometheus Docs] [Operator][Prometheus Operator]. It is part of an Observability stack in the [Juju] charm
+The [Alertmanager] operator provides an alerting solution for the [Prometheus][Prometheus Docs] 
+[Operator][Prometheus Operator]. It is part of an Observability stack in the [Juju] charm
 [ecosystem]. Alertmanager accepts alerts from Prometheus, then deduplicates, groups
 and routes them to the selected receiver, based on a set of alerting rules. These
 alerting rules may be set by any supported [charm] that uses the services of
@@ -55,18 +55,12 @@ Later on, upgrade packages as needed
 
     pip install --upgrade -r requirements-dev.txt
 
-### Testing
-
-Just run `run_tests`:
-
-    ./run_tests
-
 ## Roadmap
-- Reduce service restarts during scale-up/down
-- Update tests
-- Add additional receivers: slack, telegram bot
+- Improve tests
+- Add additional receivers: webhook, Pushover
 
 ## Additional information
 - [Logging, Monitoring, and Alerting](https://discourse.ubuntu.com/t/logging-monitoring-and-alerting/19151) (LMA) - 
   a tutorial for running Prometheus, Grafana and Alertmanager with LXD.
 - [Alertmanager README](https://github.com/prometheus/alertmanager)
+- [PromCon 2018: Life of an Alert](https://youtube.com/watch?v=PUdjca23Qa4)

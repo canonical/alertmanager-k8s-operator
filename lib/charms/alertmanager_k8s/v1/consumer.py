@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 
 
 class AlertmanagerConsumer(ConsumerBase):
-    """A one sentence summary of the class.
-    This section gives more details about the class and what
-    it does.
+    """A "consumer" handler to be used by charms that relate to Alertmanager.
+    This consumer auto-registers relation events on behalf of the user and communicates information
+    directly via `_stored` TODO: have a documented contract and act on it in the "available" hook.
 
     Arguments:
             charm (CharmBase): consumer charm
@@ -41,7 +41,7 @@ class AlertmanagerConsumer(ConsumerBase):
         super().__init__(charm, relation_name, consumes, multi)
         self.charm = charm
         self._consumer_relation_name = relation_name  # from consumer's metadata.yaml
-        self._provider_relation_name = "alerting"  # from alertmanager's metadata.yaml
+        # self._provider_relation_name = "alerting"  # from alertmanager's metadata.yaml
 
         self.framework.observe(self.charm.on[self._consumer_relation_name].relation_changed,
                                self._on_relation_changed)
@@ -53,6 +53,10 @@ class AlertmanagerConsumer(ConsumerBase):
         self._stored.set_default(alertmanagers={})
 
     def _on_relation_changed(self, event: ops.charm.RelationChangedEvent):
+        """This hook stores locally the address of the newly-joined alertmanager.
+        This is needed for consumers such as prometheus, which should be aware of all alertmanager
+        instances.
+        """
         if event.unit:  # event.unit may be `None` in the case of app data change
             # Save locally the public IP address of the alertmanager unit
             if address := event.relation.data[event.unit].get("public_address"):
@@ -66,6 +70,10 @@ class AlertmanagerConsumer(ConsumerBase):
             self.charm._on_alertmanager_available(event)
 
     def _on_relation_departed(self, event: ops.charm.RelationDepartedEvent):
+        """This hook removes the address of the departing alertmanager from its local store.
+        This is needed for consumers such as prometheus, which should be aware of all alertmanager
+        instances.
+        """
         self._stored.alertmanagers.pop(event.unit.name, None)
 
         if self.charm.unit.is_leader():
