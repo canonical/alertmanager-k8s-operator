@@ -2,7 +2,7 @@
 # See LICENSE file for licensing details.
 
 from provider import AlertmanagerProvider
-from charms.alertmanager_k8s.v1.consumer import AlertmanagerConsumer
+from charms.alertmanager_k8s.v0.consumer import AlertmanagerConsumer
 
 from ops.charm import CharmBase
 from ops.framework import StoredState
@@ -40,3 +40,15 @@ class DummyCharmForTestingConsumer(CharmBase):
 
     def _on_alertmanager_available(self, event):
         pass
+
+
+def network_get(*args, **kwargs):
+    """patch for the not-yet-implemented testing backend needed for
+    self.model.get_binding(event.relation).network.bind_address
+    """
+    return {'bind-addresses': [
+        {
+            'mac-address': '', 'interface-name': '',
+            'addresses': [{'hostname': '', 'value': '10.1.157.116', 'cidr': ''}]
+        }
+    ], 'egress-subnets': ['10.152.183.65/32'], 'ingress-addresses': ['10.152.183.65']}

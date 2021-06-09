@@ -1,30 +1,100 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
+import textwrap
 
-import unittest
+from .helpers import network_get
+from charm import AlertmanagerCharm, AlertmanagerAPIClient
+
 import ops
-import yaml
-
 from ops.testing import Harness
 from ops.model import ActiveStatus
-from charm import AlertmanagerCharm
 
+import yaml
+import unittest
 from unittest.mock import patch
+
+
+# Things to test:
+# - self.harness.charm._stored is updated (unless considered private impl. detail)
 
 
 def mock_blank(*args, **kwargs):
     pass
 
 
+def mock_pull(*args, **kwargs):
+    return textwrap.dedent("""
+            route:
+              group_by: ['alertname']
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 1h
+              receiver: 'web.hook'
+            receivers:
+            - name: 'web.hook'
+              webhook_configs:
+              - url: 'http://127.0.0.1:5001/'
+            inhibit_rules:
+              - source_match:
+                  severity: 'critical'
+                target_match:
+                  severity: 'warning'
+                equal: ['alertname', 'dev', 'instance']
+    """)
+
+
 @patch('ops.testing._TestingPebbleClient.push', mock_blank)
-@patch('ops.testing._TestingPebbleClient.make_dir', mock_blank)
+@patch('ops.testing._TestingPebbleClient.pull', mock_pull)
+@patch('ops.testing._TestingModelBackend.network_get', network_get)
 class TestCharm(unittest.TestCase):
+    container_name: str = "alertmanager"
+
     def setUp(self):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
         self.harness.begin()
+
         self.harness.set_leader(True)
-        self.harness.update_config({"pagerduty_key": "123"})
+        # self.harness.update_config({"pagerduty_key": "123"})
+
+    def test_service_running_after_startup(self):
+        # adding another unit because without it the harness returns `None` for
+        # `self.model.get_relation(self._peer_relation_name)`
+        relation_id = self.harness.add_relation("replicas", "alertmanager")
+        self.harness.add_relation_unit(relation_id, "alertmanager/1")
+
+        initial_plan = self.harness.get_container_pebble_plan(self.container_name)
+        self.assertEqual(initial_plan.to_dict(), {})
+
+        container = self.harness.model.unit.get_container(self.container_name)
+
+        # Emit the PebbleReadyEvent carrying the alertmanager container
+        self.harness.charm.on.alertmanager_pebble_ready.emit(container)
+
+        # Get the plan now we've run PebbleReady
+        updated_plan = self.harness.get_container_pebble_plan(self.container_name).to_dict()
+
+        expected_plan = {
+            "services": {
+                self.harness.charm._service_name: {
+                    "override": "replace",
+                    "summary": "alertmanager service",
+                    "command": "/bin/alertmanager "
+                               "--config.file={} "
+                               "--storage.path={} "
+                               "--web.listen-address=:{} "
+                               "--cluster.listen-address={} ".format(
+                                self.harness.charm._config_path,
+                                self.harness.charm._storage_path,
+                                self.harness.charm._api_port,
+                                ""
+                               ),
+                    "startup": "enabled",
+                }
+            },
+        }
+
+        self.assertDictEqual(expected_plan["services"], updated_plan["services"])
 
     @unittest.skip("")
     def test_config_changed(self):
@@ -97,3 +167,11 @@ class TestCharm(unittest.TestCase):
         self.assertTrue(service.is_running())
         # Ensure we set an ActiveStatus with no message
         self.assertEqual(self.harness.model.unit.status, ActiveStatus())
+
+
+class TestAlertmanagerAPIClient(unittest.TestCase):
+    def setUp(self):
+        self.api = AlertmanagerAPIClient("address", 12345)
+
+    def test_base_url(self):
+        self.assertEqual("http://address:12345/", self.api.base_url)

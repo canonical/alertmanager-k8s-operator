@@ -9,14 +9,14 @@ This library is design to be used by a charm consuming the alertmanager-k8s rela
 
 
 import ops
-from ops.framework import StoredState
+from ops.framework import StoredState, EventBase, EventSource
 from ops.relation import ConsumerBase
 
 import logging
 
 LIBID = "abcdef1234"  # Unique ID that refers to the library forever
-LIBAPI = 1    # Must match the major version in the import path.
-LIBPATCH = 0  # The current patch version. Must be updated when changing.
+LIBAPI = 0    # Must match the major version in the import path.
+LIBPATCH = 1  # The current patch version. Must be updated when changing.
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,7 @@ class AlertmanagerConsumer(ConsumerBase):
         if event.unit:  # event.unit may be `None` in the case of app data change
             # Save locally the public IP address of the alertmanager unit
             if address := event.relation.data[event.unit].get("public_address"):
+                # TODO consider storing in unit data instead of StoredState
                 self._stored.alertmanagers[event.unit.name] = address
 
         if self.charm.unit.is_leader():

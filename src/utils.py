@@ -1,17 +1,6 @@
-# import functools
 import hashlib
 import urllib.request
 from typing import Union
-
-
-# def leader_only(func):
-#     @functools.wraps(func)
-#     def wrapped(self, *args, **kwargs):
-#         if not self.unit.is_leader():
-#             return
-#         func(*args, **kwargs)
-#
-#     return wrapped
 
 
 def append_unless(unless, base, appendable):

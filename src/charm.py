@@ -36,7 +36,7 @@ class AlertmanagerAPIClient:
         """
         url = urllib.parse.urljoin(self.base_url, "/-/reload")
         try:
-            response = requests.post(url)
+            response = requests.post(url, timeout=2.0)
             logger.debug("config reload via %s: %d %s",
                          url, response.status_code, response.reason)
             return response.status_code == 200 and response.reason == 'OK'

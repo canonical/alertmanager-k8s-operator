@@ -1,7 +1,7 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from .dummy import DummyCharmForTestingConsumer
+from .helpers import DummyCharmForTestingConsumer
 
 from ops.testing import Harness
 

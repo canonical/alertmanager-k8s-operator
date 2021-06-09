@@ -3,6 +3,8 @@
 
 import utils
 import unittest
+from unittest.mock import patch
+from contextlib import contextmanager
 
 
 class TestUtils(unittest.TestCase):
@@ -25,29 +27,25 @@ class TestUtils(unittest.TestCase):
 
     def test_fetch_url(self):
         self.assertEqual(None, utils.fetch_url('no such thing'))
-        self.assertEqual(None, utils.fetch_url('http://no-such-thing.abc/asdasd123'))
+        self.assertEqual(None, utils.fetch_url('http://no-such-thing-hopefully.abc/asdasd123'))
 
-        def start_server():
-            from http.server import HTTPServer, BaseHTTPRequestHandler
+        def urlopen_mock(html: bytes, code: int):
+            class MockResponse:
+                def read(self):
+                    return html
 
-            class MyServer(BaseHTTPRequestHandler):
-                def do_GET(self):
-                    self.send_response(200)
-                    self.send_header("Content-type", "text/html")
-                    self.end_headers()
-                    self.wfile.write(bytes("works", "utf-8"))
+                def getcode(self):
+                    return code
 
-            server_address = ('', 8000)
-            httpd = HTTPServer(server_address, MyServer)
-            httpd.serve_forever()
+            @contextmanager
+            def urlopen(url):
+                yield MockResponse()
 
-        def start_server_in_a_thread():
-            import threading
-            daemon = threading.Thread(name='daemon_server', target=start_server)
-            daemon.setDaemon(True)  # so it will be killed once the main thread is dead
-            daemon.start()
-            import time
-            time.sleep(1)  # wait for server to start
+            return urlopen
 
-        start_server_in_a_thread()
-        self.assertEqual(b"works", utils.fetch_url('http://localhost:8000'))
+        with patch('urllib.request.urlopen', urlopen_mock(b"works", 200)):
+            self.assertEqual(b"works", utils.fetch_url('http://canonical.com/'))
+
+        # return `None` for any code >= 400
+        with patch('urllib.request.urlopen', urlopen_mock(b"some message", 400)):
+            self.assertEqual(None, utils.fetch_url('http://canonical.com/'))
