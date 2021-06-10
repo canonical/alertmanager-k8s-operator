@@ -58,10 +58,10 @@ class TestCharm(unittest.TestCase):
         # self.harness.update_config({"pagerduty_key": "123"})
 
     def test_service_running_after_startup(self):
-        # adding another unit because without it the harness returns `None` for
+        # adding unit because without it the harness returns `None` for
         # `self.model.get_relation(self._peer_relation_name)`
         relation_id = self.harness.add_relation("replicas", "alertmanager")
-        self.harness.add_relation_unit(relation_id, "alertmanager/1")
+        self.harness.add_relation_unit(relation_id, "alertmanager/0")
 
         initial_plan = self.harness.get_container_pebble_plan(self.container_name)
         self.assertEqual(initial_plan.to_dict(), {})

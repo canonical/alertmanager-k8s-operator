@@ -9,9 +9,10 @@ This library is design to be used by a charm consuming the alertmanager-k8s rela
 
 
 import ops
-from ops.framework import StoredState, EventBase, EventSource
+from ops.framework import StoredState
 from ops.relation import ConsumerBase
 
+from typing import List
 import logging
 
 LIBID = "abcdef1234"  # Unique ID that refers to the library forever
@@ -63,31 +64,24 @@ class AlertmanagerConsumer(ConsumerBase):
                 # TODO consider storing in unit data instead of StoredState
                 self._stored.alertmanagers[event.unit.name] = address
 
-        if self.charm.unit.is_leader():
-            # forward list of IP addresses # TODO use app data bag instead
-            self.charm._stored.alertmanagers = sorted(list(self._stored.alertmanagers.values()))
+                # inform consumer about the change
+                self.on.available.emit()
 
-            # TODO figure out how to emit instead
-            self.charm._on_alertmanager_available(event)
+    def get_cluster_info(self) -> List[str]:
+        """Returns a list of ip addresses of all the alertmanager units
+        """
+        return sorted(list(self._stored.alertmanagers.values()))
 
     def _on_relation_departed(self, event: ops.charm.RelationDepartedEvent):
         """This hook removes the address of the departing alertmanager from its local store.
         This is needed for consumers such as prometheus, which should be aware of all alertmanager
         instances.
         """
-        self._stored.alertmanagers.pop(event.unit.name, None)
-
-        if self.charm.unit.is_leader():
-            # forward list of IP addresses # TODO use app data bag instead
-            self.charm._stored.alertmanagers = sorted(list(self._stored.alertmanagers.values()))
-
-            # TODO figure out how to emit instead
-            self.charm._on_alertmanager_available(event)
-            # TODO test this: self.on[self._consumer_relation_name].available.emit()
+        if self._stored.alertmanagers.pop(event.unit.name, None):
+            # inform consumer about the change
+            self.on.available.emit()
 
     def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
         self._stored.alertmanagers.clear()
-
-        if self.charm.unit.is_leader():
-            self.charm._stored.alertmanagers.clear()  # TODO use app data bag instead
-            self.charm._on_alertmanager_available(event)  # TODO figure out how to emit instead
+        # inform consumer about the change
+        self.on.available.emit()
