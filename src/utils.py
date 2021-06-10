@@ -14,11 +14,11 @@ def append_unless(unless, base, appendable):
     return base if base == unless else base + appendable
 
 
-def md5(hashable) -> str:
+def sha256(hashable) -> str:
     """Use instead of the builtin hash() for repeatable values"""
     if isinstance(hashable, str):
         hashable = hashable.encode('utf-8')
-    return hashlib.md5(hashable).hexdigest()
+    return hashlib.sha256(hashable).hexdigest()
 
 
 def fetch_url(url: str) -> Union[str, None]:

@@ -2,7 +2,7 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from provider import AlertmanagerProvider
+from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
 import utils
 
 import ops
@@ -302,7 +302,7 @@ class AlertmanagerCharm(CharmBase):
             config['route']['receiver'] = 'web.hook'
 
         config_yaml = yaml.safe_dump(config)
-        config_hash = utils.md5(config_yaml)
+        config_hash = utils.sha256(config_yaml)
 
         is_changed = False
         if config_hash != self._stored.config_hash:
@@ -374,7 +374,7 @@ class AlertmanagerCharm(CharmBase):
         # No need to update peers - the cluster update itself when a unit is not available.
         # No need to update consumer relations because addresses are pulled from unit data bags
         # by the consumer library.
-        pass
+        self.provider.unready()
 
     def _on_update_status(self, event: ops.charm.UpdateStatusEvent):
         api = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port)

@@ -1,8 +1,7 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from provider import AlertmanagerProvider
-from charms.alertmanager_k8s.v0.consumer import AlertmanagerConsumer
+from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerConsumer, AlertmanagerProvider
 
 from ops.charm import CharmBase
 from ops.framework import StoredState

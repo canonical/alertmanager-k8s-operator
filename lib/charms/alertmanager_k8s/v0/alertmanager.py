@@ -4,13 +4,13 @@
 
 """ # AlertmanagerConsumer library
 
-This library is design to be used by a charm consuming the alertmanager-k8s relation.
+This library is design to be used by a charm consuming or providing the alertmanager-k8s relation.
 """
-
 
 import ops
 from ops.framework import StoredState
-from ops.relation import ConsumerBase
+from ops.relation import ConsumerBase, ProviderBase
+from ops.charm import CharmBase
 
 from typing import List
 import logging
@@ -38,7 +38,7 @@ class AlertmanagerConsumer(ConsumerBase):
     """
     _stored: StoredState
 
-    def __init__(self, charm: ops.charm.CharmBase, relation_name, consumes, multi=False):
+    def __init__(self, charm: CharmBase, relation_name: str, consumes: dict, multi: bool = False):
         super().__init__(charm, relation_name, consumes, multi)
         self.charm = charm
         self._consumer_relation_name = relation_name  # from consumer's metadata.yaml
@@ -65,6 +65,7 @@ class AlertmanagerConsumer(ConsumerBase):
                 self._stored.alertmanagers[event.unit.name] = address
 
                 # inform consumer about the change
+                # manually emitting the "available" event until scale-up/down "ready" flag is fixed
                 self.on.available.emit()
 
     def get_cluster_info(self) -> List[str]:
@@ -79,9 +80,51 @@ class AlertmanagerConsumer(ConsumerBase):
         """
         if self._stored.alertmanagers.pop(event.unit.name, None):
             # inform consumer about the change
+            # manually emitting the "available" event until scale-up/down "ready" flag is fixed
             self.on.available.emit()
 
     def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
         self._stored.alertmanagers.clear()
         # inform consumer about the change
+        # manually emitting the "available" event until scale-up/down "ready" flag is fixed
         self.on.available.emit()
+
+
+class AlertmanagerProvider(ProviderBase):
+    """A "provider" handler to be used by the Alertmanager charm for abstracting away all the
+    communication with consumers.
+    This provider auto-registers relation events on behalf of the main Alertmanager charm.
+
+    Arguments:
+            charm (CharmBase): consumer charm
+            service_name (str): a name for the provided service
+            consumes (dict): provider specifications
+            multi (bool): multiple relations flag
+
+    Attributes:
+            charm (CharmBase): the Alertmanager charm
+    """
+    _provider_relation_name = "alerting"
+
+    def __init__(self, charm, service_name: str, version: str = None):
+        super().__init__(charm, self._provider_relation_name, service_name, version)
+        self.charm = charm
+        self._service_name = service_name
+
+        events = self.charm.on[self._provider_relation_name]
+        self.framework.observe(events.relation_joined, self._on_relation_joined)
+
+        # No need to observe `relation_departed` or `relation_broken`: data bags are auto-updated
+        # so both events are address on the consumer side.
+        self.framework.observe(events.relation_joined, self._on_relation_joined)
+
+    def _on_relation_joined(self, event: ops.charm.RelationJoinedEvent):
+        """This hook stores the public address of the newly-joined "alerting" relation in the
+        corresponding data bag.
+        This is needed for consumers such as prometheus, which should be aware of all alertmanager
+        instances.
+        """
+        # "ingress-address" is auto-populated incorrectly so rolling my own, "public_address"
+        event.relation.data[self.charm.unit]["public_address"] = str(
+            self.model.get_binding(event.relation).network.bind_address
+        )

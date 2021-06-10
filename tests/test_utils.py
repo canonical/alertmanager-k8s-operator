@@ -21,9 +21,9 @@ class TestUtils(unittest.TestCase):
         self.assertEqual([1, 2, 3], utils.append_unless(None, [1, 2], [3]))
         self.assertEqual(None, utils.append_unless(None, None, [3]))
 
-    def test_md5(self):
-        self.assertEqual('50e1eeff19b2501c791612cd907fff7a',
-                         utils.md5('test string\nwith newline'))
+    def test_sha256(self):
+        self.assertEqual('a7b88adc9b60fc386f1deb77909f0f415817db7281e708c57207d723b9412d94',
+                         utils.sha256('test string\nwith newline'))
 
     def test_fetch_url(self):
         self.assertEqual(None, utils.fetch_url('no such thing'))
