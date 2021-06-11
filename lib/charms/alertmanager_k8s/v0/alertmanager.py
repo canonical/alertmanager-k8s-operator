@@ -24,8 +24,18 @@ logger = logging.getLogger(__name__)
 
 class AlertmanagerConsumer(ConsumerBase):
     """A "consumer" handler to be used by charms that relate to Alertmanager.
+
     This consumer auto-registers relation events on behalf of the user and communicates information
-    directly via `_stored` TODO: have a documented contract and act on it in the "available" hook.
+    directly via `_stored`
+    Every change in the alertmanager cluster emits an 'on.available' event that the consumer charm
+    can register and handle, for example:
+
+        self.framework.observe(self.alertmanager_lib.on.available,
+                               self._on_alertmanager_cluster_changed)
+
+    The updated alertmanager cluster can then be obtained via the
+
+    This consumer library expect the consumer charm to register the `get_cluster_info` method.
 
     Arguments:
             charm (CharmBase): consumer charm
