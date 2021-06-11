@@ -8,6 +8,7 @@ from charm import AlertmanagerCharm, AlertmanagerAPIClient
 
 import ops
 from ops.testing import Harness
+
 # from ops.model import ActiveStatus
 
 # import yaml
@@ -19,7 +20,8 @@ from unittest.mock import patch
 # - self.harness.charm._stored is updated (unless considered private impl. detail)
 
 
-alertmanager_default_config = textwrap.dedent("""
+alertmanager_default_config = textwrap.dedent(
+    """
             route:
               group_by: ['alertname']
               group_wait: 30s
@@ -36,7 +38,8 @@ alertmanager_default_config = textwrap.dedent("""
                 target_match:
                   severity: 'warning'
                 equal: ['alertname', 'dev', 'instance']
-    """)
+    """
+)
 
 
 class AlertmanagerBaseTestCase(unittest.TestCase):
@@ -47,7 +50,7 @@ class AlertmanagerBaseTestCase(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
 
 
-@patch_network_get(private_address='1.1.1.1')
+@patch_network_get(private_address="1.1.1.1")
 @patch.object(AlertmanagerAPIClient, "reload", tautology)
 class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
     def setUp(self):
@@ -55,10 +58,10 @@ class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
         self.push_pull_mock = PushPullMock()
         self.push_pull_mock.push(AlertmanagerCharm._config_path, alertmanager_default_config)
 
-        self.relation_id = self.harness.add_relation('alerting', 'otherapp')
-        self.harness.add_relation_unit(self.relation_id, 'otherapp/0')
+        self.relation_id = self.harness.add_relation("alerting", "otherapp")
+        self.harness.add_relation_unit(self.relation_id, "otherapp/0")
         self.harness.set_leader(True)
-        with patch_network_get(private_address='1.1.1.1'):
+        with patch_network_get(private_address="1.1.1.1"):
             # TODO why the context is needed if we already have a class-level patch?
             self.harness.begin_with_initial_hooks()
 
@@ -89,10 +92,10 @@ class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
         self.assertEqual(expected, command)
 
         # Check command contains key arguments
-        self.assertIn('--config.file', command)
-        self.assertIn('--storage.path', command)
-        self.assertIn('--web.listen-address', command)
-        self.assertIn('--cluster.listen-address', command)
+        self.assertIn("--config.file", command)
+        self.assertIn("--storage.path", command)
+        self.assertIn("--web.listen-address", command)
+        self.assertIn("--cluster.listen-address", command)
 
         # Check the service was started
         service = self.harness.model.unit.get_container("alertmanager").get_service("alertmanager")
@@ -110,12 +113,15 @@ class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
             for key in ["secret_service_key_42", "a_different_key_this_time"]:
                 with self.subTest(key=key):
                     self.harness.update_config({"pagerduty_key": key})
-                    self.assertIn("service_key: {}".format(key),
-                                  self.push_pull_mock.pull(self.harness.charm._config_path))
+                    self.assertIn(
+                        "service_key: {}".format(key),
+                        self.push_pull_mock.pull(self.harness.charm._config_path),
+                    )
 
-            self.harness.update_config({'pagerduty_key': ''})
-            self.assertNotIn('pagerduty_configs',
-                             self.push_pull_mock.pull(self.harness.charm._config_path))
+            self.harness.update_config({"pagerduty_key": ""})
+            self.assertNotIn(
+                "pagerduty_configs", self.push_pull_mock.pull(self.harness.charm._config_path)
+            )
 
 
 class TestAlertmanagerAPIClient(unittest.TestCase):
@@ -127,35 +133,38 @@ class TestAlertmanagerAPIClient(unittest.TestCase):
 
     def test_reload_and_status(self):
         from collections import namedtuple
+
         Response = namedtuple("Response", ["status_code", "reason", "text", "ok"])
 
         # test succeess
         def mock_response(*args, **kwargs):
-            return Response(200, "OK", json.dumps({'status': 'fake'}), True)
+            return Response(200, "OK", json.dumps({"status": "fake"}), True)
 
-        with patch('requests.post', mock_response):
+        with patch("requests.post", mock_response):
             self.assertTrue(self.api.reload())
 
-        with patch('requests.get', mock_response):
-            self.assertDictEqual({'status': 'fake'}, self.api.status())
+        with patch("requests.get", mock_response):
+            self.assertDictEqual({"status": "fake"}, self.api.status())
 
         # test failure
         def mock_connection_error(*args, **kwargs):
             import requests
+
             raise requests.exceptions.ConnectionError
 
-        with patch('requests.post', mock_connection_error):
+        with patch("requests.post", mock_connection_error):
             self.assertFalse(self.api.reload())
 
-        with patch('requests.get', mock_connection_error):
+        with patch("requests.get", mock_connection_error):
             self.assertIsNone(self.api.status())
 
         def mock_timeout(*args, **kwargs):
             import requests
+
             raise requests.exceptions.ConnectTimeout
 
-        with patch('requests.post', mock_timeout):
+        with patch("requests.post", mock_timeout):
             self.assertFalse(self.api.reload())
 
-        with patch('requests.get', mock_timeout):
+        with patch("requests.get", mock_timeout):
             self.assertIsNone(self.api.status())

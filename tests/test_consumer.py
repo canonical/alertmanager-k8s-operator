@@ -6,6 +6,7 @@ from .helpers import DummyCharmForTestingConsumer
 from ops.testing import Harness
 
 import unittest
+
 # from unittest.mock import patch
 
 
@@ -32,8 +33,8 @@ class TestConsumer(unittest.TestCase):
         rel = self.harness.charm.framework.model.get_relation("alerting", rel_id)
 
         self.assertEqual(0, self.harness.charm._stored.on_available_emitted)
-        self.harness.update_relation_data(rel_id,
-                                          "prometheus-k8s/0",
-                                          {"public_address": "1.1.1.1"})
+        self.harness.update_relation_data(
+            rel_id, "prometheus-k8s/0", {"public_address": "1.1.1.1"}
+        )
         self.harness.charm.on["alerting"].relation_changed.emit(rel)
         self.assertEqual(1, self.harness.charm._stored.on_available_emitted)

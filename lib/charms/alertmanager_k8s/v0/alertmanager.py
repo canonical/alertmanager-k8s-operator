@@ -16,7 +16,7 @@ from typing import List
 import logging
 
 LIBID = "abcdef1234"  # Unique ID that refers to the library forever
-LIBAPI = 0    # Must match the major version in the import path.
+LIBAPI = 0  # Must match the major version in the import path.
 LIBPATCH = 1  # The current patch version. Must be updated when changing.
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,7 @@ class AlertmanagerConsumer(ConsumerBase):
     Attributes:
             charm (CharmBase): consumer charm
     """
+
     _stored: StoredState
 
     def __init__(self, charm: CharmBase, relation_name: str, consumes: dict, multi: bool = False):
@@ -54,12 +55,16 @@ class AlertmanagerConsumer(ConsumerBase):
         self._consumer_relation_name = relation_name  # from consumer's metadata.yaml
         # self._provider_relation_name = "alerting"  # from alertmanager's metadata.yaml
 
-        self.framework.observe(self.charm.on[self._consumer_relation_name].relation_changed,
-                               self._on_relation_changed)
-        self.framework.observe(self.charm.on[self._consumer_relation_name].relation_departed,
-                               self._on_relation_departed)
-        self.framework.observe(self.charm.on[self._consumer_relation_name].relation_broken,
-                               self._on_relation_broken)
+        self.framework.observe(
+            self.charm.on[self._consumer_relation_name].relation_changed, self._on_relation_changed
+        )
+        self.framework.observe(
+            self.charm.on[self._consumer_relation_name].relation_departed,
+            self._on_relation_departed,
+        )
+        self.framework.observe(
+            self.charm.on[self._consumer_relation_name].relation_broken, self._on_relation_broken
+        )
 
         self._stored.set_default(alertmanagers={})
 
@@ -79,8 +84,7 @@ class AlertmanagerConsumer(ConsumerBase):
                 self.on.available.emit()
 
     def get_cluster_info(self) -> List[str]:
-        """Returns a list of ip addresses of all the alertmanager units
-        """
+        """Returns a list of ip addresses of all the alertmanager units"""
         return sorted(list(self._stored.alertmanagers.values()))
 
     def _on_relation_departed(self, event: ops.charm.RelationDepartedEvent):
@@ -114,6 +118,7 @@ class AlertmanagerProvider(ProviderBase):
     Attributes:
             charm (CharmBase): the Alertmanager charm
     """
+
     _provider_relation_name = "alerting"
     _public_api_port: int = 9093  # public port may not be the same as AlertmanagerCharm._api_port
 
@@ -137,6 +142,5 @@ class AlertmanagerProvider(ProviderBase):
         """
         # "ingress-address" is auto-populated incorrectly so rolling my own, "public_address"
         event.relation.data[self.charm.unit]["public_address"] = "{}:{}".format(
-            self.model.get_binding(event.relation).network.bind_address,
-            self._public_api_port
+            self.model.get_binding(event.relation).network.bind_address, self._public_api_port
         )

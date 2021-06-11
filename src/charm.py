@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 
 class AlertmanagerAPIClient:
-    """Alertmanager HTTP API client.
-    """
+    """Alertmanager HTTP API client."""
+
     def __init__(self, address: str, port: int):
         self.base_url = "http://{}:{}/".format(address, port)
 
@@ -37,9 +37,8 @@ class AlertmanagerAPIClient:
         url = urllib.parse.urljoin(self.base_url, "/-/reload")
         try:
             response = requests.post(url, timeout=2.0)
-            logger.debug("config reload via %s: %d %s",
-                         url, response.status_code, response.reason)
-            return response.status_code == 200 and response.reason == 'OK'
+            logger.debug("config reload via %s: %d %s", url, response.status_code, response.reason)
+            return response.status_code == 200 and response.reason == "OK"
         except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout) as e:
             logger.debug("config reload error via %s: %s", url, str(e))
             return False
@@ -102,8 +101,7 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def num_peers(self) -> int:
-        """Number of peer units (excluding self)
-        """
+        """Number of peer units (excluding self)"""
         # For some reason in Juju 2.9.5 `self.peer_relation.units` is an empty set
         return sum(
             isinstance(unit, ops.model.Unit) and unit is not self.unit
@@ -146,17 +144,14 @@ class AlertmanagerCharm(CharmBase):
         self.peer_relation.data[self.unit]["private_address"] = self.private_address
 
     def _fetch_private_address(self) -> Optional[str]:
-        """Fetch private address from unit's peer relation data bucket.
-        """
+        """Fetch private address from unit's peer relation data bucket."""
         return self.peer_relation.data[self.unit].get("private_address")
 
     def _alertmanager_layer(self) -> Dict[str, Any]:
-        """Returns Pebble configuration layer for alertmanager.
-        """
+        """Returns Pebble configuration layer for alertmanager."""
 
         def _command():
-            """ Returns full command line to start alertmanager
-            """
+            """Returns full command line to start alertmanager"""
             peer_addresses = self._get_peer_addresses()
 
             # cluster listen address - empty string disables HA mode
@@ -166,16 +161,24 @@ class AlertmanagerCharm(CharmBase):
             # specified in the cluster.peer flag of the other peers.
             # Assuming all replicas use the same port.
             # Sorting for repeatability in comparing between service layers.
-            peer_cmd_args = ' '.join(sorted(["--cluster.peer={}".format(address)
-                                             for address in peer_addresses]))
+            peer_cmd_args = " ".join(
+                sorted(["--cluster.peer={}".format(address) for address in peer_addresses])
+            )
 
-            return "/bin/alertmanager " \
-                   "--config.file={} " \
-                   "--storage.path={} " \
-                   "--web.listen-address=:{} " \
-                   "--cluster.listen-address={} " \
-                   "{}".format(self._config_path, self._storage_path, self._api_port,
-                               listen_address_arg, peer_cmd_args)
+            return (
+                "/bin/alertmanager "
+                "--config.file={} "
+                "--storage.path={} "
+                "--web.listen-address=:{} "
+                "--cluster.listen-address={} "
+                "{}".format(
+                    self._config_path,
+                    self._storage_path,
+                    self._api_port,
+                    listen_address_arg,
+                    peer_cmd_args,
+                )
+            )
 
         return {
             "summary": "alertmanager layer",
@@ -239,8 +242,9 @@ class AlertmanagerCharm(CharmBase):
         is_changed = False
         # if this unit has just started, the services does not yet exist - using "get"
         service = plan.services.get(self._service_name)
-        if service is None or \
-                service.command != overlay["services"][self._service_name]["command"]:
+        overlay_command = overlay["services"][self._service_name]["command"]
+
+        if service is None or service.command != overlay_command:
             is_changed = True
             self.container.add_layer(self._layer_name, overlay, combine=True)
 
@@ -280,26 +284,37 @@ class AlertmanagerCharm(CharmBase):
         """
         config: dict = yaml.safe_load(self.container.pull(self._config_path))
         if pagerduty_key := self.model.config.get("pagerduty_key"):
-            config.update({'receivers': [{
-                'name': 'default_pagerduty',
-                'pagerduty_configs': [{
-                    'send_resolved': True,
-                    'service_key': pagerduty_key}
-                ]}
-            ]})
-            config['route']['receiver'] = 'default_pagerduty'
+            config.update(
+                {
+                    "receivers": [
+                        {
+                            "name": "default_pagerduty",
+                            "pagerduty_configs": [
+                                {"send_resolved": True, "service_key": pagerduty_key}
+                            ],
+                        }
+                    ]
+                }
+            )
+            config["route"]["receiver"] = "default_pagerduty"
         else:
             # pagerduty_key evaluates to False: restore sections to default values (alertmanager
             # won't start without a receiver)
-            config.update({'receivers': [{
-                'name': 'web.hook',
-                'webhook_configs': [
-                    {
-                        'url': 'http://127.0.0.1:5001/',
-                    }
-                ]
-            }]})
-            config['route']['receiver'] = 'web.hook'
+            config.update(
+                {
+                    "receivers": [
+                        {
+                            "name": "web.hook",
+                            "webhook_configs": [
+                                {
+                                    "url": "http://127.0.0.1:5001/",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            )
+            config["route"]["receiver"] = "web.hook"
 
         config_yaml = yaml.safe_dump(config)
         config_hash = utils.sha256(config_yaml)
@@ -339,9 +354,8 @@ class AlertmanagerCharm(CharmBase):
         # Update pebble layer
         layer_changed = self._update_layer(restart=False)
         if layer_changed and (
-                not self.is_service_running or (
-                    self.num_peers > 0 and not self._stored.launched_with_peers
-                )
+            not self.is_service_running
+            or (self.num_peers > 0 and not self._stored.launched_with_peers)
         ):
             self._restart_service()
 
@@ -379,12 +393,14 @@ class AlertmanagerCharm(CharmBase):
     def _on_update_status(self, event: ops.charm.UpdateStatusEvent):
         api = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port)
         if status := api.status():
-            logger.info("alertmanager %s is up and running (uptime: %s); "
-                        "cluster mode: %s, with %d peers",
-                        status["versionInfo"]["version"],
-                        status["uptime"],
-                        status["cluster"]["status"],
-                        len(status["cluster"]["peers"]))
+            logger.info(
+                "alertmanager %s is up and running (uptime: %s); "
+                "cluster mode: %s, with %d peers",
+                status["versionInfo"]["version"],
+                status["uptime"],
+                status["cluster"]["status"],
+                len(status["cluster"]["peers"]),
+            )
 
         # Calling the common hook to make sure a single unit set its IP in case all events fired
         # before an IP address was ready, leaving UpdateStatue as the last resort.
@@ -397,9 +413,11 @@ class AlertmanagerCharm(CharmBase):
         If an IP address is not available, the corresponding value will be None.
         """
         # For some reason self.peer_relation.units returns an empty set so using `isinstance`
-        addresses = {unit: data.get("private_address")
-                     for unit, data in self.peer_relation.data.items()
-                     if isinstance(unit, ops.model.Unit)}
+        addresses = {
+            unit: data.get("private_address")
+            for unit, data in self.peer_relation.data.items()
+            if isinstance(unit, ops.model.Unit)
+        }
         return addresses
 
     def _get_peer_addresses(self) -> List[str]:
@@ -408,9 +426,11 @@ class AlertmanagerCharm(CharmBase):
         The returned addresses include the HA port number but do not include scheme (http).
         If a unit does not have an API, it will be omitted from the list.
         """
-        return ["{}:{}".format(address, self._ha_port)
-                for unit, address in self._get_unit_address_map().items()
-                if unit is not self.unit and address is not None]
+        return [
+            "{}:{}".format(address, self._ha_port)
+            for unit, address in self._get_unit_address_map().items()
+            if unit is not self.unit and address is not None
+        ]
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ def append_unless(unless, base, appendable):
 def sha256(hashable) -> str:
     """Use instead of the builtin hash() for repeatable values"""
     if isinstance(hashable, str):
-        hashable = hashable.encode('utf-8')
+        hashable = hashable.encode("utf-8")
     return hashlib.sha256(hashable).hexdigest()
 
 
