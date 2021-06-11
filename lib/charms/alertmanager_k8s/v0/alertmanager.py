@@ -105,6 +105,7 @@ class AlertmanagerProvider(ProviderBase):
             charm (CharmBase): the Alertmanager charm
     """
     _provider_relation_name = "alerting"
+    _public_api_port: int = 9093  # public port may not be the same as AlertmanagerCharm._api_port
 
     def __init__(self, charm, service_name: str, version: str = None):
         super().__init__(charm, self._provider_relation_name, service_name, version)
@@ -125,6 +126,7 @@ class AlertmanagerProvider(ProviderBase):
         instances.
         """
         # "ingress-address" is auto-populated incorrectly so rolling my own, "public_address"
-        event.relation.data[self.charm.unit]["public_address"] = str(
-            self.model.get_binding(event.relation).network.bind_address
+        event.relation.data[self.charm.unit]["public_address"] = "{}:{}".format(
+            self.model.get_binding(event.relation).network.bind_address,
+            self._public_api_port
         )

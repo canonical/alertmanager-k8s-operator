@@ -402,16 +402,6 @@ class AlertmanagerCharm(CharmBase):
                      if isinstance(unit, ops.model.Unit)}
         return addresses
 
-    def _get_api_addresses(self) -> List[str]:
-        """Create a list of API addresses of all units.
-
-        The returned addresses include the API port number but do not include scheme (http).
-        If a unit does not have an API, it will be omitted from the list.
-        """
-        return ["{}:{}".format(address, self._api_port)
-                for address in self._get_unit_address_map().values()
-                if address is not None]
-
     def _get_peer_addresses(self) -> List[str]:
         """Create a list of HA addresses of all peer units (all units excluding current).
 
