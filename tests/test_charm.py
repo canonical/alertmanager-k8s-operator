@@ -103,7 +103,7 @@ class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
 
     def test_relation_data_provides_public_address(self):
         rel = self.harness.charm.framework.model.get_relation("alerting", self.relation_id)
-        expected_address = "1.1.1.1:{}".format(self.harness.charm.provider._public_api_port)
+        expected_address = "1.1.1.1:{}".format(self.harness.charm.provider.api_port)
         self.assertEqual({"public_address": expected_address}, rel.data[self.harness.charm.unit])
 
     def test_pagerduty_config(self):

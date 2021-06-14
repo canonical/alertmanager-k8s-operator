@@ -106,6 +106,12 @@ class AlertmanagerCharm(CharmBase):
 
         version = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port).version
         self.provider = AlertmanagerProvider(self, self._service_name, version or "0.0.0")
+        self.provider.api_port = self._api_port
+
+    @property
+    def api_port(self):
+        """Get the API port number to use for alertmanager (default: 9093)."""
+        return self._api_port
 
     @property
     def num_peers(self) -> int:

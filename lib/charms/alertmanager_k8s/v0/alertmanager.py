@@ -28,6 +28,7 @@ class ClusterChanged(EventBase):
     If an alertmanager unit is added to or removed from a relation,
     then a :class:`ClusterChanged` event is raised.
     """
+
     def __init__(self, handle, data=None):
         super().__init__(handle)
         self.data = data
@@ -65,6 +66,7 @@ class AlertmanagerConsumer(ConsumerBase):
     Attributes:
             charm (CharmBase): consumer charm
     """
+
     _stored: StoredState
     cluster_changed = EventSource(ClusterChanged)
 
@@ -133,19 +135,19 @@ class AlertmanagerProvider(ProviderBase):
     Attributes:
             charm (CharmBase): the Alertmanager charm
     """
+
     _provider_relation_name = "alerting"
 
     def __init__(self, charm, service_name: str, version: str = None):
         super().__init__(charm, self._provider_relation_name, service_name, version)
-        self.charm = charm
+        self.charm = charm  # TODO remove?
         self._service_name = service_name
 
-        # set default value for the public port, which may not be the same as
-        # AlertmanagerCharm._api_port
-        self._public_api_port: int = 9093
+        # Set default value for the public port
+        # This is needed here to avoid accessing charm constructs directly
+        self._api_port = 9093  # default value
 
         events = self.charm.on[self._provider_relation_name]
-        self.framework.observe(events.relation_joined, self._on_relation_joined)
 
         # No need to observe `relation_departed` or `relation_broken`: data bags are auto-updated
         # so both events are address on the consumer side.
@@ -154,12 +156,12 @@ class AlertmanagerProvider(ProviderBase):
     @property
     def api_port(self):
         """Get the API port number to use for alertmanager (default: 9093)."""
-        return self._public_api_port
+        return self._api_port
 
     @api_port.setter
     def api_port(self, value: int):
         """Set the API port number to use for alertmanager (must match the provider charm)."""
-        self._public_api_port = value
+        self._api_port = value
 
     def _on_relation_joined(self, event: ops.charm.RelationJoinedEvent):
         """This hook stores the public address of the newly-joined "alerting" relation in the
