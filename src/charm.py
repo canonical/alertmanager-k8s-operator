@@ -56,6 +56,12 @@ class AlertmanagerAPIClient:
 
         return status
 
+    @property
+    def version(self) -> Optional[str]:
+        if status := self.status():
+            return status["versionInfo"]["version"]
+        return None
+
 
 class AlertmanagerCharm(CharmBase):
     _container_name: str = "alertmanager"  # automatically determined from charm name
@@ -76,7 +82,6 @@ class AlertmanagerCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         self.container = self.unit.get_container(self._container_name)
-        self.provider = AlertmanagerProvider(self, self._service_name, "0.0.1")
 
         # event observations
         self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
@@ -99,6 +104,9 @@ class AlertmanagerCharm(CharmBase):
             launched_with_peers=False,
         )
 
+        version = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port).version
+        self.provider = AlertmanagerProvider(self, self._service_name, version or "0.0.0")
+
     @property
     def num_peers(self) -> int:
         """Number of peer units (excluding self)"""
@@ -109,7 +117,8 @@ class AlertmanagerCharm(CharmBase):
         )
 
     @property
-    def peer_relation(self) -> ops.model.Relation:
+    def peer_relation(self) -> Optional[ops.model.Relation]:
+        # Returns None if called too early, e.g. during install.
         return self.model.get_relation(self._peer_relation_name)
 
     @property
@@ -145,7 +154,9 @@ class AlertmanagerCharm(CharmBase):
 
     def _fetch_private_address(self) -> Optional[str]:
         """Fetch private address from unit's peer relation data bucket."""
-        return self.peer_relation.data[self.unit].get("private_address")
+        if relation := self.peer_relation:
+            return relation.data[self.unit].get("private_address")
+        return None
 
     def _alertmanager_layer(self) -> Dict[str, Any]:
         """Returns Pebble configuration layer for alertmanager."""

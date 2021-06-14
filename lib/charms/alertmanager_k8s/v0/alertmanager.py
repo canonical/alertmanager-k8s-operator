@@ -53,7 +53,6 @@ class AlertmanagerConsumer(ConsumerBase):
         super().__init__(charm, relation_name, consumes, multi)
         self.charm = charm
         self._consumer_relation_name = relation_name  # from consumer's metadata.yaml
-        # self._provider_relation_name = "alerting"  # from alertmanager's metadata.yaml
 
         self.framework.observe(
             self.charm.on[self._consumer_relation_name].relation_changed, self._on_relation_changed
@@ -118,14 +117,16 @@ class AlertmanagerProvider(ProviderBase):
     Attributes:
             charm (CharmBase): the Alertmanager charm
     """
-
     _provider_relation_name = "alerting"
-    _public_api_port: int = 9093  # public port may not be the same as AlertmanagerCharm._api_port
 
     def __init__(self, charm, service_name: str, version: str = None):
         super().__init__(charm, self._provider_relation_name, service_name, version)
         self.charm = charm
         self._service_name = service_name
+
+        # set default value for the public port, which may not be the same as
+        # AlertmanagerCharm._api_port
+        self._public_api_port: int = 9093
 
         events = self.charm.on[self._provider_relation_name]
         self.framework.observe(events.relation_joined, self._on_relation_joined)
@@ -133,6 +134,16 @@ class AlertmanagerProvider(ProviderBase):
         # No need to observe `relation_departed` or `relation_broken`: data bags are auto-updated
         # so both events are address on the consumer side.
         self.framework.observe(events.relation_joined, self._on_relation_joined)
+
+    @property
+    def api_port(self):
+        """Get the API port number to use for alertmanager (default: 9093)."""
+        return self._public_api_port
+
+    @api_port.setter
+    def api_port(self, value: int):
+        """Set the API port number to use for alertmanager (must match the provider charm)."""
+        self._public_api_port = value
 
     def _on_relation_joined(self, event: ops.charm.RelationJoinedEvent):
         """This hook stores the public address of the newly-joined "alerting" relation in the
@@ -142,5 +153,5 @@ class AlertmanagerProvider(ProviderBase):
         """
         # "ingress-address" is auto-populated incorrectly so rolling my own, "public_address"
         event.relation.data[self.charm.unit]["public_address"] = "{}:{}".format(
-            self.model.get_binding(event.relation).network.bind_address, self._public_api_port
+            self.model.get_binding(event.relation).network.bind_address, self.api_port
         )
