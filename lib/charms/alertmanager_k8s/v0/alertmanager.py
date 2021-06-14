@@ -8,7 +8,7 @@ This library is design to be used by a charm consuming or providing the alertman
 """
 
 import ops
-from ops.framework import StoredState
+from ops.framework import StoredState, EventSource, EventBase
 from ops.relation import ConsumerBase, ProviderBase
 from ops.charm import CharmBase
 
@@ -22,15 +22,34 @@ LIBPATCH = 1  # The current patch version. Must be updated when changing.
 logger = logging.getLogger(__name__)
 
 
+class ClusterChanged(EventBase):
+    """Event raised when an alertmanager cluster is changed.
+
+    If an alertmanager unit is added to or removed from a relation,
+    then a :class:`ClusterChanged` event is raised.
+    """
+    def __init__(self, handle, data=None):
+        super().__init__(handle)
+        self.data = data
+
+    def snapshot(self):
+        """Save relation data."""
+        return {"data": self.data}
+
+    def restore(self, snapshot):
+        """Restore relation data."""
+        self.data = snapshot["data"]
+
+
 class AlertmanagerConsumer(ConsumerBase):
     """A "consumer" handler to be used by charms that relate to Alertmanager.
 
     This consumer auto-registers relation events on behalf of the user and communicates information
     directly via `_stored`
-    Every change in the alertmanager cluster emits an 'on.available' event that the consumer charm
-    can register and handle, for example:
+    Every change in the alertmanager cluster emits a :class:`ClusterChanged` event that the
+    consumer charm can register and handle, for example:
 
-        self.framework.observe(self.alertmanager_lib.on.available,
+        self.framework.observe(self.alertmanager_lib.cluster_changed,
                                self._on_alertmanager_cluster_changed)
 
     The updated alertmanager cluster can then be obtained via the
@@ -46,8 +65,8 @@ class AlertmanagerConsumer(ConsumerBase):
     Attributes:
             charm (CharmBase): consumer charm
     """
-
     _stored: StoredState
+    cluster_changed = EventSource(ClusterChanged)
 
     def __init__(self, charm: CharmBase, relation_name: str, consumes: dict, multi: bool = False):
         super().__init__(charm, relation_name, consumes, multi)
@@ -79,8 +98,7 @@ class AlertmanagerConsumer(ConsumerBase):
                 self._stored.alertmanagers[event.unit.name] = address
 
                 # inform consumer about the change
-                # manually emitting the "available" event until scale-up/down "ready" flag is fixed
-                self.on.available.emit()
+                self.cluster_changed.emit()
 
     def get_cluster_info(self) -> List[str]:
         """Returns a list of ip addresses of all the alertmanager units"""
@@ -93,14 +111,12 @@ class AlertmanagerConsumer(ConsumerBase):
         """
         if self._stored.alertmanagers.pop(event.unit.name, None):
             # inform consumer about the change
-            # manually emitting the "available" event until scale-up/down "ready" flag is fixed
-            self.on.available.emit()
+            self.cluster_changed.emit()
 
     def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
         self._stored.alertmanagers.clear()
         # inform consumer about the change
-        # manually emitting the "available" event until scale-up/down "ready" flag is fixed
-        self.on.available.emit()
+        self.cluster_changed.emit()
 
 
 class AlertmanagerProvider(ProviderBase):
