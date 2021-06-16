@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
+import textwrap
 
 from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
 import utils
@@ -183,7 +184,7 @@ class AlertmanagerCharm(CharmBase):
                 sorted(["--cluster.peer={}".format(address) for address in peer_addresses])
             )
             return (
-                "/bin/alertmanager "
+                "alertmanager "
                 "--config.file={} "
                 "--storage.path={} "
                 "--web.listen-address=:{} "
@@ -279,8 +280,16 @@ class AlertmanagerCharm(CharmBase):
     def _update_config(self, restart_on_failure: bool = True) -> bool:
         """Update alertmanager.yml config file to reflect changes in configuration.
 
-        The default alertmanager.yml that is created by alertmanager on startup, if none exist, is:
+        Args:
+          restart_on_failure: a flag indicating if the service should be restarted if a config
+          hot-reload failed.
 
+        Returns:
+          True if unchanged, or if changed successfully; False otherwise
+        """
+        # The default alertmanager.yml that is created by alertmanager on startup, if none exists
+        default_alertmanager_config = textwrap.dedent(
+            """
             route:
               group_by: ['alertname']
               group_wait: 30s
@@ -297,15 +306,11 @@ class AlertmanagerCharm(CharmBase):
                 target_match:
                   severity: 'warning'
                 equal: ['alertname', 'dev', 'instance']
+            """
+        )
+        # config: dict = yaml.safe_load(self.container.pull(self._config_path))
+        config: dict = yaml.safe_load(default_alertmanager_config)
 
-        Args:
-          restart_on_failure: a flag indicating if the service should be restarted if a config
-          hot-reload failed.
-
-        Returns:
-          True if unchanged, or if changed successfully; False otherwise
-        """
-        config: dict = yaml.safe_load(self.container.pull(self._config_path))
         if pagerduty_key := self.model.config.get("pagerduty_key"):
             config.update(
                 {
