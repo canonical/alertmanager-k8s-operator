@@ -49,10 +49,14 @@ these receivers relavent configuration information is required at
 deployment or subsequently. Without any configured receiver
 Alertmanager will enter a blocked state.
 
+### Tested images
+- [`ubuntu/prometheus-alertmanager`](https://hub.docker.com/r/ubuntu/prometheus-alertmanager)
+- [`quay.io/prometheus/alertmanager`](https://quay.io/repository/prometheus/alertmanager?tab=tags)
+
 ### Deploy Alertmanager with PagerDuty configuration
 
     juju deploy ./alertmanager-k8s.charm \
-      --resource alertmanager-image=quay.io/prometheus/alertmanager \
+      --resource alertmanager-image=ubuntu/prometheus-alertmanager \
       --config pagerduty_key='your-key'
 
 Alternatively you may deploy Alertmanger without a pagerduty key to let it enter the
