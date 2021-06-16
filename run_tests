@@ -1,5 +1,5 @@
-#!/bin/bash
-# Copyright 2020 dylan
+#!/bin/sh -e
+# Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 if [ -z "$VIRTUAL_ENV" -a -d venv/ ]; then
@@ -7,16 +7,13 @@ if [ -z "$VIRTUAL_ENV" -a -d venv/ ]; then
 fi
 
 if [ -z "$PYTHONPATH" ]; then
-    export PYTHONPATH=src
+    export PYTHONPATH="lib:src"
 else
-    export PYTHONPATH="src:$PYTHONPATH"
+    export PYTHONPATH="lib:src:$PYTHONPATH"
 fi
 
-flake8 || exit $?
-black --diff --check src tests || exit $?
-which pytest > /dev/null
-if [ $? -eq 0 ]; then
-    python3 -m pytest -v "$@"
-else
-    python3 -m unittest -v "$@"
-fi
+flake8
+black --quiet --diff --color --check src tests lib/charms/alertmanager_k8s || exit $?
+coverage run --branch --source=src,lib/charms/alertmanager_k8s -m unittest -v "$@"
+coverage report -m
+

@@ -1,4 +1,9 @@
-build
+venv/
+build/
 *.charm
-venv
-**/__pycache__
+
+.coverage
+**/__pycache__/
+*.py[cod]
+.idea/
+

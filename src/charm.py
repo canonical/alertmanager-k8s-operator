@@ -1,217 +1,480 @@
 #!/usr/bin/env python3
-# Copyright 2020 dylan
+# Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
+import textwrap
 
-import functools
-import json
-import logging
+from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
+import utils
 
+import ops
 from ops.charm import CharmBase
 from ops.main import main
+from ops.framework import StoredState
 from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
+from ops.pebble import ChangeError
 
-log = logging.getLogger(__name__)
-CONFIG_CONTENT = """
-route:
-  group_by: ['alertname', 'cluster', 'service']
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 3h
-  receiver: default_pagerduty
-inhibit_rules:
-- source_match:
-    severity: 'critical'
-  target_match:
-    severity: 'warning'
-  equal: ['cluster', 'service']
-receivers:
-- name: default_pagerduty
-  pagerduty_configs:
-   - send_resolved:  true
-     service_key: '{pagerduty_key}'
-"""
+import urllib.parse
+import requests
+import yaml
+import json
+import logging
+from typing import Dict, List, Optional, Any
 
-HA_PORT = "9094"
-UNIT_ADDRESS = "{}-{}.{}-endpoints.{}.svc.cluster.local"
+logger = logging.getLogger(__name__)
 
 
-class BlockedStatusError(Exception):
-    pass
+class AlertmanagerAPIClient:
+    """Alertmanager HTTP API client."""
 
+    def __init__(self, address: str, port: int):
+        self.base_url = "http://{}:{}/".format(address, port)
 
-def status_catcher(func):
-    @functools.wraps(func)
-    def new_func(self, *args, **kwargs):
+    def reload(self) -> bool:
+        """Send a POST request to to hot-reload the config.
+        This reduces down-time compared to restarting the service.
+
+        Returns:
+          True if reload succeeded (returned 200 OK); False otherwise.
+        """
+        url = urllib.parse.urljoin(self.base_url, "/-/reload")
         try:
-            func(self, *args, **kwargs)
-        except BlockedStatusError as e:
-            self.unit.status = BlockedStatus(str(e))
+            response = requests.post(url, timeout=2.0)
+            logger.debug("config reload via %s: %d %s", url, response.status_code, response.reason)
+            return response.status_code == 200 and response.reason == "OK"
+        except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout) as e:
+            logger.debug("config reload error via %s: %s", url, str(e))
+            return False
 
-    return new_func
+    def status(self) -> Optional[dict]:
+        url = urllib.parse.urljoin(self.base_url, "/api/v2/status")
+        try:
+            response = requests.get(url)
+            if response.ok and response.status_code == 200:
+                status = json.loads(response.text)
+            else:
+                status = None
+        except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout):
+            status = None
+
+        return status
+
+    @property
+    def version(self) -> Optional[str]:
+        if status := self.status():
+            return status["versionInfo"]["version"]
+        return None
 
 
 class AlertmanagerCharm(CharmBase):
+    _container_name: str = "alertmanager"  # automatically determined from charm name
+    _layer_name = "alertmanager"  # layer label argument for container.add_layer
+    _service_name: str = "alertmanager"  # chosen arbitrarily to match charm name
+    _peer_relation_name: str = "replicas"  # must match metadata.yaml peer role name
+    _api_port: int = 9093  # port to listen on for the web interface and API
+    _ha_port: int = 9094  # port for HA-communication between multiple instances of alertmanager
+
+    # path, inside the workload container, to the alertmanager configuration file
+    _config_path = "/etc/alertmanager/alertmanager.yml"
+
+    # path, inside the workload container for alertmanager logs, e.g. 'nflogs', 'silences'.
+    _storage_path = "/alertmanager"
+
+    _stored = StoredState()
+
     def __init__(self, *args):
-        log.debug("Initializing charm.")
         super().__init__(*args)
-        self.framework.observe(self.on.config_changed, self.on_config_changed)
+        self.container = self.unit.get_container(self._container_name)
+
+        # event observations
+        self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.update_status, self._on_update_status)
+
         self.framework.observe(
-            self.on["alerting"].relation_changed, self.on_alerting_changed
+            self.on[self._peer_relation_name].relation_joined, self._on_peer_relation_joined
         )
         self.framework.observe(
-            self.on["alertmanager"].relation_changed, self.on_alertmanager_changed
+            self.on[self._peer_relation_name].relation_changed, self._on_peer_relation_changed
         )
         self.framework.observe(
-            self.on["alertmanager"].relation_departed, self.on_alertmanager_departed
+            self.on[self._peer_relation_name].relation_departed, self._on_peer_relation_departed
         )
 
-    @status_catcher
-    def on_alerting_changed(self, event):
-        self.update_alerting(event.relation)
+        self._stored.set_default(
+            pebble_ready=False,
+            config_hash=None,
+            launched_with_peers=False,
+        )
 
-    def update_alerting(self, relation):
-        if self.unit.is_leader():
-            log.info("Setting relation data: port")
-            if str(self.model.config["port"]) != relation.data[self.app].get(
-                "port", None
-            ):
-                relation.data[self.app]["port"] = str(self.model.config["port"])
+        version = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port).version
+        self.provider = AlertmanagerProvider(self, self._service_name, version or "0.0.0")
+        self.provider.api_port = self._api_port
 
-            log.info("Setting relation data: addrs")
-            addrs = []
-            num_units = self.num_units()
-            for i in range(num_units):
-                addrs.append(
-                    UNIT_ADDRESS.format(
-                        self.meta.name, i, self.meta.name, self.model.name
-                    )
+    @property
+    def api_port(self):
+        """Get the API port number to use for alertmanager (default: 9093)."""
+        return self._api_port
+
+    @property
+    def num_peers(self) -> int:
+        """Number of peer units (excluding self)"""
+        # For some reason in Juju 2.9.5 `self.peer_relation.units` is an empty set
+        return sum(
+            isinstance(unit, ops.model.Unit) and unit is not self.unit
+            for unit in self.peer_relation.data.keys()
+        )
+
+    @property
+    def peer_relation(self) -> Optional[ops.model.Relation]:
+        # Returns None if called too early, e.g. during install.
+        return self.model.get_relation(self._peer_relation_name)
+
+    @property
+    def private_address(self) -> Optional[str]:
+        """Get the unit's ip address.
+        Technically, receiving a "joined" event guarantees an IP address is available. If this is
+        called beforehand, a None would be returned.
+        When operating a single unit, no "joined" events are visible so obtaining an address is a
+        matter of timing in that case.
+
+        This function is still needed in Juju 2.9.5 because the "private-address" field in the
+        data bag is being populated by the app IP instead of the unit IP.
+        Also in Juju 2.9.5, ip address may be None even after RelationJoinedEvent, for which
+        "ops.model.RelationDataError: relation data values must be strings" would be emitted.
+
+        Returns:
+          None if no IP is available (called before unit "joined"); unit's ip address otherwise
+        """
+        # if bind_address := check_output(["unit-get", "private-address"]).decode().strip()
+        if bind_address := self.model.get_binding(self.peer_relation).network.bind_address:
+            bind_address = str(bind_address)
+        return bind_address
+
+    def _store_private_address(self):
+        """Store private address in unit's peer relation data bucket.
+
+        This function is still needed in Juju 2.9.5 because the "private-address" field in the
+        data bag is being populated by the app IP instead of the unit IP.
+        Also in Juju 2.9.5, ip address may be None even after RelationJoinedEvent, for which
+        "ops.model.RelationDataError: relation data values must be strings" would be emitted.
+        """
+        self.peer_relation.data[self.unit]["private_address"] = self.private_address
+
+    def _fetch_private_address(self) -> Optional[str]:
+        """Fetch private address from unit's peer relation data bucket."""
+        if relation := self.peer_relation:
+            return relation.data[self.unit].get("private_address")
+        return None
+
+    def _alertmanager_layer(self) -> Dict[str, Any]:
+        """Returns Pebble configuration layer for alertmanager."""
+
+        def _command():
+            """Returns full command line to start alertmanager"""
+            peer_addresses = self._get_peer_addresses()
+
+            # cluster listen address - empty string disables HA mode
+            listen_address_arg = "" if len(peer_addresses) == 0 else f"0.0.0.0:{self._ha_port}"
+
+            # The chosen port in the cluster.listen-address flag is the port that needs to be
+            # specified in the cluster.peer flag of the other peers.
+            # Assuming all replicas use the same port.
+            # Sorting for repeatability in comparing between service layers.
+            peer_cmd_args = " ".join(
+                sorted(["--cluster.peer={}".format(address) for address in peer_addresses])
+            )
+            return (
+                "alertmanager "
+                "--config.file={} "
+                "--storage.path={} "
+                "--web.listen-address=:{} "
+                "--cluster.listen-address={} "
+                "{}".format(
+                    self._config_path,
+                    self._storage_path,
+                    self._api_port,
+                    listen_address_arg,
+                    peer_cmd_args,
                 )
-            if addrs != json.loads(relation.data[self.app].get("addrs", "null")):
-                relation.data[self.app]["addrs"] = json.dumps(addrs)
+            )
 
-    @status_catcher
-    def on_alertmanager_changed(self, event):
-        if self.unit.is_leader():
-            self.configure()
-            for relation in self.model.relations["alerting"]:
-                self.update_alerting(relation)
+        return {
+            "summary": "alertmanager layer",
+            "description": "pebble config layer for alertmanager",
+            "services": {
+                self._service_name: {
+                    "override": "replace",
+                    "summary": "alertmanager service",
+                    "command": _command(),
+                    "startup": "enabled",
+                }
+            },
+        }
 
-    @status_catcher
-    def on_alertmanager_departed(self, event):
-        if self.unit.is_leader():
-            self.configure()
-            for relation in self.model.relations["alerting"]:
-                self.update_alerting(relation)
+    @property
+    def is_service_running(self) -> bool:
+        """Helper function for checking if the alertmanager service is running.
 
-    @status_catcher
-    def on_config_changed(self, _):
-        self.configure()
-        for relation in self.model.relations["alerting"]:
-            self.update_alerting(relation)
+        Returns:
+          True if the service is running; False otherwise.
 
-    def configure(self):
-        """Set Juju / Kubernetes pod spec built from `build_pod_spec()`."""
+        Raises:
+          ModelError: If the service is not defined (e.g. layer does not exist).
+        """
+        return self.container.get_service(self._service_name).is_running()
 
-        self.framework.breakpoint()
+    def _restart_service(self) -> bool:
+        logger.info("Restarting service %s", self._service_name)
 
-        if not self.unit.is_leader():
-            log.debug("Unit is not leader. Cannot set pod spec.")
-            self.unit.status = ActiveStatus()
-            return
+        try:
+            # if the service does not exist, ModelError will be raised
+            if self.is_service_running:
+                self.container.stop(self._service_name)
+            self.container.start(self._service_name)
 
-        # setting pod spec and associated logging
-        self.unit.status = MaintenanceStatus("Building pod spec.")
-        log.debug("Building pod spec.")
+            # Update "launched with peers" flag.
+            # The service should be restarted when peers joined if this is False.
+            plan = self.container.get_plan()
+            service = plan.services.get(self._service_name)
+            self._stored.launched_with_peers = "--cluster.peer" in service.command
+            return True
 
-        pod_spec = self.build_pod_spec()
-        log.debug("Setting pod spec.")
-        self.model.pod.set_spec(pod_spec)
+        except ops.model.ModelError:
+            logger.warning("Service does not (yet?) exist; (re)start aborted")
+            return False
+        except ChangeError as e:
+            logger.error("ChangeError: failed to (re)start service: %s", str(e))
+            return False
+        except Exception as e:
+            logger.error("failed to (re)start service: %s", str(e))
+            raise
 
-        self.unit.status = ActiveStatus()
-        log.debug("Pod spec set successfully.")
+    def _update_layer(self, restart: bool = True) -> bool:
+        """Update service layer to reflect changes in peers (replicas).
 
-    def build_config_file(self):
-        """Create the alertmanager config file from self.model.config"""
-        if not self.model.config["pagerduty_key"]:
-            raise BlockedStatusError("Missing pagerduty_key config value")
+        Args:
+          restart: a flag indicating if the service should be restarted if a change was detected.
 
-        return CONFIG_CONTENT.format(pagerduty_key=self.model.config["pagerduty_key"])
+        Returns:
+          True if anything changed; False otherwise
+        """
+        overlay = self._alertmanager_layer()
 
-    def build_pod_spec(self):
-        """Builds the pod spec based on available info in datastore`."""
+        plan = self.container.get_plan()
 
-        config = self.model.config
+        is_changed = False
+        # if this unit has just started, the services does not yet exist - using "get"
+        service = plan.services.get(self._service_name)
+        overlay_command = overlay["services"][self._service_name]["command"]
+        logger.info("update layer: overlay command: %s", overlay_command)
 
-        config_file_contents = self.build_config_file()
+        if service is None or service.command != overlay_command:
+            is_changed = True
+            self.container.add_layer(self._layer_name, overlay, combine=True)
 
-        # set image details based on what is defined in the charm configuation
-        image_details = {"imagePath": config["alertmanager_image_path"]}
+        if is_changed and restart:
+            self._restart_service()
 
-        ha_targets = []
-        num_units = self.num_units()
-        if num_units > 1:
-            for i in range(num_units):
-                cluster_address = UNIT_ADDRESS.format(
-                    self.meta.name, i, self.meta.name, self.model.name
-                )
-                ha_targets.append(f"--cluster.peer={cluster_address}:{HA_PORT}")
+        return is_changed
 
-        spec = {
-            "version": 3,
-            "containers": [
+    def _update_config(self, restart_on_failure: bool = True) -> bool:
+        """Update alertmanager.yml config file to reflect changes in configuration.
+
+        Args:
+          restart_on_failure: a flag indicating if the service should be restarted if a config
+          hot-reload failed.
+
+        Returns:
+          True if unchanged, or if changed successfully; False otherwise
+        """
+        # The default alertmanager.yml that is created by alertmanager on startup, if none exists
+        default_alertmanager_config = textwrap.dedent(
+            """
+            route:
+              group_by: ['alertname']
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 1h
+              receiver: 'web.hook'
+            receivers:
+            - name: 'web.hook'
+              webhook_configs:
+              - url: 'http://127.0.0.1:5001/'
+            inhibit_rules:
+              - source_match:
+                  severity: 'critical'
+                target_match:
+                  severity: 'warning'
+                equal: ['alertname', 'dev', 'instance']
+            """
+        )
+        # config: dict = yaml.safe_load(self.container.pull(self._config_path))
+        config: dict = yaml.safe_load(default_alertmanager_config)
+
+        if pagerduty_key := self.model.config.get("pagerduty_key"):
+            config.update(
                 {
-                    "name": self.app.name,  # self.app.name is defined in metadata.yaml
-                    "imageDetails": image_details,
-                    "args": [
-                        "--config.file=/etc/alertmanager/alertmanager.yaml",
-                        "--storage.path=/alertmanager",
-                        f'--web.listen-address=:{config["port"]}',
-                    ]
-                    + ha_targets,
-                    "ports": [{"containerPort": config["port"], "protocol": "TCP"}],
-                    "kubernetes": {
-                        "readinessProbe": {
-                            "httpGet": {"path": "/-/ready", "port": config["port"]},
-                            "initialDelaySeconds": 10,
-                            "timeoutSeconds": 30,
-                        },
-                        "livenessProbe": {
-                            "httpGet": {"path": "/-/healthy", "port": config["port"]},
-                            "initialDelaySeconds": 30,
-                            "timeoutSeconds": 30,
-                        },
-                    },
-                    # this where we define any files necessary for configuration
-                    # Juju gives developers a nice way of directly defining what
-                    # the contents of files should be.
-                    # Note that "volumeConfig" is new in pod-spec v3 and is a
-                    # replacement for "files"
-                    "volumeConfig": [
+                    "receivers": [
                         {
-                            "name": "config",
-                            "mountPath": "/etc/alertmanager",
-                            "files": [
+                            "name": "default_pagerduty",
+                            "pagerduty_configs": [
+                                {"send_resolved": True, "service_key": pagerduty_key}
+                            ],
+                        }
+                    ]
+                }
+            )
+            config["route"]["receiver"] = "default_pagerduty"
+        else:
+            # pagerduty_key evaluates to False: restore sections to default values (alertmanager
+            # won't start without a receiver)
+            config.update(
+                {
+                    "receivers": [
+                        {
+                            "name": "web.hook",
+                            "webhook_configs": [
                                 {
-                                    "path": "alertmanager.yaml",
-                                    # this is a very basic configuration file with
-                                    # some hard coded options for demonstration
-                                    # consider adding this kind of information in
-                                    # `config.yaml` in production charms
-                                    "content": config_file_contents,
+                                    "url": "http://127.0.0.1:5001/",
                                 }
                             ],
                         }
-                    ],
+                    ]
                 }
-            ],
+            )
+            config["route"]["receiver"] = "web.hook"
+
+        config_yaml = yaml.safe_dump(config)
+        config_hash = utils.sha256(config_yaml)
+
+        if config_hash != self._stored.config_hash:
+            self.container.push(self._config_path, config_yaml)
+
+            # Send an HTTP POST to alertmanager to hot-reload the config.
+            # This reduces down-time compared to restarting the service.
+            api = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port)
+            if api.reload():
+                self._stored.config_hash = config_hash
+                success = True
+            else:
+                logger.warning("config reload via HTTP POST failed")
+                if restart_on_failure:
+                    if self._restart_service():
+                        self._stored.config_hash = config_hash
+                        success = True
+                    else:
+                        success = False
+                else:
+                    # reload failed but not restarting
+                    success = False
+        else:
+            # no change in config
+            success = True
+
+        return success
+
+    def _common_exit_hook(self) -> bool:
+        if not self._stored.pebble_ready:
+            self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
+            return False
+
+        # Wait for IP address. IP address is needed for config hot-reload and status updates.
+        if not self.private_address:
+            self.unit.status = MaintenanceStatus("Waiting for IP address")
+            return False
+        else:
+            # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
+            # setting it here.
+            self._store_private_address()
+
+        # Update pebble layer
+        try:
+            layer_changed = self._update_layer(restart=False)
+            if layer_changed and (
+                not self.is_service_running
+                or (self.num_peers > 0 and not self._stored.launched_with_peers)
+            ):
+                self._restart_service()
+
+            # Update config file
+            if not self._update_config(restart_on_failure=True):
+                self.unit.status = BlockedStatus("Config update failed")
+                return False
+
+        except ChangeError as e:
+            logger.error("Pebble error: %s", str(e))
+            self.unit.status = BlockedStatus("Pebble error")
+            return False
+
+        self.provider.ready()
+        self.unit.status = ActiveStatus()
+
+        return True
+
+    def _on_pebble_ready(self, event: ops.charm.PebbleReadyEvent):
+        self._stored.pebble_ready = True
+        self._common_exit_hook()
+
+    def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
+        self._common_exit_hook()
+
+    def _on_peer_relation_joined(self, event: ops.charm.RelationJoinedEvent):
+        self._common_exit_hook()
+
+    def _on_peer_relation_changed(self, event: ops.charm.RelationChangedEvent):
+        # `relation_changed` is needed in addition to `relation_joined` because when a second unit
+        # joins, the first unit must be restarted and provided with the second unit's IP address.
+        # when the first unit sees "joined", it is not guaranteed that the second unit already has
+        # an IP address.
+        self._common_exit_hook()
+
+    def _on_peer_relation_departed(self, event: ops.charm.RelationDepartedEvent):
+        # No need to update peers - the cluster update itself when a unit is not available.
+        # No need to update consumer relations because addresses are pulled from unit data bags
+        # by the consumer library.
+        self.provider.unready()
+
+    def _on_update_status(self, event: ops.charm.UpdateStatusEvent):
+        api = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port)
+        if status := api.status():
+            logger.info(
+                "alertmanager %s is up and running (uptime: %s); "
+                "cluster mode: %s, with %d peers",
+                status["versionInfo"]["version"],
+                status["uptime"],
+                status["cluster"]["status"],
+                len(status["cluster"]["peers"]),
+            )
+
+        # Calling the common hook to make sure a single unit set its IP in case all events fired
+        # before an IP address was ready, leaving UpdateStatue as the last resort.
+        self._common_exit_hook()
+
+    def _get_unit_address_map(self) -> Dict[ops.model.Unit, Optional[str]]:
+        """Create a mapping between Unit and its IP address.
+
+        The returned addresses do not include ports nor scheme.
+        If an IP address is not available, the corresponding value will be None.
+        """
+        # For some reason self.peer_relation.units returns an empty set so using `isinstance`
+        addresses = {
+            unit: data.get("private_address")
+            for unit, data in self.peer_relation.data.items()
+            if isinstance(unit, ops.model.Unit)
         }
+        return addresses
 
-        return spec
+    def _get_peer_addresses(self) -> List[str]:
+        """Create a list of HA addresses of all peer units (all units excluding current).
 
-    def num_units(self):
-        relation = self.model.get_relation("alertmanager")
-        # The relation does not list ourself as a unit so we must add 1
-        return len(relation.units) + 1 if relation is not None else 1
+        The returned addresses include the HA port number but do not include scheme (http).
+        If a unit does not have an API, it will be omitted from the list.
+        """
+        return [
+            "{}:{}".format(address, self._ha_port)
+            for unit, address in self._get_unit_address_map().items()
+            if unit is not self.unit and address is not None
+        ]
 
 
 if __name__ == "__main__":
