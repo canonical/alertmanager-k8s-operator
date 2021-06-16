@@ -9,7 +9,8 @@ import ops
 from ops.charm import CharmBase
 from ops.main import main
 from ops.framework import StoredState
-from ops.model import ActiveStatus, MaintenanceStatus
+from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
+from ops.pebble import ChangeError
 
 import urllib.parse
 import requests
@@ -181,7 +182,6 @@ class AlertmanagerCharm(CharmBase):
             peer_cmd_args = " ".join(
                 sorted(["--cluster.peer={}".format(address) for address in peer_addresses])
             )
-
             return (
                 "/bin/alertmanager "
                 "--config.file={} "
@@ -222,7 +222,7 @@ class AlertmanagerCharm(CharmBase):
         """
         return self.container.get_service(self._service_name).is_running()
 
-    def _restart_service(self) -> None:
+    def _restart_service(self) -> bool:
         logger.info("Restarting service %s", self._service_name)
 
         try:
@@ -231,17 +231,22 @@ class AlertmanagerCharm(CharmBase):
                 self.container.stop(self._service_name)
             self.container.start(self._service_name)
 
+            # Update "launched with peers" flag.
+            # The service should be restarted when peers joined if this is False.
+            plan = self.container.get_plan()
+            service = plan.services.get(self._service_name)
+            self._stored.launched_with_peers = "--cluster.peer" in service.command
+            return True
+
         except ops.model.ModelError:
             logger.warning("Service does not (yet?) exist; (re)start aborted")
+            return False
+        except ChangeError as e:
+            logger.error("ChangeError: failed to (re)start service: %s", str(e))
+            return False
         except Exception as e:
             logger.error("failed to (re)start service: %s", str(e))
             raise
-
-        # Update "launched with peers" flag.
-        # The service should be restarted when peers joined if this is False.
-        plan = self.container.get_plan()
-        service = plan.services.get(self._service_name)
-        self._stored.launched_with_peers = "--cluster.peer" in service.command
 
     def _update_layer(self, restart: bool = True) -> bool:
         """Update service layer to reflect changes in peers (replicas).
@@ -260,6 +265,7 @@ class AlertmanagerCharm(CharmBase):
         # if this unit has just started, the services does not yet exist - using "get"
         service = plan.services.get(self._service_name)
         overlay_command = overlay["services"][self._service_name]["command"]
+        logger.info("update layer: overlay command: %s", overlay_command)
 
         if service is None or service.command != overlay_command:
             is_changed = True
@@ -297,7 +303,7 @@ class AlertmanagerCharm(CharmBase):
           hot-reload failed.
 
         Returns:
-          True if anything changed; False otherwise
+          True if unchanged, or if changed successfully; False otherwise
         """
         config: dict = yaml.safe_load(self.container.pull(self._config_path))
         if pagerduty_key := self.model.config.get("pagerduty_key"):
@@ -336,23 +342,31 @@ class AlertmanagerCharm(CharmBase):
         config_yaml = yaml.safe_dump(config)
         config_hash = utils.sha256(config_yaml)
 
-        is_changed = False
         if config_hash != self._stored.config_hash:
-            is_changed = True
-            # Get a reference to the container so we can manipulate it
             self.container.push(self._config_path, config_yaml)
-            self._stored.config_hash = config_hash
 
-        if is_changed:
             # Send an HTTP POST to alertmanager to hot-reload the config.
             # This reduces down-time compared to restarting the service.
             api = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port)
-            if not api.reload():
+            if api.reload():
+                self._stored.config_hash = config_hash
+                success = True
+            else:
                 logger.warning("config reload via HTTP POST failed")
                 if restart_on_failure:
-                    self._restart_service()
+                    if self._restart_service():
+                        self._stored.config_hash = config_hash
+                        success = True
+                    else:
+                        success = False
+                else:
+                    # reload failed but not restarting
+                    success = False
+        else:
+            # no change in config
+            success = True
 
-        return is_changed
+        return success
 
     def _common_exit_hook(self) -> bool:
         if not self._stored.pebble_ready:
@@ -369,15 +383,23 @@ class AlertmanagerCharm(CharmBase):
             self._store_private_address()
 
         # Update pebble layer
-        layer_changed = self._update_layer(restart=False)
-        if layer_changed and (
-            not self.is_service_running
-            or (self.num_peers > 0 and not self._stored.launched_with_peers)
-        ):
-            self._restart_service()
+        try:
+            layer_changed = self._update_layer(restart=False)
+            if layer_changed and (
+                not self.is_service_running
+                or (self.num_peers > 0 and not self._stored.launched_with_peers)
+            ):
+                self._restart_service()
 
-        # Update config file
-        self._update_config(restart_on_failure=True)
+            # Update config file
+            if not self._update_config(restart_on_failure=True):
+                self.unit.status = BlockedStatus("Config update failed")
+                return False
+
+        except ChangeError as e:
+            logger.error("Pebble error: %s", str(e))
+            self.unit.status = BlockedStatus("Pebble error")
+            return False
 
         self.provider.ready()
         self.unit.status = ActiveStatus()
