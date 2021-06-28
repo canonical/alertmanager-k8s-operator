@@ -2,7 +2,7 @@
 
 ## Overview
 
-At any given time there are three revisions of the MySQL charm [available on CharmHub.io](https://charmhub.io/alertmanager-k8s), for each of the following channels:
+At any given time there are three revisions of the Alertmanager charm [available on CharmHub.io](https://charmhub.io/alertmanager-k8s), for each of the following channels:
 
 1. `latest/stable` is a well tested production ready version of the Charm.
 2. `latest/candidate` is a feature ready next version of the stable release, currently in testing.
