@@ -16,16 +16,19 @@ Prometheus by forming a relation with it.
 [ecosystem]: https://charmhub.io/
 [charm]: https://charmhub.io/
 
-## Deployment
+## Usage
 
     juju deploy alertmanager-k8s
 
 
-### Receivers
+### Configuration
 
 Currently, supported receivers are
   - [PagerDuty](https://www.pagerduty.com/) (set up with:
     `juju config alertmanager-k8s pagerduty_key='your-key'`)
+
+### Actions
+None.
 
 ### Scale Out Usage
 
@@ -45,21 +48,6 @@ Currently, supported relations are:
     Alertmanager over the `alertmanager_dispatch` interface. Set up with: 
     `juju add-relation alertmanager-k8s prometheus-k8s`.
 
-## Developing
-
-Use your existing Python 3 development environment or create and
-activate a Python 3 virtualenv
-
-    virtualenv -p python3 venv
-    source venv/bin/activate
-
-Install the development requirements
-
-    pip install -r requirements-dev.txt
-
-Later on, upgrade packages as needed
-
-    pip install --upgrade -r requirements-dev.txt
 
 ## OCI images
 This charm can be used with the folowing images:
