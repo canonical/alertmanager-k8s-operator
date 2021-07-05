@@ -18,9 +18,25 @@ The cluster would then auto-update with subsequent changes to the cluster.
    charms.
 
 ## Bugs and pull requests
+- Generally, before developing enhancements to this charm, you should consider
+  [opening an issue ](https://github.com/canonical/alertmanager-operator) explaining
+  your use case.
+- If you would like to chat with us about your use-cases or proposed
+  implementation, you can reach us at
+  [Canonical Mattermost public channel](https://chat.charmhub.io/charmhub/channels/charm-dev)
+  or [Discourse](https://discourse.charmhub.io/).
+- It is strongly recommended that prior to engaging in any enhancements
+  to this charm you familiarise your self with Juju.
+- Familiarising yourself with the
+  [Charmed Operator Framework](https://juju.is/docs/sdk).
+  library will help you a lot when working on PRs.
+- All enhancements require review before being merged. Besides the
+  code quality and test coverage, the review will also take into
+  account the resulting user experience for Juju administrators using
+  this charm. Please help us out in having easier reviews by rebasing
+  onto the `main` branch, avoid merge commits and enjoy a linear Git
+  history.
 
-All bugs and pull requests should be submitted to the 
-[github repo](https://github.com/canonical/alertmanager-operator).
 
 ## Setup
 
