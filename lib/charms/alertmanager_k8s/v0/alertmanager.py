@@ -84,10 +84,7 @@ class AlertmanagerConsumer(ConsumerBase):
         )
 
     def _on_relation_changed(self, event: ops.charm.RelationChangedEvent):
-        """This hook stores locally the address of the newly-joined alertmanager.
-        This is needed for consumers such as prometheus, which should be aware of all alertmanager
-        instances.
-        """
+        """This hook notifies the charm that there may have been changes to the cluster"""
         if event.unit:  # event.unit may be `None` in the case of app data change
             # inform consumer about the change
             self.cluster_changed.emit()
@@ -103,10 +100,7 @@ class AlertmanagerConsumer(ConsumerBase):
         return sorted(alertmanagers)
 
     def _on_relation_departed(self, event: ops.charm.RelationDepartedEvent):
-        """This hook removes the address of the departing alertmanager from its local store.
-        This is needed for consumers such as prometheus, which should be aware of all alertmanager
-        instances.
-        """
+        """This hook notifies the charm that there may have been changes to the cluster"""
         self.cluster_changed.emit()
 
     def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
