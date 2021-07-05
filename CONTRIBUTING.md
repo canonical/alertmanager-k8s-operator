@@ -44,7 +44,28 @@ A typical setup using [snaps](https://snapcraft.io/), for deployments
 to a [microk8s](https://microk8s.io/) cluster can be found in the 
 [Juju docs](https://juju.is/docs/olm/microk8s).
 
-## Build
+## Developing
+
+Use your existing Python 3 development environment or create and
+activate a Python 3 virtualenv
+
+    virtualenv -p python3 venv
+    source venv/bin/activate
+
+Install the development requirements
+
+    pip install -r requirements-dev.txt
+
+Later on, upgrade packages as needed
+
+    pip install --upgrade -r requirements-dev.txt
+
+
+### Testing
+
+    ./run_tests
+
+## Build charm
 
 Install the charmcraft tool
 
@@ -88,9 +109,6 @@ Finally, add a relation between Prometheus and Alertmanager:
 
     juju add-relation prometheus-k8s:alertmanager alertmanager-k8s:alerting
 
-## Testing
-
-    ./run_tests
 
 ## References
 - [Alertmanager API browser](https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml)
