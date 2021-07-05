@@ -93,4 +93,4 @@ Finally, add a relation between Prometheus and Alertmanager:
     ./run_tests
 
 ## References
-- [Alertmanager API browser]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml
+- [Alertmanager API browser](https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml)
