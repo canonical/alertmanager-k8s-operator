@@ -109,6 +109,22 @@ Finally, add a relation between Prometheus and Alertmanager:
 
     juju add-relation prometheus-k8s:alertmanager alertmanager-k8s:alerting
 
+## Code overview
+- The main charm class is `AlertmanagerCharm`, which responds to config changes (via `ConfigChangedEvent`) and cluster changes (via `RelationJoinedEvent`, `RelationChangedEvent` and `RelationDepartedEvent`).
+- All lifecycle events call a common hook, `_common_exit_hook` after executing their own business logic. 
+  This pattern simplifies state tracking and improves consistency.
+- On startup, the charm waits for `PebbleReadyEvent` and for an IP address to become available before starting 
+  the alertmanager service and declaring `ActiveStatus`.
+
+## Design choices
+- The `alertmanager.yml` config file is created in its entirety by the charm code on startup 
+  (the default `alertmanager.yml` is overwritten). This is done to maintain consitency across OCI images.
+- Hot reload via the alertmanager HTTP API is used whenever possible instead of service restart, to minimize down time.
+
+## Roadmap
+- Add Karma relation
+- Test using pytest-operator
+- Use integrator charms
 
 ## References
 - [Alertmanager API browser](https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml)
