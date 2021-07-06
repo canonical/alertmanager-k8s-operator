@@ -38,10 +38,10 @@ You may add additional Alertmanager units for high availability
 
 ### Dashboard
 
-The ALertmanager dashboard may be accessed at the default port (9093) on the IP
+The Alertmanager dashboard may be accessed at the default port (9093) on the IP
 address of the Alertmanager unit, which is determinable with a `juju status` command.
 
-## Provided relations
+## Relations
 
 Currently, supported relations are:
   - [Prometheus](https://github.com/canonical/prometheus-operator), which forwards alerts to
@@ -49,13 +49,13 @@ Currently, supported relations are:
     `juju add-relation alertmanager-k8s prometheus-k8s`.
 
 
-## OCI images
+## OCI Images
 This charm can be used with the folowing images:
 - [`ubuntu/prometheus-alertmanager`](https://hub.docker.com/r/ubuntu/prometheus-alertmanager) (default)
 - [`quay.io/prometheus/alertmanager`](https://quay.io/repository/prometheus/alertmanager?tab=tags)
 
 
-## Additional information
+## Additional Information
 - [Logging, Monitoring, and Alerting](https://discourse.ubuntu.com/t/logging-monitoring-and-alerting/19151) (LMA) - 
   a tutorial for running Prometheus, Grafana and Alertmanager with LXD.
 - [Alertmanager README](https://github.com/prometheus/alertmanager)
