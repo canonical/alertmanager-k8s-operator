@@ -18,9 +18,25 @@ The cluster would then auto-update with subsequent changes to the cluster.
    charms.
 
 ## Bugs and pull requests
+- Generally, before developing enhancements to this charm, you should consider
+  [opening an issue ](https://github.com/canonical/alertmanager-operator) explaining
+  your use case.
+- If you would like to chat with us about your use-cases or proposed
+  implementation, you can reach us at
+  [Canonical Mattermost public channel](https://chat.charmhub.io/charmhub/channels/charm-dev)
+  or [Discourse](https://discourse.charmhub.io/).
+- It is strongly recommended that prior to engaging in any enhancements
+  to this charm you familiarise your self with Juju.
+- Familiarising yourself with the
+  [Charmed Operator Framework](https://juju.is/docs/sdk).
+  library will help you a lot when working on PRs.
+- All enhancements require review before being merged. Besides the
+  code quality and test coverage, the review will also take into
+  account the resulting user experience for Juju administrators using
+  this charm. Please help us out in having easier reviews by rebasing
+  onto the `main` branch, avoid merge commits and enjoy a linear Git
+  history.
 
-All bugs and pull requests should be submitted to the 
-[github repo](https://github.com/canonical/alertmanager-operator).
 
 ## Setup
 
@@ -28,7 +44,28 @@ A typical setup using [snaps](https://snapcraft.io/), for deployments
 to a [microk8s](https://microk8s.io/) cluster can be found in the 
 [Juju docs](https://juju.is/docs/olm/microk8s).
 
-## Build
+## Developing
+
+Use your existing Python 3 development environment or create and
+activate a Python 3 virtualenv
+
+    virtualenv -p python3 venv
+    source venv/bin/activate
+
+Install the development requirements
+
+    pip install -r requirements-dev.txt
+
+Later on, upgrade packages as needed
+
+    pip install --upgrade -r requirements-dev.txt
+
+
+### Testing
+
+    ./run_tests
+
+## Build charm
 
 Install the charmcraft tool
 
@@ -72,9 +109,22 @@ Finally, add a relation between Prometheus and Alertmanager:
 
     juju add-relation prometheus-k8s:alertmanager alertmanager-k8s:alerting
 
-## Testing
+## Code overview
+- The main charm class is `AlertmanagerCharm`, which responds to config changes (via `ConfigChangedEvent`) and cluster changes (via `RelationJoinedEvent`, `RelationChangedEvent` and `RelationDepartedEvent`).
+- All lifecycle events call a common hook, `_common_exit_hook` after executing their own business logic. 
+  This pattern simplifies state tracking and improves consistency.
+- On startup, the charm waits for `PebbleReadyEvent` and for an IP address to become available before starting 
+  the alertmanager service and declaring `ActiveStatus`.
 
-    ./run_tests
+## Design choices
+- The `alertmanager.yml` config file is created in its entirety by the charm code on startup 
+  (the default `alertmanager.yml` is overwritten). This is done to maintain consitency across OCI images.
+- Hot reload via the alertmanager HTTP API is used whenever possible instead of service restart, to minimize down time.
+
+## Roadmap
+- Add Karma relation
+- Test using pytest-operator
+- Use integrator charms
 
 ## References
-- [Alertmanager API browser]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml
+- [Alertmanager API browser](https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml)

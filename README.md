@@ -16,16 +16,19 @@ Prometheus by forming a relation with it.
 [ecosystem]: https://charmhub.io/
 [charm]: https://charmhub.io/
 
-## Deployment
+## Usage
 
     juju deploy alertmanager-k8s
 
 
-### Receivers
+### Configuration
 
 Currently, supported receivers are
   - [PagerDuty](https://www.pagerduty.com/) (set up with:
     `juju config alertmanager-k8s pagerduty_key='your-key'`)
+
+### Actions
+None.
 
 ### Scale Out Usage
 
@@ -33,33 +36,26 @@ You may add additional Alertmanager units for high availability
 
     juju add-unit alertmanager-k8s
 
-## Provided relations
+### Dashboard
+
+The Alertmanager dashboard may be accessed at the default port (9093) on the IP
+address of the Alertmanager unit, which is determinable with a `juju status` command.
+
+## Relations
 
 Currently, supported relations are:
-  - [Prometheus](https://github.com/canonical/prometheus-operator) (set up with: 
-    `juju add-relation alertmanager-k8s:alerting prometheus-k8s:alertmanager`)
+  - [Prometheus](https://github.com/canonical/prometheus-operator), which forwards alerts to
+    Alertmanager over the `alertmanager_dispatch` interface. Set up with: 
+    `juju add-relation alertmanager-k8s prometheus-k8s`.
 
-## Developing
 
-Use your existing Python 3 development environment or create and
-activate a Python 3 virtualenv
+## OCI Images
+This charm can be used with the folowing images:
+- [`ubuntu/prometheus-alertmanager`](https://hub.docker.com/r/ubuntu/prometheus-alertmanager) (default)
+- [`quay.io/prometheus/alertmanager`](https://quay.io/repository/prometheus/alertmanager?tab=tags)
 
-    virtualenv -p python3 venv
-    source venv/bin/activate
 
-Install the development requirements
-
-    pip install -r requirements-dev.txt
-
-Later on, upgrade packages as needed
-
-    pip install --upgrade -r requirements-dev.txt
-
-## Roadmap
-- Improve tests
-- Add additional receivers: webhook, Pushover
-
-## Additional information
+## Additional Information
 - [Logging, Monitoring, and Alerting](https://discourse.ubuntu.com/t/logging-monitoring-and-alerting/19151) (LMA) - 
   a tutorial for running Prometheus, Grafana and Alertmanager with LXD.
 - [Alertmanager README](https://github.com/prometheus/alertmanager)
