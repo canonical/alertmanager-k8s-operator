@@ -66,9 +66,10 @@ class AlertmanagerAPIClient:
 
 
 class AlertmanagerCharm(CharmBase):
-    _container_name = "alertmanager"  # automatically determined from charm name
-    _layer_name = "alertmanager"  # layer label argument for container.add_layer
-    _service_name = "alertmanager"  # chosen arbitrarily to match charm name
+    # Container name is automatically determined from charm name
+    # Layer name is used for the layer label argument in container.add_layer
+    # Service name is chosen arbitrarily to match charm name
+    _container_name = _layer_name = _service_name = "alertmanager"
     _peer_relation_name = "replicas"  # must match metadata.yaml peer role name
     _api_port = 9093  # port to listen on for the web interface and API
     _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
