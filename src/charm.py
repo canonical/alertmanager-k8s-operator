@@ -77,14 +77,14 @@ class AlertmanagerCharm(CharmBase):
     # path, inside the workload container, to the alertmanager configuration file
     _config_path = "/etc/alertmanager/alertmanager.yml"
 
-    # path, inside the workload container for alertmanager logs, e.g. 'nflogs', 'silences'.
-    _storage_path = "/alertmanager"
-
     _stored = StoredState()
 
     def __init__(self, *args):
         super().__init__(*args)
         self.container = self.unit.get_container(self._container_name)
+
+        # path, inside the workload container for alertmanager logs, e.g. 'nflogs', 'silences'.
+        self._storage_path = self.meta.storages["data"].location
 
         # event observations
         self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
