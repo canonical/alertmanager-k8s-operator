@@ -86,7 +86,7 @@ class KarmaProvider(ProviderBase):
 
     ```python
     self.provider = KarmaProvider(
-        self, "karma-dashboard", "karma", "0.0.1"
+        self, "karma-dashboard", "karma", "0.86"
     )
     ```
 

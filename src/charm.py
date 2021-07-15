@@ -114,7 +114,7 @@ class AlertmanagerCharm(CharmBase):
         self.karma_lib = KarmaConsumer(
             self,
             "karma_dashboard",
-            consumes={"karma": ">=0.0.1"},
+            consumes={"karma": ">=0.86"},
         )
 
     @property
