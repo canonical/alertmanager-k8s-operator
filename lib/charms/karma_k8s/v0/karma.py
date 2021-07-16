@@ -14,7 +14,7 @@ from ops.charm import RelationJoinedEvent, RelationDepartedEvent
 from ops.relation import ConsumerBase, ProviderBase
 from ops.framework import StoredState
 
-from typing import List, Dict, Optional, Iterable
+from typing import List, Dict, Optional
 
 # The unique Charmhub library identifier, never change it
 LIBID = "abcdef1234"
@@ -36,12 +36,17 @@ class KarmaAlertmanagerConfig:
     def is_valid(config: Dict[str, str]):
         return all(key in config for key in KarmaAlertmanagerConfig.required_fields)
 
+    @staticmethod
+    def from_dict(data: Dict[str, str]) -> Dict[str, str]:
+        config = {k: data[k] for k in data if k in KarmaAlertmanagerConfig.required_fields}
+        return config if KarmaAlertmanagerConfig.is_valid(config) else {}
 
-def dict_subset(data: dict, key_subset: Iterable):
-    return {k: v for k, v in data.items() if k in key_subset}
+    @staticmethod
+    def build(name: str, uri: str) -> Dict[str, str]:
+        return KarmaAlertmanagerConfig.from_dict({"name": name, "uri": uri})
 
 
-class GenericEvent(EventBase):
+class KarmaAlertmanagerConfigChanged(EventBase):
     def __init__(self, handle, data=None):
         super().__init__(handle)
         self.data = data
@@ -53,10 +58,6 @@ class GenericEvent(EventBase):
     def restore(self, snapshot):
         """Restore relation data."""
         self.data = snapshot["data"]
-
-
-class KarmaAlertmanagerConfigChanged(GenericEvent):
-    pass
 
 
 class KarmaProviderEvents(ObjectEvents):
@@ -109,7 +110,7 @@ class KarmaProvider(ProviderBase):
 
     Arguments:
             charm (CharmBase): consumer charm
-            relation_name (str): from consumer's metadata.yaml
+            name (str): relation name from consumer's metadata.yaml
             service_name (str): service name (must be consistent the consumer)
             version (str): semver-compatible version string
 
@@ -120,13 +121,12 @@ class KarmaProvider(ProviderBase):
     on = KarmaProviderEvents()
     _stored = StoredState()
 
-    def __init__(self, charm, relation_name: str, service_name: str, version: str = None):
-        super().__init__(charm, relation_name, service_name, version)
+    def __init__(self, charm, name: str, service_name: str, version: str = None):
+        super().__init__(charm, name, service_name, version)
         self.charm = charm
-        self._relation_name = relation_name
         self._service_name = service_name
 
-        events = self.charm.on[self._relation_name]
+        events = self.charm.on[self.name]
         self.framework.observe(events.relation_joined, self._on_relation_joined)
         self.framework.observe(events.relation_changed, self._on_relation_changed)
         self.framework.observe(events.relation_departed, self._on_relation_departed)
@@ -134,10 +134,8 @@ class KarmaProvider(ProviderBase):
 
     def get_alertmanager_servers(self) -> List[Dict[str, str]]:
         alertmanager_ips = []
-        logger.info("get_alertmanager_servers")
 
-        for relation in self.charm.model.relations[self._relation_name]:
-            logger.info("relation.data = %s", relation.data)
+        for relation in self.charm.model.relations[self.name]:
             if relation.id not in self._stored.active_relations:
                 # relation id is not present in the set of active relations
                 # this probably means that RelationBroken did not exit yet (was recently removed)
@@ -150,8 +148,8 @@ class KarmaProvider(ProviderBase):
                     data = relation.data[key]
                     break
             if data:
-                config = dict_subset(data, KarmaAlertmanagerConfig.required_fields)
-                if KarmaAlertmanagerConfig.is_valid(config) and config not in alertmanager_ips:
+                config = KarmaAlertmanagerConfig.from_dict(data)
+                if config and config not in alertmanager_ips:
                     alertmanager_ips.append(config)
             else:
                 logger.warning("no related units in relation dict")
@@ -218,7 +216,7 @@ class KarmaConsumer(ConsumerBase):
 
     Arguments:
             charm (CharmBase): consumer charm
-            relation_name (str): from consumer's metadata.yaml
+            name (str): from consumer's metadata.yaml
             consumes (dict): provider specifications
             multi (bool): multiple relations flag
 
@@ -228,21 +226,15 @@ class KarmaConsumer(ConsumerBase):
 
     _stored = StoredState()
 
-    def __init__(self, charm, relation_name: str, consumes: dict, multi: bool = False):
-        super().__init__(charm, relation_name, consumes, multi)
+    def __init__(self, charm, name: str, consumes: dict, multi: bool = False):
+        super().__init__(charm, name, consumes, multi)
         self.charm = charm
-        self._consumer_relation_name = relation_name  # from consumer's metadata.yaml
         self._stored.set_default(config={})
-
-        events = self.charm.on[self._consumer_relation_name]
-
+        events = self.charm.on[self.name]
         self.framework.observe(events.relation_joined, self._on_relation_joined)
 
     def _on_relation_joined(self, event: RelationJoinedEvent):
-        if not self.model.unit.is_leader():
-            return
-
-        # update app data bag
+        # update relation data bag
         event.relation.data[self.charm.unit].update(self._stored.config)
 
     @property
@@ -254,16 +246,15 @@ class KarmaConsumer(ConsumerBase):
         return self._stored.config.get("uri", None)
 
     def set_config(self, name: str, uri: str) -> bool:
-        config = {"name": name, "uri": uri}
-        if not KarmaAlertmanagerConfig.is_valid(config):
+        if not (config := KarmaAlertmanagerConfig.build(name, uri)):
             logger.warning("Invalid config: {%s, %s}", name, uri)
             return False
 
         self._stored.config.update(config)
         logger.info("stored config: %s", self._stored.config)
 
-        if self.model.unit.is_leader() and self._consumer_relation_name in self.charm.model.relations:
-            for relation in self.charm.model.relations[self._consumer_relation_name]:
+        if self.model.unit.is_leader() and self.name in self.charm.model.relations:
+            for relation in self.charm.model.relations[self.name]:
                 relation.data[self.charm.unit].update(self._stored.config)
 
         return True
