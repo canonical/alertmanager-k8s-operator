@@ -45,10 +45,10 @@ address of the Alertmanager unit, which is determinable with a `juju status` com
 
 Currently, supported relations are:
   - [Prometheus](https://github.com/canonical/prometheus-operator), which forwards alerts to
-    Alertmanager over the `alertmanager_dispatch` interface. Set up with: 
-    `juju add-relation alertmanager-k8s prometheus-k8s`.
+    Alertmanager over the `alertmanager_dispatch` interface.
+    Set up with `juju add-relation alertmanager-k8s prometheus-k8s`.
   - [Karma](https://github.com/canonical/karma-operator), which displays alerts from all related alertmanager instances 
-    in a nice dashboard.
+    over the `karma_dashboard` interface.
     Set up with `juju add-relation alertmanager-k8s karma-k8s`.
 
 
