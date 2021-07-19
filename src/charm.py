@@ -66,24 +66,25 @@ class AlertmanagerAPIClient:
 
 
 class AlertmanagerCharm(CharmBase):
-    _container_name: str = "alertmanager"  # automatically determined from charm name
-    _layer_name = "alertmanager"  # layer label argument for container.add_layer
-    _service_name: str = "alertmanager"  # chosen arbitrarily to match charm name
-    _peer_relation_name: str = "replicas"  # must match metadata.yaml peer role name
-    _api_port: int = 9093  # port to listen on for the web interface and API
-    _ha_port: int = 9094  # port for HA-communication between multiple instances of alertmanager
+    # Container name is automatically determined from charm name
+    # Layer name is used for the layer label argument in container.add_layer
+    # Service name matches charm name for consistency
+    _container_name = _layer_name = _service_name = "alertmanager"
+    _peer_relation_name = "replicas"  # must match metadata.yaml peer role name
+    _api_port = 9093  # port to listen on for the web interface and API
+    _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
 
     # path, inside the workload container, to the alertmanager configuration file
     _config_path = "/etc/alertmanager/alertmanager.yml"
-
-    # path, inside the workload container for alertmanager logs, e.g. 'nflogs', 'silences'.
-    _storage_path = "/alertmanager"
 
     _stored = StoredState()
 
     def __init__(self, *args):
         super().__init__(*args)
         self.container = self.unit.get_container(self._container_name)
+
+        # path, inside the workload container for alertmanager logs, e.g. 'nflogs', 'silences'.
+        self._storage_path = self.meta.storages["data"].location
 
         # event observations
         self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)

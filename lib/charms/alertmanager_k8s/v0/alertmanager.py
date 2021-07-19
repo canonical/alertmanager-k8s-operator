@@ -2,9 +2,9 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-""" # AlertmanagerConsumer library
+""" # alertmanager library
 
-This library is design to be used by a charm consuming or providing the alertmanager-k8s relation.
+This library is designed to be used by a charm consuming or providing the `alerting` relation.
 """
 
 import ops
@@ -51,9 +51,9 @@ class AlertmanagerConsumer(ConsumerBase):
         self.framework.observe(self.alertmanager_lib.cluster_changed,
                                self._on_alertmanager_cluster_changed)
 
-    The updated alertmanager cluster can then be obtained via the
+    The updated alertmanager cluster can then be obtained via the `get_cluster_info` method
 
-    This consumer library expect the consumer charm to register the `get_cluster_info` method.
+    This consumer library expect the consumer charm to observe the `cluster_changed` event.
 
     Arguments:
             charm (CharmBase): consumer charm
