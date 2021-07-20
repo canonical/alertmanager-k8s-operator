@@ -90,6 +90,7 @@ class AlertmanagerCharm(CharmBase):
         # event observations
         self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.update_status, self._on_update_status)
 
         self.framework.observe(
@@ -394,9 +395,7 @@ class AlertmanagerCharm(CharmBase):
             # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
             # setting it here.
             self._store_private_address()
-            self.karma_lib.set_config(
-                name=self.unit.name, uri="http://{}:{}".format(self.private_address, self.api_port)
-            )
+            self.karma_lib.target = "http://{}:{}".format(self.private_address, self.api_port)
 
         # Update pebble layer
         try:
@@ -427,6 +426,11 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
+        self._common_exit_hook()
+
+    def _on_start(self, event: ops.charm.StartEvent):
+        # With Juju 2.9.5 encountered a scenario in which pebble_ready and config_changed fired, but IP address was not
+        # available and the status was stuck on "Waiting for IP address". Adding this hook as a workaround.
         self._common_exit_hook()
 
     def _on_peer_relation_joined(self, event: ops.charm.RelationJoinedEvent):
