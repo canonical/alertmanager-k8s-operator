@@ -32,6 +32,10 @@ provides:
     interface: alertmanager_dispatch
     # assumed network type: private
 
+requires:
+  karma-dashboard:
+    interface: karma_dashboard
+
 peers:
   replicas:
     interface: alertmanager_replica

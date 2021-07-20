@@ -4,6 +4,7 @@
 import textwrap
 
 from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
+from charms.karma_k8s.v0.karma import KarmaConsumer
 import utils
 
 import ops
@@ -110,6 +111,12 @@ class AlertmanagerCharm(CharmBase):
         version = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port).version
         self.provider = AlertmanagerProvider(self, self._service_name, version or "0.0.0")
         self.provider.api_port = self._api_port
+
+        self.karma_lib = KarmaConsumer(
+            self,
+            "karma_dashboard",
+            consumes={"karma": ">=0.86"},
+        )
 
     @property
     def api_port(self):
@@ -387,6 +394,9 @@ class AlertmanagerCharm(CharmBase):
             # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
             # setting it here.
             self._store_private_address()
+            self.karma_lib.set_config(
+                name=self.unit.name, uri="http://{}:{}".format(self.private_address, self.api_port)
+            )
 
         # Update pebble layer
         try:
