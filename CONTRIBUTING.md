@@ -65,6 +65,43 @@ Later on, upgrade packages as needed
 
     ./run_tests
 
+#### Manual testing
+Alerts can be created using alertmanager's HTTP API, 
+[for example](https://gist.github.com/cherti/61ec48deaaab7d288c9fcf17e700853a):
+
+```shell
+curl -XPOST http://$alertmanager_ip:9093/api/v1/alerts -d "[{ 
+	\"status\": \"firing\",
+	\"labels\": {
+		\"alertname\": \"$name\",
+		\"service\": \"my-service\",
+		\"severity\":\"warning\",
+		\"instance\": \"$name.example.net\"
+	},
+	\"annotations\": {
+		\"summary\": \"High latency is high!\"
+	},
+	\"generatorURL\": \"http://prometheus.int.example.net\"
+}]"
+```
+
+The alert should then be listed,
+
+```shell
+curl http://$alertmanager_ip:9093/api/v1/alerts
+```
+
+and visible on a karma dashboard, if configured.
+
+
+Relations between alertmanager and prometheus can be verified by [querying prometheus](https://prometheus.io/docs/prometheus/latest/querying/api/#alertmanagers) 
+for active alertmanagers:
+
+```shell
+curl -X GET "http://$prom_ip:9090/api/v1/alertmanagers"
+```
+
+
 ## Build charm
 
 Install the charmcraft tool
