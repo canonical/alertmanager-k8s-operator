@@ -1,5 +1,5 @@
 name: alertmanager-k8s
-display-name: Alertmanager
+display-name: Alertmanager K8S
 
 summary: |
   Kubernetes charm for Alertmanager.
