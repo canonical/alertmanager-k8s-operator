@@ -1,0 +1,3 @@
+show-config:
+  description: Show alertmanager config file.
+

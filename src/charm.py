@@ -8,7 +8,7 @@ from charms.karma_k8s.v0.karma import KarmaConsumer
 import utils
 
 import ops
-from ops.charm import CharmBase
+from ops.charm import CharmBase, ActionEvent
 from ops.main import main
 from ops.framework import StoredState
 from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
@@ -118,6 +118,19 @@ class AlertmanagerCharm(CharmBase):
             "karma_dashboard",
             consumes={"karma": ">=0.86"},
         )
+
+        # action observations
+        self.framework.observe(self.on.show_config_action, self._on_show_config_action)
+
+    def _on_show_config_action(self, event: ActionEvent):
+        event.log("Fetching {}".format(self._config_path))
+        try:
+            content = self.container.pull(self._config_path)
+            # ideally would like the key to be self._config_path, but juju requires lowercase alphanumeric
+            event.set_results({"alertmanager-config-file": content.read()})
+        except Exception as e:
+            event.fail(str(e))
+            raise
 
     @property
     def api_port(self):
