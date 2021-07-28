@@ -13,7 +13,7 @@ from ops.testing import Harness
 
 # import yaml
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 
 # Things to test:
@@ -121,6 +121,28 @@ class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
             self.harness.update_config({"pagerduty_key": ""})
             self.assertNotIn(
                 "pagerduty_configs", self.push_pull_mock.pull(self.harness.charm._config_path)
+            )
+
+    def test_show_silences_action_failing(self):
+        action_event = Mock(params={})
+        self.harness.charm._on_show_silences_action(action_event)
+        self.assertEqual(
+            action_event.fail.call_args,
+            [("Error retrieving silences via alertmanager api server",)],
+        )
+
+    def test_show_silences_action_succeeding(self):
+        mock_silences = [
+            {"id": "ab12", "status": {"state": "active"}},
+            {"id": "cd34", "status": {"state": "expired"}},
+        ]
+
+        with patch.object(AlertmanagerAPIClient, "silences", lambda *args: mock_silences):
+            action_event = Mock(params={"state": None})
+            self.harness.charm._on_show_silences_action(action_event)
+            self.assertEqual(
+                action_event.set_results.call_args,
+                [({"active-silences": json.dumps(mock_silences)},)],
             )
 
 
