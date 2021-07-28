@@ -145,7 +145,7 @@ class AlertmanagerCharm(CharmBase):
         try:
             content = self.container.pull(self._config_path)
             # ideally would like the key to be self._config_path, but juju requires lowercase alphanumeric
-            event.set_results({"alertmanager-config-file": content.read()})
+            event.set_results({"path": self._config_path, "content": content.read()})
         except Exception as e:
             event.fail(str(e))
             raise
