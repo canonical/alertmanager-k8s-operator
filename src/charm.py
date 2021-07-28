@@ -50,7 +50,7 @@ class AlertmanagerAPIClient:
     def _get(url: str) -> Optional[dict]:
         try:
             response = requests.get(url)
-            if response.ok and response.status_code == 200:
+            if response.status_code == 200:
                 text = json.loads(response.text)
             else:
                 text = None
@@ -66,7 +66,6 @@ class AlertmanagerAPIClient:
     def silences(self, state: str = None) -> Optional[List[dict]]:
         url = urllib.parse.urljoin(self.base_url, "/api/v2/silences")
         silences = self._get(url)
-        logger.info("silences (all): %s", silences)
 
         # if GET failed or user did not provide a state to filter by, return as-is (possibly None); else filter by state
         return (
@@ -154,7 +153,6 @@ class AlertmanagerCharm(CharmBase):
         event.log("Fetching active silences")
         active_silences = self.api_client.silences("active")
         if active_silences is not None:
-            logger.info("active silences: %s", active_silences)
             event.set_results({"active-silences": json.dumps(active_silences)})
         else:
             event.fail("Error retrieving silences via alertmanager api server")
