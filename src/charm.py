@@ -493,4 +493,4 @@ class AlertmanagerCharm(CharmBase):
 
 
 if __name__ == "__main__":
-    main(AlertmanagerCharm)
+    main(AlertmanagerCharm, use_juju_for_storage=True)
