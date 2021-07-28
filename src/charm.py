@@ -8,7 +8,7 @@ from charms.karma_k8s.v0.karma import KarmaConsumer
 import utils
 
 import ops
-from ops.charm import CharmBase
+from ops.charm import CharmBase, ActionEvent
 from ops.main import main
 from ops.framework import StoredState
 from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
@@ -46,18 +46,33 @@ class AlertmanagerAPIClient:
             logger.debug("config reload error via %s: %s", url, str(e))
             return False
 
-    def status(self) -> Optional[dict]:
-        url = urllib.parse.urljoin(self.base_url, "/api/v2/status")
+    @staticmethod
+    def _get(url: str) -> Optional[dict]:
         try:
             response = requests.get(url)
-            if response.ok and response.status_code == 200:
-                status = json.loads(response.text)
+            if response.status_code == 200:
+                text = json.loads(response.text)
             else:
-                status = None
+                text = None
         except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout):
-            status = None
+            text = None
 
-        return status
+        return text
+
+    def status(self) -> Optional[dict]:
+        url = urllib.parse.urljoin(self.base_url, "/api/v2/status")
+        return self._get(url)
+
+    def silences(self, state: str = None) -> Optional[List[dict]]:
+        url = urllib.parse.urljoin(self.base_url, "/api/v2/silences")
+        silences = self._get(url)
+
+        # if GET failed or user did not provide a state to filter by, return as-is (possibly None); else filter by state
+        return (
+            silences
+            if silences is None or state is None
+            else [s for s in silences if s.get("status") and s["status"].get("state") == state]
+        )
 
     @property
     def version(self) -> Optional[str]:
@@ -109,8 +124,9 @@ class AlertmanagerCharm(CharmBase):
             launched_with_peers=False,
         )
 
-        version = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port).version
-        self.provider = AlertmanagerProvider(self, self._service_name, version or "0.0.0")
+        self.provider = AlertmanagerProvider(
+            self, self._service_name, self.api_client.version or "0.0.0"
+        )
         self.provider.api_port = self._api_port
 
         self.karma_lib = KarmaConsumer(
@@ -118,6 +134,28 @@ class AlertmanagerCharm(CharmBase):
             "karma_dashboard",
             consumes={"karma": ">=0.86"},
         )
+
+        # action observations
+        self.framework.observe(self.on.show_config_action, self._on_show_config_action)
+        self.framework.observe(self.on.show_silences_action, self._on_show_silences_action)
+
+    def _on_show_config_action(self, event: ActionEvent):
+        event.log("Fetching {}".format(self._config_path))
+        try:
+            content = self.container.pull(self._config_path)
+            # ideally would like the key to be self._config_path, but juju requires lowercase alphanumeric
+            event.set_results({"path": self._config_path, "content": content.read()})
+        except Exception as e:
+            event.fail(str(e))
+            raise
+
+    def _on_show_silences_action(self, event: ActionEvent):
+        event.log("Fetching active silences")
+        active_silences = self.api_client.silences("active")
+        if active_silences is not None:
+            event.set_results({"active-silences": json.dumps(active_silences)})
+        else:
+            event.fail("Error retrieving silences via alertmanager api server")
 
     @property
     def api_port(self):
@@ -361,8 +399,7 @@ class AlertmanagerCharm(CharmBase):
 
             # Send an HTTP POST to alertmanager to hot-reload the config.
             # This reduces down-time compared to restarting the service.
-            api = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port)
-            if api.reload():
+            if self.api_client.reload():
                 self._stored.config_hash = config_hash
                 success = True
             else:
@@ -382,6 +419,14 @@ class AlertmanagerCharm(CharmBase):
 
         return success
 
+    @property
+    def api_address(self):
+        return "http://{}:{}".format(self.private_address, self.api_port)
+
+    @property
+    def api_client(self) -> AlertmanagerAPIClient:
+        return AlertmanagerAPIClient(self._fetch_private_address(), self._api_port)
+
     def _common_exit_hook(self) -> bool:
         if not self._stored.pebble_ready:
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
@@ -395,7 +440,7 @@ class AlertmanagerCharm(CharmBase):
             # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
             # setting it here.
             self._store_private_address()
-            self.karma_lib.target = "http://{}:{}".format(self.private_address, self.api_port)
+            self.karma_lib.target = self.api_address
 
         # Update pebble layer
         try:
@@ -450,8 +495,7 @@ class AlertmanagerCharm(CharmBase):
         self.provider.unready()
 
     def _on_update_status(self, event: ops.charm.UpdateStatusEvent):
-        api = AlertmanagerAPIClient(self._fetch_private_address(), self._api_port)
-        if status := api.status():
+        if status := self.api_client.status():
             logger.info(
                 "alertmanager %s is up and running (uptime: %s); "
                 "cluster mode: %s, with %d peers",
