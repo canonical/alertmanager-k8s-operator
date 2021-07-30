@@ -27,8 +27,9 @@ logger = logging.getLogger(__name__)
 class AlertmanagerAPIClient:
     """Alertmanager HTTP API client."""
 
-    def __init__(self, address: str, port: int):
+    def __init__(self, address: str, port: int, timeout=2.0):
         self.base_url = "http://{}:{}/".format(address, port)
+        self.timeout = timeout
 
     def reload(self) -> bool:
         """Send a POST request to to hot-reload the config.
@@ -39,17 +40,16 @@ class AlertmanagerAPIClient:
         """
         url = urllib.parse.urljoin(self.base_url, "/-/reload")
         try:
-            response = requests.post(url, timeout=2.0)
+            response = requests.post(url, timeout=self.timeout)
             logger.debug("config reload via %s: %d %s", url, response.status_code, response.reason)
             return response.status_code == 200 and response.reason == "OK"
         except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout) as e:
             logger.debug("config reload error via %s: %s", url, str(e))
             return False
 
-    @staticmethod
-    def _get(url: str) -> Optional[dict]:
+    def _get(self, url: str) -> Optional[dict]:
         try:
-            response = requests.get(url, timeout=2.0)
+            response = requests.get(url, timeout=self.timeout)
             if response.status_code == 200:
                 text = json.loads(response.text)
             else:
