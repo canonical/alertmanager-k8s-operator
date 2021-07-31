@@ -10,7 +10,8 @@ This library is designed to be used by a charm consuming or providing the `alert
 import ops
 from ops.framework import EventSource, EventBase
 from ops.relation import ConsumerBase, ProviderBase
-from ops.charm import CharmBase, RelationJoinedEvent
+from ops.charm import CharmBase, RelationJoinedEvent, RelationEvent
+from ops.model import Relation
 
 from typing import List
 import logging
@@ -158,21 +159,23 @@ class AlertmanagerProvider(ProviderBase):
         """
         self.update_relation_data(event)
 
-    def update_relation_data(self, event: RelationJoinedEvent = None):
+    def _generate_relation_data(self, relation: Relation):
+        public_address = "{}:{}".format(
+            self.model.get_binding(relation).network.bind_address, self.api_port
+        )
+        return {"public_address": public_address}
+
+    def update_relation_data(self, event: RelationEvent = None):
         # "ingress-address" is auto-populated incorrectly so rolling my own, "public_address"
 
         if event is None:
             # update all existing relation data
-            # a single consumer charm's unit may be related to multiple karma dashboards
+            # a single consumer charm's unit may be related to multiple providers
             if self.name in self.charm.model.relations:
                 for relation in self.charm.model.relations[self.name]:
-                    public_address = "{}:{}".format(
-                        self.model.get_binding(relation).network.bind_address, self.api_port
-                    )
-                    relation.data[self.charm.unit]["public_address"] = public_address
+                    relation.data[self.charm.unit].update(self._generate_relation_data(relation))
         else:
             # update relation data only for the newly joined relation
-            public_address = "{}:{}".format(
-                self.model.get_binding(event.relation).network.bind_address, self.api_port
+            event.relation.data[self.charm.unit].update(
+                self._generate_relation_data(event.relation)
             )
-            event.relation.data[self.charm.unit]["public_address"] = public_address
