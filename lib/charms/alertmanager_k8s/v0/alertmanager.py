@@ -10,7 +10,7 @@ This library is designed to be used by a charm consuming or providing the `alert
 import ops
 from ops.framework import EventSource, EventBase
 from ops.relation import ConsumerBase, ProviderBase
-from ops.charm import CharmBase
+from ops.charm import CharmBase, RelationJoinedEvent
 
 from typing import List
 import logging
@@ -150,13 +150,29 @@ class AlertmanagerProvider(ProviderBase):
         """Set the API port number to use for alertmanager (must match the provider charm)."""
         self._api_port = value
 
-    def _on_relation_joined(self, event: ops.charm.RelationJoinedEvent):
+    def _on_relation_joined(self, event: RelationJoinedEvent):
         """This hook stores the public address of the newly-joined "alerting" relation in the
         corresponding data bag.
         This is needed for consumers such as prometheus, which should be aware of all alertmanager
         instances.
         """
+        self.update_relation_data(event)
+
+    def update_relation_data(self, event: RelationJoinedEvent = None):
         # "ingress-address" is auto-populated incorrectly so rolling my own, "public_address"
-        event.relation.data[self.charm.unit]["public_address"] = "{}:{}".format(
-            self.model.get_binding(event.relation).network.bind_address, self.api_port
-        )
+
+        if event is None:
+            # update all existing relation data
+            # a single consumer charm's unit may be related to multiple karma dashboards
+            if self.name in self.charm.model.relations:
+                for relation in self.charm.model.relations[self.name]:
+                    public_address = "{}:{}".format(
+                        self.model.get_binding(relation).network.bind_address, self.api_port
+                    )
+                    relation.data[self.charm.unit]["public_address"] = public_address
+        else:
+            # update relation data only for the newly joined relation
+            public_address = "{}:{}".format(
+                self.model.get_binding(event.relation).network.bind_address, self.api_port
+            )
+            event.relation.data[self.charm.unit]["public_address"] = public_address

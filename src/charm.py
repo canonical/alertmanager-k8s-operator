@@ -448,6 +448,7 @@ class AlertmanagerCharm(CharmBase):
         # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
         # setting IP here.
         self._store_private_address()
+        self.provider.update_relation_data()
         self.karma_lib.target = self.api_address
 
         # Update pebble layer
