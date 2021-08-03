@@ -20,6 +20,9 @@ tags:
 containers:
   alertmanager:  # container key used by pebble
     resource: alertmanager-image
+    mounts:
+      - storage: data
+        location: /alertmanager
 
 # oci-image resources for each container defined above
 resources:
@@ -44,4 +47,10 @@ peers:
 storage:
   data:
     type: filesystem
-    location: /alertmanager
+    description: >
+      Storage path passed to alertmanager via --storage.path argument and used for nflog and silences snapshot
+    # No need to specify a custom location in the charm container
+    # (workload location is specified under "containers" section)
+    # When unspecified, would be /var/lib/juju/storage/data/0
+    # location: /alertmanager
+

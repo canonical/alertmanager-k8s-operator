@@ -27,8 +27,9 @@ logger = logging.getLogger(__name__)
 class AlertmanagerAPIClient:
     """Alertmanager HTTP API client."""
 
-    def __init__(self, address: str, port: int):
+    def __init__(self, address: str, port: int, timeout=2.0):
         self.base_url = "http://{}:{}/".format(address, port)
+        self.timeout = timeout
 
     def reload(self) -> bool:
         """Send a POST request to to hot-reload the config.
@@ -39,17 +40,16 @@ class AlertmanagerAPIClient:
         """
         url = urllib.parse.urljoin(self.base_url, "/-/reload")
         try:
-            response = requests.post(url, timeout=2.0)
+            response = requests.post(url, timeout=self.timeout)
             logger.debug("config reload via %s: %d %s", url, response.status_code, response.reason)
             return response.status_code == 200 and response.reason == "OK"
         except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout) as e:
             logger.debug("config reload error via %s: %s", url, str(e))
             return False
 
-    @staticmethod
-    def _get(url: str) -> Optional[dict]:
+    def _get(self, url: str) -> Optional[dict]:
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=self.timeout)
             if response.status_code == 200:
                 text = json.loads(response.text)
             else:
@@ -90,8 +90,12 @@ class AlertmanagerCharm(CharmBase):
     _api_port = 9093  # port to listen on for the web interface and API
     _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
 
-    # path, inside the workload container, to the alertmanager configuration file
+    # path, inside the workload container, to the alertmanager and amtool configuration files
     _config_path = "/etc/alertmanager/alertmanager.yml"
+    _amtool_config_path = "/etc/amtool/config.yml"
+
+    # path, inside the workload container for alertmanager data, e.g. 'nflogs', 'silences'.
+    _storage_path = "/alertmanager"
 
     _stored = StoredState()
 
@@ -99,14 +103,12 @@ class AlertmanagerCharm(CharmBase):
         super().__init__(*args)
         self.container = self.unit.get_container(self._container_name)
 
-        # path, inside the workload container for alertmanager logs, e.g. 'nflogs', 'silences'.
-        self._storage_path = self.meta.storages["data"].location
-
         # event observations
         self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.update_status, self._on_update_status)
+        self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
         self.framework.observe(
             self.on[self._peer_relation_name].relation_joined, self._on_peer_relation_joined
@@ -131,7 +133,7 @@ class AlertmanagerCharm(CharmBase):
 
         self.karma_lib = KarmaConsumer(
             self,
-            "karma_dashboard",
+            "karma-dashboard",
             consumes={"karma": ">=0.86"},
         )
 
@@ -417,6 +419,12 @@ class AlertmanagerCharm(CharmBase):
             # no change in config
             success = True
 
+        # update amtool config file
+        amtool_config = yaml.safe_dump(
+            {"alertmanager.url": "http://localhost:{}".format(self.api_port)}
+        )
+        self.container.push(self._amtool_config_path, amtool_config, make_dirs=True)
+
         return success
 
     @property
@@ -436,11 +444,12 @@ class AlertmanagerCharm(CharmBase):
         if not self.private_address:
             self.unit.status = MaintenanceStatus("Waiting for IP address")
             return False
-        else:
-            # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
-            # setting it here.
-            self._store_private_address()
-            self.karma_lib.target = self.api_address
+
+        # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
+        # setting IP here.
+        self._store_private_address()
+        self.provider.update_relation_data()
+        self.karma_lib.target = self.api_address
 
         # Update pebble layer
         try:
@@ -507,6 +516,11 @@ class AlertmanagerCharm(CharmBase):
 
         # Calling the common hook to make sure a single unit set its IP in case all events fired
         # before an IP address was ready, leaving UpdateStatue as the last resort.
+        self._common_exit_hook()
+
+    def _on_upgrade_charm(self, _):
+        # After upgrade (refresh), the unit ip address is not guaranteed to remain the same as before
+        # Calling the common hook to update IP address to the new one
         self._common_exit_hook()
 
     def _get_unit_address_map(self) -> Dict[ops.model.Unit, Optional[str]]:
