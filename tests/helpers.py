@@ -1,38 +1,9 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerConsumer
-
-from ops.charm import CharmBase
-from ops.framework import StoredState
 from unittest.mock import patch
 
 from typing import Dict, Callable
-
-
-class DummyCharmForTestingConsumer(CharmBase):
-    """A class for mimicking the bare AlertmanagerCharm functionality needed to test the consumer."""
-
-    _stored = StoredState()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args)
-        # Must use "alerting" as the relation name because the harness parses metadata.yaml and
-        # that is the relation name there (in prometheus, for example, the relation name is
-        # "alertmanager" rather than "alerting").
-        self.alertmanager_lib = AlertmanagerConsumer(
-            self, relation_name="alerting", consumes={"alertmanager": ">0.0.0"}
-        )
-
-        self.framework.observe(
-            self.alertmanager_lib.on.available, self._on_alertmanager_cluster_changed
-        )
-
-        self._stored.set_default(alertmanagers=[], on_available_emitted=0)
-
-    def _on_alertmanager_cluster_changed(self, event):
-        self._stored.on_available_emitted += 1
-        self._stored.alertmanagers = self.alertmanager_lib.get_cluster_info()
 
 
 def patch_network_get(private_address="10.1.157.116"):
