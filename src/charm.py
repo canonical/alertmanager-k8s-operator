@@ -498,10 +498,10 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_peer_relation_departed(self, event: ops.charm.RelationDepartedEvent):
-        # No need to update peers - the cluster update itself when a unit is not available.
-        # No need to update consumer relations because addresses are pulled from unit data bags
-        # by the consumer library.
-        self.provider.unready()
+        # No need to update peers - the cluster updates itself internally when a unit is not available.
+        # No need to update consumer relations because consumers will get a relation changed event, and
+        # addresses are pulled from unit data bags by the consumer library.
+        pass
 
     def _on_update_status(self, event: ops.charm.UpdateStatusEvent):
         if status := self.api_client.status():
