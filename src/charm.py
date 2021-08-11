@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
-import textwrap
-
-from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
-from charms.karma_k8s.v0.karma import KarmaConsumer
-import utils
-
-import ops
-from ops.charm import CharmBase, ActionEvent
-from ops.main import main
-from ops.framework import StoredState
-from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
-from ops.pebble import ChangeError
-
-import urllib.parse
-import requests
-import yaml
 import json
 import logging
-from typing import Dict, List, Optional, Any
+import textwrap
+import urllib.parse
+from typing import Any, Dict, List, Optional
+
+import kubernetes
+import ops
+import requests
+import yaml
+from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
+from charms.karma_k8s.v0.karma import KarmaConsumer
+from ops.charm import ActionEvent, CharmBase
+from ops.framework import StoredState
+from ops.main import main
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+from ops.pebble import ChangeError
+
+import utils
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +106,7 @@ class AlertmanagerCharm(CharmBase):
         # event observations
         self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
@@ -487,6 +488,14 @@ class AlertmanagerCharm(CharmBase):
         # available and the status was stuck on "Waiting for IP address". Adding this hook as a workaround.
         self._common_exit_hook()
 
+    def _on_install(self, _):
+        """Event handler for the install event during which we will update the K8s service"""
+        # At this point, it's debatable whether we should put the charm into a blocked state.
+        # My guess is right now, it's not essential, but as we start to wire these things more
+        # carefully, we should probably do so.
+        if not self._patch_k8s_service():
+            logger.error("Unable to patch the Kubernetes service!")
+
     def _on_peer_relation_joined(self, event: ops.charm.RelationJoinedEvent):
         self._common_exit_hook()
 
@@ -548,6 +557,75 @@ class AlertmanagerCharm(CharmBase):
             for unit, address in self._get_unit_address_map().items()
             if unit is not self.unit and address is not None
         ]
+
+    def _patch_k8s_service(self) -> bool:
+        """Patch the Kubernetes service created by Juju to map the correct port"""
+        # First ensure we're authenticated with the Kubernetes API
+        if self._k8s_auth():
+            ns = self.namespace
+            app = self.app.name
+            # Set up a Kubernetes client
+            api = kubernetes.client.CoreV1Api(kubernetes.client.ApiClient())
+            
+            # Delete the existing service so we can redefine with correct ports
+            # I don't think you can issue a patch that *replaces* the existing ports,
+            # only append
+            api.delete_namespaced_service(name=app, namespace=ns)
+            # Recreate the service with the correct ports for the application
+            api.create_namespaced_service(
+                name=app,
+                namespace=ns,
+                body=kubernetes.client.V1Service(
+                    api_version="v1",
+                    metadata=kubernetes.client.V1ObjectMeta(
+                        namespace=ns,
+                        name=app,
+                        labels={"app.kubernetes.io/name": app},
+                    ),
+                    spec=kubernetes.client.V1ServiceSpec(
+                        ports=[
+                            kubernetes.client.V1ServicePort(
+                                name=f"{self._container_name}-api",
+                                port=self._api_port,
+                                target_port=self._api_port,
+                            ),
+                            kubernetes.client.V1ServicePort(
+                                name=f"{self._container_name}-ha",
+                                port=self._ha_port,
+                                target_port=self._ha_port,
+                            ),
+                        ],
+                        selector={"app.kubernetes.io/name": app},
+                    ),
+                ),
+            )
+            return True
+        return False
+
+    def _k8s_auth(self) -> bool:
+        """Authenticate with the Kubernetes API using an in-cluster service token"""
+        # Authenticate against the Kubernetes API using a mounted ServiceAccount token
+        kubernetes.config.load_incluster_config()
+        # Test the service account we've got for sufficient perms
+        api = kubernetes.client.CoreV1Api(kubernetes.client.ApiClient())
+
+        try:
+            api.list_namespaced_services()
+        except kubernetes.client.exceptions.ApiException as e:
+            if e.status == 403:
+                # If we can't read a cluster role, we don't have enough permissions
+                self.unit.status = BlockedStatus(
+                    "Run `juju trust` on this application to continue"
+                )
+                return False
+            else:
+                raise e
+        return True
+
+    @property
+    def namespace(self) -> str:
+        with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r") as f:
+            return f.read().strip()
 
 
 if __name__ == "__main__":
