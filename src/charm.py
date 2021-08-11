@@ -566,41 +566,43 @@ class AlertmanagerCharm(CharmBase):
             app = self.app.name
             # Set up a Kubernetes client
             api = kubernetes.client.CoreV1Api(kubernetes.client.ApiClient())
-            
             # Delete the existing service so we can redefine with correct ports
             # I don't think you can issue a patch that *replaces* the existing ports,
             # only append
             api.delete_namespaced_service(name=app, namespace=ns)
             # Recreate the service with the correct ports for the application
-            api.create_namespaced_service(
-                name=app,
-                namespace=ns,
-                body=kubernetes.client.V1Service(
-                    api_version="v1",
-                    metadata=kubernetes.client.V1ObjectMeta(
-                        namespace=ns,
-                        name=app,
-                        labels={"app.kubernetes.io/name": app},
-                    ),
-                    spec=kubernetes.client.V1ServiceSpec(
-                        ports=[
-                            kubernetes.client.V1ServicePort(
-                                name=f"{self._container_name}-api",
-                                port=self._api_port,
-                                target_port=self._api_port,
-                            ),
-                            kubernetes.client.V1ServicePort(
-                                name=f"{self._container_name}-ha",
-                                port=self._ha_port,
-                                target_port=self._ha_port,
-                            ),
-                        ],
-                        selector={"app.kubernetes.io/name": app},
-                    ),
-                ),
-            )
+            api.create_namespaced_service(namespace=ns, body=self._k8s_service)
             return True
         return False
+
+    @property
+    def _k8s_service(self) -> kubernetes.client.V1Service:
+        """Property accessor to return a valid Kubernetes Service representation for Alertmanager"""
+        ns = self.namespace
+        app = self.app.name
+        return kubernetes.client.V1Service(
+            api_version="v1",
+            metadata=kubernetes.client.V1ObjectMeta(
+                namespace=ns,
+                name=app,
+                labels={"app.kubernetes.io/name": app},
+            ),
+            spec=kubernetes.client.V1ServiceSpec(
+                ports=[
+                    kubernetes.client.V1ServicePort(
+                        name=f"{self._container_name}-api",
+                        port=self._api_port,
+                        target_port=self._api_port,
+                    ),
+                    kubernetes.client.V1ServicePort(
+                        name=f"{self._container_name}-ha",
+                        port=self._ha_port,
+                        target_port=self._ha_port,
+                    ),
+                ],
+                selector={"app.kubernetes.io/name": app},
+            ),
+        )
 
     def _k8s_auth(self) -> bool:
         """Authenticate with the Kubernetes API using an in-cluster service token"""
@@ -610,7 +612,7 @@ class AlertmanagerCharm(CharmBase):
         api = kubernetes.client.CoreV1Api(kubernetes.client.ApiClient())
 
         try:
-            api.list_namespaced_services()
+            api.list_namespaced_service(namespace=self.namespace)
         except kubernetes.client.exceptions.ApiException as e:
             if e.status == 403:
                 # If we can't read a cluster role, we don't have enough permissions
