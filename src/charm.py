@@ -560,7 +560,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _patch_k8s_service(self) -> bool:
         """Patch the Kubernetes service created by Juju to map the correct port
-        
+
         Returns:
             bool: True indicates successful patch
         """
@@ -582,7 +582,7 @@ class AlertmanagerCharm(CharmBase):
     @property
     def _k8s_service(self) -> kubernetes.client.V1Service:
         """Property accessor to return a valid Kubernetes Service representation for Alertmanager
-        
+
         Returns:
             kubernetes.client.V1Service: A Kubernetes Service with correctly annotated metadata and ports
         """
@@ -614,7 +614,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _k8s_auth(self) -> bool:
         """Authenticate with the Kubernetes API using an in-cluster service token
-        
+
         Returns:
             bool: True represents a successful authentication against the Kubernetes API
         """
@@ -639,7 +639,7 @@ class AlertmanagerCharm(CharmBase):
     @property
     def namespace(self) -> str:
         """Read the Kubernetes namespace we're deployed in from the mounted service token
-        
+
         Returns:
             str: The current Kubernetes namespace
         """
