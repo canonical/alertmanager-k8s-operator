@@ -559,7 +559,11 @@ class AlertmanagerCharm(CharmBase):
         ]
 
     def _patch_k8s_service(self) -> bool:
-        """Patch the Kubernetes service created by Juju to map the correct port"""
+        """Patch the Kubernetes service created by Juju to map the correct port
+        
+        Returns:
+            bool: True indicates successful patch
+        """
         # First ensure we're authenticated with the Kubernetes API
         if self._k8s_auth():
             ns = self.namespace
@@ -577,7 +581,11 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _k8s_service(self) -> kubernetes.client.V1Service:
-        """Property accessor to return a valid Kubernetes Service representation for Alertmanager"""
+        """Property accessor to return a valid Kubernetes Service representation for Alertmanager
+        
+        Returns:
+            kubernetes.client.V1Service: A Kubernetes Service with correctly annotated metadata and ports
+        """
         ns = self.namespace
         app = self.app.name
         return kubernetes.client.V1Service(
@@ -605,7 +613,11 @@ class AlertmanagerCharm(CharmBase):
         )
 
     def _k8s_auth(self) -> bool:
-        """Authenticate with the Kubernetes API using an in-cluster service token"""
+        """Authenticate with the Kubernetes API using an in-cluster service token
+        
+        Returns:
+            bool: True represents a successful authentication against the Kubernetes API
+        """
         # Authenticate against the Kubernetes API using a mounted ServiceAccount token
         kubernetes.config.load_incluster_config()
         # Test the service account we've got for sufficient perms
@@ -626,6 +638,11 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def namespace(self) -> str:
+        """Read the Kubernetes namespace we're deployed in from the mounted service token
+        
+        Returns:
+            str: The current Kubernetes namespace
+        """
         with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r") as f:
             return f.read().strip()
 
