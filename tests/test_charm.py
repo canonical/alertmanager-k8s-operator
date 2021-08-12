@@ -8,8 +8,7 @@ from unittest.mock import Mock, patch
 
 import kubernetes
 import ops
-from charm import AlertmanagerAPIClient, AlertmanagerCharm
-from ops.model import BlockedStatus
+from charm import AlertmanagerAPIClient, AlertmanagerCharm, K8sServicePatch
 from ops.testing import Harness
 
 from .helpers import PushPullMock, patch_network_get, tautology
@@ -151,74 +150,79 @@ class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
                 [({"active-silences": json.dumps(mock_silences)},)],
             )
 
-    @patch("charm.AlertmanagerCharm.namespace", "lma")
+
+class TestK8sServicePatch(unittest.TestCase):
+    def setUp(self) -> None:
+        self.service_ports = [
+            ("svc1", 1234, 12340),
+            ("svc2", 1235, 12350),
+        ]
+
+    @patch("charm.K8sServicePatch.namespace", lambda: "lma")
     def test_k8s_service(self):
-        # with patch("charm.AlertmanagerCharm.namespace", "lma"):
-        service = self.harness.charm._k8s_service
-        self.assertEqual(service.metadata.name, self.harness.charm.app.name)
+        app_name = "some-app"
+        service = K8sServicePatch._k8s_service(app_name, self.service_ports)
+
+        self.assertEqual(service.metadata.name, app_name)
         self.assertEqual(service.metadata.namespace, "lma")
-        self.assertEqual(
-            service.metadata.labels, {"app.kubernetes.io/name": self.harness.charm.app.name}
-        )
+        self.assertEqual(service.metadata.labels, {"app.kubernetes.io/name": app_name})
         self.assertEqual(
             service.spec.ports,
             [
                 kubernetes.client.V1ServicePort(
-                    name=f"{self.harness.charm._container_name}-api",
-                    port=self.harness.charm._api_port,
-                    target_port=self.harness.charm._api_port,
+                    name="svc1",
+                    port=1234,
+                    target_port=12340,
                 ),
                 kubernetes.client.V1ServicePort(
-                    name=f"{self.harness.charm._container_name}-ha",
-                    port=self.harness.charm._ha_port,
-                    target_port=self.harness.charm._ha_port,
+                    name="svc2",
+                    port=1235,
+                    target_port=12350,
                 ),
             ],
         )
 
-    @patch("charm.AlertmanagerCharm.namespace")
-    @patch("charm.AlertmanagerCharm._k8s_auth")
+    @patch("charm.K8sServicePatch.namespace")
+    @patch("charm.K8sServicePatch._k8s_auth")
     @patch("charm.kubernetes.client.CoreV1Api.delete_namespaced_service")
     @patch("charm.kubernetes.client.CoreV1Api.create_namespaced_service")
     def test_patch_k8s_service(self, create, delete, auth, ns):
         ns.return_value = "lma"
-        name = self.harness.charm.app.name
+        name = "some-app"
         create.return_value = delete.return_value = auth.return_value = True
-        patched = self.harness.charm._patch_k8s_service()
-        delete.assert_called_with(name=name, namespace=self.harness.charm.namespace)
+        patched = K8sServicePatch.patch(name, self.service_ports)
+        delete.assert_called_with(name=name, namespace=K8sServicePatch.namespace())
         create.assert_called_with(
-            namespace=self.harness.charm.namespace, body=self.harness.charm._k8s_service
+            namespace=K8sServicePatch.namespace(),
+            body=K8sServicePatch._k8s_service(name, self.service_ports),
         )
         self.assertEqual(patched, True)
 
         # Now test when we don't get authed
         auth.return_value = False
-        patched = self.harness.charm._patch_k8s_service()
+        patched = K8sServicePatch.patch(name, self.service_ports)
         # Ensure these mock calls haven't increased from the last run
-        delete.assert_called_with(name=name, namespace=self.harness.charm.namespace)
+        delete.assert_called_with(name=name, namespace=K8sServicePatch.namespace())
         create.assert_called_with(
-            namespace=self.harness.charm.namespace, body=self.harness.charm._k8s_service
+            namespace=K8sServicePatch.namespace(),
+            body=K8sServicePatch._k8s_service(name, self.service_ports),
         )
         self.assertEqual(patched, False)
 
     @patch("charm.kubernetes.client.CoreV1Api.list_namespaced_service")
-    @patch("charm.AlertmanagerCharm.namespace")
+    @patch("charm.K8sServicePatch.namespace")
     @patch("charm.kubernetes.config.load_incluster_config")
     def test_k8s_auth(self, load_config, ns, list_svc):
         ns.return_value = "lma"
         load_config.return_value = True
 
-        authed = self.harness.charm._k8s_auth()
-        list_svc.assert_called_with(namespace=self.harness.charm.namespace)
+        authed = K8sServicePatch._k8s_auth()
+        list_svc.assert_called_with(namespace=K8sServicePatch.namespace())
         self.assertEqual(authed, True)
 
         # Now test what happens when listing a svc throws an exception
         list_svc.side_effect = kubernetes.client.exceptions.ApiException(status=403)
-        authed = self.harness.charm._k8s_auth()
-        self.assertEqual(
-            self.harness.charm.unit.status,
-            BlockedStatus("Run `juju trust` on this application to continue"),
-        )
+        authed = K8sServicePatch._k8s_auth()
         self.assertEqual(authed, False)
 
 
