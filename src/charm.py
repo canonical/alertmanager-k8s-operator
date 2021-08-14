@@ -433,7 +433,7 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def api_client(self) -> AlertmanagerAPIClient:
-        return AlertmanagerAPIClient(self._fetch_private_address(), self._api_port)
+        return AlertmanagerAPIClient(self.private_address, self._api_port)
 
     def _common_exit_hook(self) -> bool:
         if not self._stored.pebble_ready:
