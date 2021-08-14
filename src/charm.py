@@ -104,10 +104,13 @@ class K8sServicePatch:
             bool: True indicates successful patch
         """
         # First ensure we're authenticated with the Kubernetes API
-        if K8sServicePatch._k8s_auth():
-            ns = K8sServicePatch.namespace()
-            # Set up a Kubernetes client
-            api = kubernetes.client.CoreV1Api(kubernetes.client.ApiClient())
+        if not K8sServicePatch._k8s_auth():
+            return False
+
+        ns = K8sServicePatch.namespace()
+        # Set up a Kubernetes client
+        api = kubernetes.client.CoreV1Api(kubernetes.client.ApiClient())
+        try:
             # Delete the existing service so we can redefine with correct ports
             # I don't think you can issue a patch that *replaces* the existing ports,
             # only append
@@ -116,8 +119,10 @@ class K8sServicePatch:
             api.create_namespaced_service(
                 namespace=ns, body=K8sServicePatch._k8s_service(app, service_ports)
             )
-            return True
-        return False
+        except kubernetes.client.exceptions.ApiException as e:
+            logger.error("Failed to patch k8s service: %s", str(e))
+            return False
+        return True
 
 
 class AlertmanagerAPIClient:
