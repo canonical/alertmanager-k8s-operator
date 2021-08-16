@@ -64,8 +64,9 @@ class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
         # The install method only does kooky things with the Kubernetes API, so just mock the
         # return of this handler since it's invoked on every test due to begin_with_initial_hooks
         install_patch = patch("charm.AlertmanagerCharm._on_install", lambda _, event: True)
+        api_get_patch = patch("charm.AlertmanagerAPIClient._get", lambda *a, **kw: None)
 
-        with network_get_patch, install_patch:
+        with network_get_patch, install_patch, api_get_patch:
             # TODO why the context is needed if we already have a class-level patch?
             self.harness.begin_with_initial_hooks()
 
