@@ -14,7 +14,6 @@ from ops.testing import Harness
 from .helpers import PushPullMock, patch_network_get, tautology
 
 
-
 # Things to test:
 # - self.harness.charm._stored is updated (unless considered private impl. detail)
 

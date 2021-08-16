@@ -1,7 +1,7 @@
 venv/
 build/
 *.charm
-
+*.orig
 .coverage
 **/__pycache__/
 *.py[cod]
