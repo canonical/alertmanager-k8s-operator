@@ -40,19 +40,16 @@ alertmanager_default_config = textwrap.dedent(
 )
 
 
-class AlertmanagerBaseTestCase(unittest.TestCase):
+@patch_network_get(private_address="1.1.1.1")
+@patch.object(AlertmanagerAPIClient, "reload", tautology)
+class TestSingleUnitAfterInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
+    @patch.object(AlertmanagerCharm, "_patch_k8s_service", lambda *a, **kw: None)
     def setUp(self):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
 
-
-@patch_network_get(private_address="1.1.1.1")
-@patch.object(AlertmanagerAPIClient, "reload", tautology)
-class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
-    def setUp(self):
-        super().setUp()
         self.push_pull_mock = PushPullMock()
         self.push_pull_mock.push(AlertmanagerCharm._config_path, alertmanager_default_config)
 
@@ -61,12 +58,9 @@ class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
         self.harness.set_leader(True)
 
         network_get_patch = patch_network_get(private_address="1.1.1.1")
-        # The install method only does kooky things with the Kubernetes API, so just mock the
-        # return of this handler since it's invoked on every test due to begin_with_initial_hooks
-        install_patch = patch("charm.AlertmanagerCharm._on_install", lambda _, event: True)
         api_get_patch = patch("charm.AlertmanagerAPIClient._get", lambda *a, **kw: None)
 
-        with network_get_patch, install_patch, api_get_patch:
+        with network_get_patch, api_get_patch:
             # TODO why the context is needed if we already have a class-level patch?
             self.harness.begin_with_initial_hooks()
 
@@ -190,24 +184,24 @@ class TestK8sServicePatch(unittest.TestCase):
         ns.return_value = "lma"
         name = "some-app"
         create.return_value = delete.return_value = auth.return_value = True
-        patched = K8sServicePatch.patch(name, self.service_ports)
+        K8sServicePatch.patch(name, self.service_ports)
         delete.assert_called_with(name=name, namespace=K8sServicePatch.namespace())
         create.assert_called_with(
             namespace=K8sServicePatch.namespace(),
             body=K8sServicePatch._k8s_service(name, self.service_ports),
         )
-        self.assertEqual(patched, True)
 
         # Now test when we don't get authed
-        auth.return_value = False
-        patched = K8sServicePatch.patch(name, self.service_ports)
+        auth.side_effect = K8sServicePatch.PatchFailed("Dummy exception")
+        self.assertRaises(
+            K8sServicePatch.PatchFailed, K8sServicePatch.patch, name, self.service_ports
+        )
         # Ensure these mock calls haven't increased from the last run
         delete.assert_called_with(name=name, namespace=K8sServicePatch.namespace())
         create.assert_called_with(
             namespace=K8sServicePatch.namespace(),
             body=K8sServicePatch._k8s_service(name, self.service_ports),
         )
-        self.assertEqual(patched, False)
 
     @patch("charm.kubernetes.client.CoreV1Api.list_namespaced_service")
     @patch("charm.K8sServicePatch.namespace")
@@ -216,14 +210,12 @@ class TestK8sServicePatch(unittest.TestCase):
         ns.return_value = "lma"
         load_config.return_value = True
 
-        authed = K8sServicePatch._k8s_auth()
+        K8sServicePatch._k8s_auth()
         list_svc.assert_called_with(namespace=K8sServicePatch.namespace())
-        self.assertEqual(authed, True)
 
         # Now test what happens when listing a svc throws an exception
         list_svc.side_effect = kubernetes.client.exceptions.ApiException(status=403)
-        authed = K8sServicePatch._k8s_auth()
-        self.assertEqual(authed, False)
+        self.assertRaises(K8sServicePatch.PatchFailed, K8sServicePatch._k8s_auth)
 
 
 class TestAlertmanagerAPIClient(unittest.TestCase):
