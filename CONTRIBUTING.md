@@ -60,10 +60,13 @@ Later on, upgrade packages as needed
 
     pip install --upgrade -r requirements-dev.txt
 
+### Linting
+
+    tox -e lint
 
 ### Testing
 
-    ./run_tests
+    tox -e unit
 
 #### Manual testing
 Alerts can be created using alertmanager's HTTP API, 

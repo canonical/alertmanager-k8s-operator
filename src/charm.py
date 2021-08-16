@@ -47,25 +47,25 @@ class AlertmanagerAPIClient:
             logger.debug("config reload error via %s: %s", url, str(e))
             return False
 
-    def _get(self, url: str) -> Optional[dict]:
+    @staticmethod
+    def _get(url: str, timeout) -> Optional[dict]:
         try:
-            response = requests.get(url, timeout=self.timeout)
+            response = requests.get(url, timeout=timeout)
             if response.status_code == 200:
                 text = json.loads(response.text)
             else:
                 text = None
         except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout):
             text = None
-
         return text
 
     def status(self) -> Optional[dict]:
         url = urllib.parse.urljoin(self.base_url, "/api/v2/status")
-        return self._get(url)
+        return self._get(url, timeout=self.timeout)
 
     def silences(self, state: str = None) -> Optional[List[dict]]:
         url = urllib.parse.urljoin(self.base_url, "/api/v2/silences")
-        silences = self._get(url)
+        silences = self._get(url, timeout=self.timeout)
 
         # if GET failed or user did not provide a state to filter by, return as-is (possibly None); else filter by state
         return (
@@ -195,7 +195,7 @@ class AlertmanagerCharm(CharmBase):
           None if no IP is available (called before unit "joined"); unit's ip address otherwise
         """
         # if bind_address := check_output(["unit-get", "private-address"]).decode().strip()
-        if bind_address := self.model.get_binding(self.peer_relation).network.bind_address:
+        if bind_address := self.model.get_binding(self._peer_relation_name).network.bind_address:
             bind_address = str(bind_address)
         return bind_address
 
@@ -433,7 +433,7 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def api_client(self) -> AlertmanagerAPIClient:
-        return AlertmanagerAPIClient(self._fetch_private_address(), self._api_port)
+        return AlertmanagerAPIClient(self.private_address, self._api_port)
 
     def _common_exit_hook(self) -> bool:
         if not self._stored.pebble_ready:
@@ -498,10 +498,10 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_peer_relation_departed(self, event: ops.charm.RelationDepartedEvent):
-        # No need to update peers - the cluster update itself when a unit is not available.
-        # No need to update consumer relations because addresses are pulled from unit data bags
-        # by the consumer library.
-        self.provider.unready()
+        # No need to update peers - the cluster updates itself internally when a unit is not available.
+        # No need to update consumer relations because consumers will get a relation changed event, and
+        # addresses are pulled from unit data bags by the consumer library.
+        pass
 
     def _on_update_status(self, event: ops.charm.UpdateStatusEvent):
         if status := self.api_client.status():

@@ -9,9 +9,6 @@ from charm import AlertmanagerCharm, AlertmanagerAPIClient
 import ops
 from ops.testing import Harness
 
-# from ops.model import ActiveStatus
-
-# import yaml
 import unittest
 from unittest.mock import patch, Mock
 
@@ -61,7 +58,9 @@ class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
         self.relation_id = self.harness.add_relation("alerting", "otherapp")
         self.harness.add_relation_unit(self.relation_id, "otherapp/0")
         self.harness.set_leader(True)
-        with patch_network_get(private_address="1.1.1.1"):
+        with patch_network_get(private_address="1.1.1.1"), patch(
+            "charm.AlertmanagerAPIClient._get", lambda *a, **kw: None
+        ):
             # TODO why the context is needed if we already have a class-level patch?
             self.harness.begin_with_initial_hooks()
 
