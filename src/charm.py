@@ -5,9 +5,9 @@ import json
 import logging
 import textwrap
 import urllib.parse
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional
 
-import kubernetes
+from kubernetes_service import K8sServicePatch, PatchFailed
 import ops
 import requests
 import yaml
@@ -22,107 +22,6 @@ from ops.pebble import ChangeError
 import utils
 
 logger = logging.getLogger(__name__)
-
-
-class K8sServicePatch:
-    namespace_file = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-
-    class PatchFailed(RuntimeError):
-        pass
-
-    @staticmethod
-    def namespace() -> str:
-        """Read the Kubernetes namespace we're deployed in from the mounted service token
-
-        Returns:
-            str: The current Kubernetes namespace
-        """
-        with open(K8sServicePatch.namespace_file, "r") as f:
-            return f.read().strip()
-
-    @staticmethod
-    def _k8s_auth():
-        """Authenticate with the Kubernetes API using an in-cluster service token
-
-        Raises:
-            K8sServicePatch.PatchFailed: if no permissions to read cluster role
-        """
-        # Authenticate against the Kubernetes API using a mounted ServiceAccount token
-        kubernetes.config.load_incluster_config()
-        # Test the service account we've got for sufficient perms
-        api = kubernetes.client.CoreV1Api(kubernetes.client.ApiClient())
-
-        try:
-            api.list_namespaced_service(namespace=K8sServicePatch.namespace())
-        except kubernetes.client.exceptions.ApiException as e:
-            if e.status == 403:
-                raise K8sServicePatch.PatchFailed(
-                    "No permission to read cluster role. " "Run `juju trust` on this application."
-                ) from e
-            else:
-                raise e
-
-    @staticmethod
-    def _k8s_service(
-        app: str, service_ports: List[Tuple[str, int, int]]
-    ) -> kubernetes.client.V1Service:
-        """Property accessor to return a valid Kubernetes Service representation for Alertmanager
-
-        Args:
-            app: app name
-            service_ports: a list of tuples (name, port, target_port) for every service port.
-
-        Returns:
-            kubernetes.client.V1Service: A Kubernetes Service with correctly annotated metadata and ports
-        """
-
-        ports = [
-            kubernetes.client.V1ServicePort(name=port[0], port=port[1], target_port=port[2])
-            for port in service_ports
-        ]
-
-        ns = K8sServicePatch.namespace()
-        return kubernetes.client.V1Service(
-            api_version="v1",
-            metadata=kubernetes.client.V1ObjectMeta(
-                namespace=ns,
-                name=app,
-                labels={"app.kubernetes.io/name": app},
-            ),
-            spec=kubernetes.client.V1ServiceSpec(
-                ports=ports,
-                selector={"app.kubernetes.io/name": app},
-            ),
-        )
-
-    @staticmethod
-    def patch(app: str, service_ports: List[Tuple[str, int, int]]):
-        """Patch the Kubernetes service created by Juju to map the correct port
-
-        Args:
-            app: app name
-            service_ports: a list of tuples (name, port, target_port) for every service port.
-
-        Raises:
-            K8sServicePatch.PatchFailed: if patching fails.
-        """
-        # First ensure we're authenticated with the Kubernetes API
-        K8sServicePatch._k8s_auth()
-
-        ns = K8sServicePatch.namespace()
-        # Set up a Kubernetes client
-        api = kubernetes.client.CoreV1Api(kubernetes.client.ApiClient())
-        try:
-            # Delete the existing service so we can redefine with correct ports
-            # I don't think you can issue a patch that *replaces* the existing ports,
-            # only append
-            api.delete_namespaced_service(name=app, namespace=ns)
-            # Recreate the service with the correct ports for the application
-            api.create_namespaced_service(
-                namespace=ns, body=K8sServicePatch._k8s_service(app, service_ports)
-            )
-        except kubernetes.client.exceptions.ApiException as e:
-            raise K8sServicePatch.PatchFailed("Failed to patch k8s service: {}".format(e))
 
 
 class AlertmanagerAPIClient:
@@ -536,17 +435,20 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def api_client(self) -> AlertmanagerAPIClient:
+        """:obj:`AlertmanagerAPIClient`: an API client instance for communicating with the alertmanager workload
+        server"""
         return AlertmanagerAPIClient(self.private_address, self._api_port)
 
     def _patch_k8s_service(self):
+        """Fix the Kubernetes service that was setup by Juju with correct port numbers"""
         if self.unit.is_leader() and not self._stored.k8s_service_patched:
             service_ports = [
                 (f"{self.app.name}-api", self.api_port, self.api_port),
                 (f"{self.app.name}-ha", self._ha_port, self._ha_port),
             ]
             try:
-                K8sServicePatch.patch(self.app.name, service_ports)
-            except K8sServicePatch.PatchFailed as e:
+                K8sServicePatch.set_ports(self.app.name, service_ports)
+            except PatchFailed as e:
                 logger.error("Unable to patch the Kubernetes service: %s", str(e))
             else:
                 self._stored.k8s_service_patched = True
