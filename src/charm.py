@@ -3,8 +3,8 @@
 # See LICENSE file for licensing details.
 import json
 import logging
-import textwrap
 import urllib.parse
+import urllib.error
 from typing import Any, Dict, List, Optional
 
 from kubernetes_service import K8sServicePatch, PatchFailed
@@ -337,56 +337,65 @@ class AlertmanagerCharm(CharmBase):
         Returns:
           True if unchanged, or if changed successfully; False otherwise
         """
-        # The default alertmanager.yml that is created by alertmanager on startup, if none exists
-        default_alertmanager_config = textwrap.dedent(
-            """
-            route:
-              group_by: ['juju_application', 'juju_model', 'juju_model_uuid']
-              group_wait: 30s
-              group_interval: 5m
-              repeat_interval: 1h
-              receiver: 'web.hook'
-            receivers:
-            - name: 'web.hook'
-              webhook_configs:
-              - url: 'http://127.0.0.1:5001/'
-            """
+        pagerduty_config = utils.PagerdutyConfig(
+            # self.model.config.get("pagerduty.name"),
+            # TODO FIXME "name" doesn't work https://github.com/canonical/operator/issues/585
+            "pagerduty",
+            {
+                key: self.model.config[f"pagerduty.{key}"]
+                for key in utils.PagerdutyWebhookConfig.__annotations__
+                if self.model.config.get(f"pagerduty.{key}")
+            },
         )
-        # config: dict = yaml.safe_load(self.container.pull(self._config_path))
-        config: dict = yaml.safe_load(default_alertmanager_config)
 
-        if pagerduty_key := self.model.config.get("pagerduty_key"):
-            config.update(
-                {
-                    "receivers": [
-                        {
-                            "name": "default_pagerduty",
-                            "pagerduty_configs": [
-                                {"send_resolved": True, "service_key": pagerduty_key}
-                            ],
-                        }
-                    ]
-                }
-            )
-            config["route"]["receiver"] = "default_pagerduty"
+        pushover_config = utils.PushoverConfig(
+            # self.model.config.get("pushover.name"),
+            "pushover",
+            {
+                key: self.model.config[f"pushover.{key}"]
+                for key in utils.PushoverWebhookConfig.__annotations__
+                if self.model.config.get(f"pushover.{key}")
+            },
+        )
+
+        webhook_config = utils.WebhookConfig(
+            # self.model.config.get("webhook.name"),
+            "webhook",
+            {
+                key: self.model.config[f"webhook.{key}"]
+                for key in utils.GenericWebhookConfig.__annotations__
+                if self.model.config.get(f"webhook.{key}")
+            },
+        )
+
+        logger.info("config=%s", dict(self.model.config))
+
+        # only one receiver is supported at the moment
+        if pagerduty_config.valid:
+            logger.info("pagerduty valid")
+            receiver = pagerduty_config
+        elif pushover_config.valid:
+            logger.info("pushover valid")
+            receiver = pushover_config
+        elif webhook_config.valid:
+            logger.info("webhook valid")
+            receiver = webhook_config
         else:
-            # pagerduty_key evaluates to False: restore sections to default values (alertmanager
-            # won't start without a receiver)
-            config.update(
-                {
-                    "receivers": [
-                        {
-                            "name": "web.hook",
-                            "webhook_configs": [
-                                {
-                                    "url": "http://127.0.0.1:5001/",
-                                }
-                            ],
-                        }
-                    ]
-                }
-            )
-            config["route"]["receiver"] = "web.hook"
+            logger.info("none valid; resorting to dummuy")
+            receiver = utils.WebhookConfig("Dummy receiver", {"url": "http://127.0.0.1:5001/"})
+
+        # The default alertmanager.yml that is created by alertmanager on startup
+        config = {
+            "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
+            "route": {
+                "group_by": ["alertname", "juju_application", "juju_model_uuid"],
+                "group_wait": "30s",
+                "group_interval": "5m",
+                "repeat_interval": "1h",
+                "receiver": receiver.name,
+            },
+            "receivers": [receiver.as_dict()],
+        }
 
         config_yaml = yaml.safe_dump(config)
         config_hash = utils.sha256(config_yaml)
@@ -537,6 +546,14 @@ class AlertmanagerCharm(CharmBase):
         # Ensure that older deployments of Alertmanager run the logic
         # to patch the K8s service
         self._patch_k8s_service()
+        
+        # update config hash. pebble may not be ready so using try-except
+        try:
+            self._stored.config_hash = utils.sha256(
+                yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path)))
+            )
+        except (ops.pebble.ConnectionError, urllib.error.URLError, FileNotFoundError):
+            self._stored.config_hash = ""
 
         # After upgrade (refresh), the unit ip address is not guaranteed to remain the same as before
         # Calling the common hook to update IP address to the new one

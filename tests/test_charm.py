@@ -110,13 +110,13 @@ class TestSingleUnitAfterInitialHooks(unittest.TestCase):
 
             for key in ["secret_service_key_42", "a_different_key_this_time"]:
                 with self.subTest(key=key):
-                    self.harness.update_config({"pagerduty_key": key})
+                    self.harness.update_config({"pagerduty.service_key": key})
                     self.assertIn(
                         "service_key: {}".format(key),
                         self.push_pull_mock.pull(self.harness.charm._config_path),
                     )
 
-            self.harness.update_config({"pagerduty_key": ""})
+            self.harness.update_config({"pagerduty.service_key": ""})
             self.assertNotIn(
                 "pagerduty_configs", self.push_pull_mock.pull(self.harness.charm._config_path)
             )
