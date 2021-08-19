@@ -443,6 +443,7 @@ class AlertmanagerCharm(CharmBase):
         """Fix the Kubernetes service that was setup by Juju with correct port numbers"""
         if self.unit.is_leader() and not self._stored.k8s_service_patched:
             service_ports = [
+                (f"{self.app.name}-ui", self.api_port, self.api_port),
                 (f"{self.app.name}-api", self.api_port, self.api_port),
                 (f"{self.app.name}-ha", self._ha_port, self._ha_port),
             ]
