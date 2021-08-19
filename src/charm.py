@@ -536,6 +536,10 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_upgrade_charm(self, _):
+        # Ensure that older deployments of Alertmanager run the logic
+        # to patch the K8s service
+        self._patch_k8s_service()
+
         # After upgrade (refresh), the unit ip address is not guaranteed to remain the same as before
         # Calling the common hook to update IP address to the new one
         self._common_exit_hook()
