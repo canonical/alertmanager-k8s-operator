@@ -3,14 +3,14 @@
 import json
 import textwrap
 
-from .helpers import patch_network_get, tautology, PushPullMock
-from charm import AlertmanagerCharm, AlertmanagerAPIClient
+import unittest
+from unittest.mock import Mock, patch
 
 import ops
+from charm import AlertmanagerAPIClient, AlertmanagerCharm
 from ops.testing import Harness
 
-import unittest
-from unittest.mock import patch, Mock
+from .helpers import PushPullMock, patch_network_get, tautology
 
 
 # Things to test:
@@ -39,28 +39,27 @@ alertmanager_default_config = textwrap.dedent(
 )
 
 
-class AlertmanagerBaseTestCase(unittest.TestCase):
+@patch_network_get(private_address="1.1.1.1")
+@patch.object(AlertmanagerAPIClient, "reload", tautology)
+class TestSingleUnitAfterInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
+    @patch.object(AlertmanagerCharm, "_patch_k8s_service", lambda *a, **kw: None)
     def setUp(self):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
 
-
-@patch_network_get(private_address="1.1.1.1")
-@patch.object(AlertmanagerAPIClient, "reload", tautology)
-class TestSingleUnitAfterInitialHooks(AlertmanagerBaseTestCase):
-    def setUp(self):
-        super().setUp()
         self.push_pull_mock = PushPullMock()
         self.push_pull_mock.push(AlertmanagerCharm._config_path, alertmanager_default_config)
 
         self.relation_id = self.harness.add_relation("alerting", "otherapp")
         self.harness.add_relation_unit(self.relation_id, "otherapp/0")
         self.harness.set_leader(True)
-        with patch_network_get(private_address="1.1.1.1"), patch(
-            "charm.AlertmanagerAPIClient._get", lambda *a, **kw: None
-        ):
+
+        network_get_patch = patch_network_get(private_address="1.1.1.1")
+        api_get_patch = patch("charm.AlertmanagerAPIClient._get", lambda *a, **kw: None)
+
+        with network_get_patch, api_get_patch:
             # TODO why the context is needed if we already have a class-level patch?
             self.harness.begin_with_initial_hooks()
 

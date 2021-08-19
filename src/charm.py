@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
-import textwrap
-
-from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
-from charms.karma_k8s.v0.karma import KarmaConsumer
-import utils
-
-import ops
-from ops.charm import CharmBase, ActionEvent
-from ops.main import main
-from ops.framework import StoredState
-from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
-from ops.pebble import ChangeError
-
-import urllib.parse
-import requests
-import yaml
 import json
 import logging
-from typing import Dict, List, Optional, Any
+import textwrap
+import urllib.parse
+from typing import Any, Dict, List, Optional
+
+from kubernetes_service import K8sServicePatch, PatchFailed
+import ops
+import requests
+import yaml
+from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
+from charms.karma_k8s.v0.karma import KarmaConsumer
+from ops.charm import ActionEvent, CharmBase
+from ops.framework import StoredState
+from ops.main import main
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+from ops.pebble import ChangeError
+
+import utils
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +106,7 @@ class AlertmanagerCharm(CharmBase):
         # event observations
         self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
@@ -122,6 +123,7 @@ class AlertmanagerCharm(CharmBase):
 
         self._stored.set_default(
             pebble_ready=False,
+            k8s_service_patched=False,
             config_hash=None,
             launched_with_peers=False,
         )
@@ -433,7 +435,24 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def api_client(self) -> AlertmanagerAPIClient:
+        """:obj:`AlertmanagerAPIClient`: an API client instance for communicating with the alertmanager workload
+        server"""
         return AlertmanagerAPIClient(self.private_address, self._api_port)
+
+    def _patch_k8s_service(self):
+        """Fix the Kubernetes service that was setup by Juju with correct port numbers"""
+        if self.unit.is_leader() and not self._stored.k8s_service_patched:
+            service_ports = [
+                (f"{self.app.name}-api", self.api_port, self.api_port),
+                (f"{self.app.name}-ha", self._ha_port, self._ha_port),
+            ]
+            try:
+                K8sServicePatch.set_ports(self.app.name, service_ports)
+            except PatchFailed as e:
+                logger.error("Unable to patch the Kubernetes service: %s", str(e))
+            else:
+                self._stored.k8s_service_patched = True
+                logger.info("Successfully patched the Kubernetes service!")
 
     def _common_exit_hook(self) -> bool:
         if not self._stored.pebble_ready:
@@ -486,6 +505,10 @@ class AlertmanagerCharm(CharmBase):
         # With Juju 2.9.5 encountered a scenario in which pebble_ready and config_changed fired, but IP address was not
         # available and the status was stuck on "Waiting for IP address". Adding this hook as a workaround.
         self._common_exit_hook()
+
+    def _on_install(self, _):
+        """Event handler for the install event during which we will update the K8s service"""
+        self._patch_k8s_service()
 
     def _on_peer_relation_joined(self, event: ops.charm.RelationJoinedEvent):
         self._common_exit_hook()
