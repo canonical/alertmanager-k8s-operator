@@ -123,7 +123,6 @@ class AlertmanagerCharm(CharmBase):
 
         self._stored.set_default(
             pebble_ready=False,
-            k8s_service_patched=False,
             config_hash=None,
             launched_with_peers=False,
         )
@@ -435,9 +434,9 @@ class AlertmanagerCharm(CharmBase):
 
     def _patch_k8s_service(self):
         """Fix the Kubernetes service that was setup by Juju with correct port numbers"""
-        if self.unit.is_leader() and not self._stored.k8s_service_patched:
+        if self.unit.is_leader():
             service_ports = [
-                (f"{self.app.name}-api", self.api_port, self.api_port),
+                (f"{self.app.name}", self.api_port, self.api_port),
                 (f"{self.app.name}-ha", self._ha_port, self._ha_port),
             ]
             try:
@@ -445,8 +444,7 @@ class AlertmanagerCharm(CharmBase):
             except PatchFailed as e:
                 logger.error("Unable to patch the Kubernetes service: %s", str(e))
             else:
-                self._stored.k8s_service_patched = True
-                logger.info("Successfully patched the Kubernetes service!")
+                logger.info("Successfully patched the Kubernetes service")
 
     def _common_exit_hook(self) -> bool:
         if not self._stored.pebble_ready:
@@ -536,6 +534,10 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_upgrade_charm(self, _):
+        # Ensure that older deployments of Alertmanager run the logic
+        # to patch the K8s service
+        self._patch_k8s_service()
+
         # After upgrade (refresh), the unit ip address is not guaranteed to remain the same as before
         # Calling the common hook to update IP address to the new one
         self._common_exit_hook()
