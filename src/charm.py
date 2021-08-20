@@ -444,7 +444,7 @@ class AlertmanagerCharm(CharmBase):
             except PatchFailed as e:
                 logger.error("Unable to patch the Kubernetes service: %s", str(e))
             else:
-                logger.info("Successfully patched the Kubernetes service!")
+                logger.info("Successfully patched the Kubernetes service")
 
     def _common_exit_hook(self) -> bool:
         if not self._stored.pebble_ready:
