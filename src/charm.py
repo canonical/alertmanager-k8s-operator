@@ -337,10 +337,10 @@ class AlertmanagerCharm(CharmBase):
         Returns:
           True if unchanged, or if changed successfully; False otherwise
         """
+        # TODO FIXME: period is replaced by fullstop-full period - remove patch after it is fixed
+        # in OF/Juju https://github.com/canonical/operator/issues/585
         pagerduty_config = utils.PagerdutyConfig(
-            # self.model.config.get("pagerduty.name"),
-            # TODO FIXME "name" doesn't work https://github.com/canonical/operator/issues/585
-            "pagerduty",
+            self.model.config.get("pagerduty.name").replace('\N{FULLWIDTH FULL STOP}', '.'),
             {
                 key: self.model.config[f"pagerduty.{key}"]
                 for key in utils.PagerdutyWebhookConfig.__annotations__
@@ -349,8 +349,7 @@ class AlertmanagerCharm(CharmBase):
         )
 
         pushover_config = utils.PushoverConfig(
-            # self.model.config.get("pushover.name"),
-            "pushover",
+            self.model.config.get("pushover.name").replace('\N{FULLWIDTH FULL STOP}', '.'),
             {
                 key: self.model.config[f"pushover.{key}"]
                 for key in utils.PushoverWebhookConfig.__annotations__
@@ -359,8 +358,7 @@ class AlertmanagerCharm(CharmBase):
         )
 
         webhook_config = utils.WebhookConfig(
-            # self.model.config.get("webhook.name"),
-            "webhook",
+            self.model.config.get("webhook.name").replace('\N{FULLWIDTH FULL STOP}', '.'),
             {
                 key: self.model.config[f"webhook.{key}"]
                 for key in utils.GenericWebhookConfig.__annotations__
