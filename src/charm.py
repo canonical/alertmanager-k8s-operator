@@ -31,7 +31,7 @@ class AlertmanagerAPIClient:
     """Alertmanager HTTP API client."""
 
     def __init__(self, address: str, port: int, timeout=2.0):
-        self.base_url = "http://{}:{}/".format(address, port)
+        self.base_url = f"http://{address}:{port}/"
         self.timeout = timeout
 
     def reload(self) -> bool:
@@ -146,10 +146,10 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(self.on.show_silences_action, self._on_show_silences_action)
 
     def _on_show_config_action(self, event: ActionEvent):
-        event.log("Fetching {}".format(self._config_path))
+        event.log(f"Fetching {self._config_path}")
         try:
             content = self.container.pull(self._config_path)
-            # ideally would like the key to be self._config_path, but juju requires lowercase alphanumeric
+            # juju requires keys to be lowercase alphanumeric (can't use self._config_path)
             event.set_results({"path": self._config_path, "content": content.read()})
         except Exception as e:
             event.fail(str(e))
@@ -234,21 +234,15 @@ class AlertmanagerCharm(CharmBase):
             # Assuming all replicas use the same port.
             # Sorting for repeatability in comparing between service layers.
             peer_cmd_args = " ".join(
-                sorted(["--cluster.peer={}".format(address) for address in peer_addresses])
+                sorted([f"--cluster.peer={address}" for address in peer_addresses])
             )
             return (
-                "alertmanager "
-                "--config.file={} "
-                "--storage.path={} "
-                "--web.listen-address=:{} "
-                "--cluster.listen-address={} "
-                "{}".format(
-                    self._config_path,
-                    self._storage_path,
-                    self._api_port,
-                    listen_address_arg,
-                    peer_cmd_args,
-                )
+                f"alertmanager "
+                f"--config.file={self._config_path} "
+                f"--storage.path={self._storage_path} "
+                f"--web.listen-address=:{self._api_port} "
+                f"--cluster.listen-address={listen_address_arg} "
+                f"{peer_cmd_args}"
             )
 
         return {
@@ -398,16 +392,14 @@ class AlertmanagerCharm(CharmBase):
             success = True
 
         # update amtool config file
-        amtool_config = yaml.safe_dump(
-            {"alertmanager.url": "http://localhost:{}".format(self.api_port)}
-        )
+        amtool_config = yaml.safe_dump({"alertmanager.url": f"http://localhost:{self.api_port}"})
         self.container.push(self._amtool_config_path, amtool_config, make_dirs=True)
 
         return success
 
     @property
     def api_address(self):
-        return "http://{}:{}".format(self.private_address, self.api_port)
+        return f"http://{self.private_address}:{self.api_port}"
 
     @property
     def api_client(self) -> AlertmanagerAPIClient:
@@ -553,7 +545,7 @@ class AlertmanagerCharm(CharmBase):
         If a unit does not have an API, it will be omitted from the list.
         """
         return [
-            "{}:{}".format(address, self._ha_port)
+            f"{address}:{self._ha_port}"
             for unit, address in self._get_unit_address_map().items()
             if unit is not self.unit and address is not None
         ]

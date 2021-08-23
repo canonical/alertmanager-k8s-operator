@@ -119,4 +119,4 @@ class K8sServicePatch:
                 namespace=ns, body=K8sServicePatch._k8s_service(app, service_ports)
             )
         except kubernetes.client.exceptions.ApiException as e:
-            raise PatchFailed("Failed to patch k8s service: {}".format(e))
+            raise PatchFailed(f"Failed to patch k8s service: {e}")

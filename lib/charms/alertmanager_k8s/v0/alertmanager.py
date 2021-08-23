@@ -160,9 +160,7 @@ class AlertmanagerProvider(ProviderBase):
         self.update_relation_data(event)
 
     def _generate_relation_data(self, relation: Relation):
-        public_address = "{}:{}".format(
-            self.model.get_binding(relation).network.bind_address, self.api_port
-        )
+        public_address = f"{self.model.get_binding(relation).network.bind_address}:{self.api_port}"
         return {"public_address": public_address}
 
     def update_relation_data(self, event: RelationEvent = None):
