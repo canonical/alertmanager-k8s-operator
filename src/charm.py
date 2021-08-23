@@ -20,6 +20,9 @@ from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
 
 import utils
+from config import PagerdutyConfig, PushoverConfig, WebhookConfig
+
+from flatten_json import unflatten
 
 logger = logging.getLogger(__name__)
 
@@ -337,66 +340,38 @@ class AlertmanagerCharm(CharmBase):
         Returns:
           True if unchanged, or if changed successfully; False otherwise
         """
-        # TODO FIXME: period is replaced by fullstop-full period - remove patch after it is fixed
-        # in OF/Juju https://github.com/canonical/operator/issues/585
-        pagerduty_config = utils.PagerdutyConfig(
-            self.model.config.get("pagerduty.name").replace('\N{FULLWIDTH FULL STOP}', '.'),
-            {
-                key: self.model.config[f"pagerduty.{key}"]
-                for key in utils.PagerdutyWebhookConfig.__annotations__
-                if self.model.config.get(f"pagerduty.{key}")
-            },
-        )
-
-        pushover_config = utils.PushoverConfig(
-            self.model.config.get("pushover.name").replace('\N{FULLWIDTH FULL STOP}', '.'),
-            {
-                key: self.model.config[f"pushover.{key}"]
-                for key in utils.PushoverWebhookConfig.__annotations__
-                if self.model.config.get(f"pushover.{key}")
-            },
-        )
-
-        webhook_config = utils.WebhookConfig(
-            self.model.config.get("webhook.name").replace('\N{FULLWIDTH FULL STOP}', '.'),
-            {
-                key: self.model.config[f"webhook.{key}"]
-                for key in utils.GenericWebhookConfig.__annotations__
-                if self.model.config.get(f"webhook.{key}")
-            },
-        )
-
-        logger.info("config=%s", dict(self.model.config))
+        # Cannot use a period ('.') as a separator because of a mongo/juju issue:
+        # https://github.com/canonical/operator/issues/585
+        unflattened_config = unflatten(dict(self.model.config), "::")
 
         # only one receiver is supported at the moment
-        if pagerduty_config.valid:
-            logger.info("pagerduty valid")
-            receiver = pagerduty_config
-        elif pushover_config.valid:
-            logger.info("pushover valid")
-            receiver = pushover_config
-        elif webhook_config.valid:
-            logger.info("webhook valid")
-            receiver = webhook_config
-        else:
-            logger.info("none valid; resorting to dummuy")
-            receiver = utils.WebhookConfig("Dummy receiver", {"url": "http://127.0.0.1:5001/"})
+        receiver = (
+            PagerdutyConfig.from_dict(unflattened_config["pagerduty"])
+            or PushoverConfig.from_dict(unflattened_config["pushover"])
+            or WebhookConfig.from_dict(unflattened_config["webhook"])
+            or WebhookConfig.from_dict({"url": "http://127.0.0.1:5001/"})
+        )
 
-        # The default alertmanager.yml that is created by alertmanager on startup
         config = {
             "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
             "route": {
-                "group_by": ["alertname", "juju_application", "juju_model_uuid"],
+                "group_by": ["juju_application", "juju_model", "juju_model_uuid"],
                 "group_wait": "30s",
                 "group_interval": "5m",
                 "repeat_interval": "1h",
-                "receiver": receiver.name,
+                "receiver": receiver["name"],
             },
-            "receivers": [receiver.as_dict()],
+            "receivers": [receiver],
         }
 
         config_yaml = yaml.safe_dump(config)
         config_hash = utils.sha256(config_yaml)
+
+        logger.debug(
+            "recevier: %s - %s",
+            receiver["name"],
+            "changed" if config_hash != self._stored.config_hash else "no change",
+        )
 
         if config_hash != self._stored.config_hash:
             self.container.push(self._config_path, config_yaml)

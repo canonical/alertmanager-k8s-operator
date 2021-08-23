@@ -6,38 +6,33 @@
 
 options:
   # pagerduty config
-  pagerduty.name:
-    type: string
-    description: The unique name of the receiver.
-    default: pagerduty
-  pagerduty.send_resolved:
+  pagerduty::send_resolved:
     type: boolean
     description: Whether or not to notify about resolved alerts (default = true).
-  pagerduty.service_key:
+    default: true
+  pagerduty::service_key:
     type: string
     description: The PagerDuty integration key (when using PagerDuty integration type `Prometheus`).
+    default: ""
   # pushover config
-  pushover.name:
-    type: string
-    description: The unique name of the receiver.
-    default: pushover
-  pushover.send_resolved:
+  pushover::send_resolved:
     type: boolean
     description: Whether or not to notify about resolved alerts (default = true).
-  pushover.user_key:
+    default: true
+  pushover::user_key:
     type: string
     description: The recipient user's user key.
-  pushover.token:
+    default: ""
+  pushover::token:
     type: string
     description: Your registered application's API token, see https://pushover.net/apps
+    default: ""
   # webhook config
-  webhook.name:
-    type: string
-    description: The unique name of the receiver.
-    default: webhook
-  webhook.send_resolved:
+  webhook::send_resolved:
     type: boolean
     description: Whether or not to notify about resolved alerts (default = true).
-  webhook.url:
+    default: true
+  webhook::url:
     type: string
     description: The endpoint to send HTTP POST requests to.
+    default: ""

@@ -104,19 +104,25 @@ class TestSingleUnitAfterInitialHooks(unittest.TestCase):
         expected_address = "1.1.1.1:{}".format(self.harness.charm.provider.api_port)
         self.assertEqual({"public_address": expected_address}, rel.data[self.harness.charm.unit])
 
+    def test_dummy_receiver_used_when_no_config_provided(self):
+        self.assertIn("webhook_configs", self.push_pull_mock.pull(self.harness.charm._config_path))
+        self.assertIn(
+            "http://127.0.0.1:5001/", self.push_pull_mock.pull(self.harness.charm._config_path)
+        )
+
     def test_pagerduty_config(self):
         with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():
             self.harness.container_pebble_ready(self.container_name)
 
             for key in ["secret_service_key_42", "a_different_key_this_time"]:
                 with self.subTest(key=key):
-                    self.harness.update_config({"pagerduty.service_key": key})
+                    self.harness.update_config({"pagerduty::service_key": key})
                     self.assertIn(
                         "service_key: {}".format(key),
                         self.push_pull_mock.pull(self.harness.charm._config_path),
                     )
 
-            self.harness.update_config({"pagerduty.service_key": ""})
+            self.harness.update_config({"pagerduty::service_key": ""})
             self.assertNotIn(
                 "pagerduty_configs", self.push_pull_mock.pull(self.harness.charm._config_path)
             )
