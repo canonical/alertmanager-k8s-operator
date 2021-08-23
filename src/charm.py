@@ -521,14 +521,12 @@ class AlertmanagerCharm(CharmBase):
         # to patch the K8s service
         self._patch_k8s_service()
 
-        # update config hash. pebble may not be ready so using try-except
-        with self.container.is_ready() as c:
-            self._stored.config_hash = utils.sha256(
-                yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path)))
-            )
-
-        if not c.completed:
-            self._stored.config_hash = ""
+        # update config hash
+        self._stored.config_hash = (
+            utils.sha256(yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path))))
+            if self.container.is_ready()
+            else ""
+        )
 
         # After upgrade (refresh), the unit ip address is not guaranteed to remain the same
         # Calling the common hook to update IP address to the new one
