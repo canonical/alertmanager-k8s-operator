@@ -344,12 +344,13 @@ class AlertmanagerCharm(CharmBase):
         # https://github.com/canonical/operator/issues/585
         unflattened_config = unflatten(dict(self.model.config), "::")
 
-        # only one receiver is supported at the moment
+        # Only one receiver is supported at the moment; prioritizing pagerduty.
+        # If none are valid, populating with a dummy, otherwise alertmanager won't start.
         receiver = (
             PagerdutyConfig.from_dict(unflattened_config["pagerduty"])
             or PushoverConfig.from_dict(unflattened_config["pushover"])
             or WebhookConfig.from_dict(unflattened_config["webhook"])
-            or WebhookConfig.from_dict({"url": "http://127.0.0.1:5001/"})
+            or WebhookConfig.from_dict({"url": "http://127.0.0.1:5001/"})  # dummy
         )
 
         config = {
@@ -519,7 +520,7 @@ class AlertmanagerCharm(CharmBase):
         # Ensure that older deployments of Alertmanager run the logic
         # to patch the K8s service
         self._patch_k8s_service()
-        
+
         # update config hash. pebble may not be ready so using try-except
         try:
             self._stored.config_hash = utils.sha256(
