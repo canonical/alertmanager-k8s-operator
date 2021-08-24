@@ -92,7 +92,7 @@ class AlertmanagerConsumer(ConsumerBase):
 
     def get_cluster_info(self) -> List[str]:
         """Returns a list of ip addresses of all the alertmanager units"""
-        alertmanagers = []
+        alertmanagers: List[str] = []
         if not (relation := self.charm.model.get_relation(self._consumer_relation_name)):
             return alertmanagers
         for unit in relation.units:

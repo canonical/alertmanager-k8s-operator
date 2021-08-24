@@ -117,10 +117,12 @@ class AlertmanagerCharm(CharmBase):
     def num_peers(self) -> int:
         """Number of peer units (excluding self)"""
         # For some reason in Juju 2.9.5 `self.peer_relation.units` is an empty set
-        return sum(
-            isinstance(unit, ops.model.Unit) and unit is not self.unit
-            for unit in self.peer_relation.data.keys()
-        )
+        if self.peer_relation:
+            return sum(
+                isinstance(unit, ops.model.Unit) and unit is not self.unit
+                for unit in self.peer_relation.data.keys()
+            )
+        return 0
 
     @property
     def peer_relation(self) -> Optional[ops.model.Relation]:
@@ -159,7 +161,8 @@ class AlertmanagerCharm(CharmBase):
         Also in Juju 2.9.5, ip address may be None even after RelationJoinedEvent, for which
         "ops.model.RelationDataError: relation data values must be strings" would be emitted.
         """
-        self.peer_relation.data[self.unit]["private_address"] = self.private_address
+        if self.peer_relation:
+            self.peer_relation.data[self.unit]["private_address"] = self.private_address
 
     def _fetch_private_address(self) -> Optional[str]:
         """Fetch private address from unit's peer relation data bucket."""
@@ -355,7 +358,7 @@ class AlertmanagerCharm(CharmBase):
     def api_client(self) -> AlertmanagerAPIClient:
         """:obj:`AlertmanagerAPIClient`: an API client instance for communicating with the alertmanager workload
         server"""
-        return AlertmanagerAPIClient(self.private_address, self._api_port)
+        return AlertmanagerAPIClient(port=self._api_port)
 
     def _patch_k8s_service(self):
         """Fix the Kubernetes service that was setup by Juju with correct port numbers"""

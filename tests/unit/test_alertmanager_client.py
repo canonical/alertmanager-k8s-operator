@@ -29,7 +29,9 @@ class TestAlertmanagerAPIClient(unittest.TestCase):
             self.assertTrue(self.api.reload())
 
         with patch("requests.get", mock_response):
-            self.assertDictEqual({"status": "fake"}, self.api.status())
+            status = self.api.status()
+            self.assertIsNotNone(status)
+            self.assertDictEqual({"status": "fake"}, status)
 
         # test failure
         def mock_connection_error(*args, **kwargs):

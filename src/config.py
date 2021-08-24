@@ -47,12 +47,9 @@ class ReceiverBase(ConfigBase):
         """
 
     @classmethod
-    def from_dict(cls, data: dict) -> Optional[dict]:
-        """A generic converter, common to all alertmanager receivers, that formats config data
-        into yaml data.
-        """
+    def from_dict(cls, data: dict) -> dict:
         if not cls.is_valid(data):
-            return None
+            return {}
 
         return {"name": cls.name, cls._section_name: [data]}
 

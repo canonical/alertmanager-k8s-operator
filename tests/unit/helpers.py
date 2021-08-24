@@ -6,8 +6,8 @@ from typing import Callable, Dict
 from unittest.mock import patch
 
 
-def patch_network_get(private_address="10.1.157.116"):
-    def network_get(*args, **kwargs):
+def patch_network_get(private_address="10.1.157.116") -> Callable:
+    def network_get(*args, **kwargs) -> dict:
         """patch for the not-yet-implemented testing backend needed for
         self.model.get_binding(event.relation).network.bind_address
         """
@@ -26,7 +26,7 @@ def patch_network_get(private_address="10.1.157.116"):
     return patch("ops.testing._TestingModelBackend.network_get", network_get)
 
 
-def no_op(*args, **kwargs):
+def no_op(*args, **kwargs) -> None:
     pass
 
 

@@ -4,7 +4,7 @@
 
 import json
 import logging
-import urllib
+import urllib.parse
 from typing import List, Optional
 
 import requests
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class AlertmanagerAPIClient:
     """Alertmanager HTTP API client."""
 
-    def __init__(self, address: str, port: int, timeout=2.0):
+    def __init__(self, address: str = "localhost", port: int = 9093, timeout=2.0):
         self.base_url = f"http://{address}:{port}/"
         self.timeout = timeout
 
@@ -61,7 +61,7 @@ class AlertmanagerAPIClient:
         # if GET failed or user did not provide a state to filter by, return as-is (possibly None);
         # else filter by state
         return (
-            silences
+            None
             if silences is None or state is None
             else [s for s in silences if s.get("status") and s["status"].get("state") == state]
         )
@@ -71,4 +71,4 @@ class AlertmanagerAPIClient:
         """Obtain version number from the alertmanager server."""
         if status := self.status():
             return status["versionInfo"]["version"]
-        return
+        return None
