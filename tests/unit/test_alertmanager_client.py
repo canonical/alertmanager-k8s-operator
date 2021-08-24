@@ -16,42 +16,34 @@ class TestAlertmanagerAPIClient(unittest.TestCase):
     def test_base_url(self):
         self.assertEqual("http://address:12345/", self.api.base_url)
 
-    def test_reload_and_status(self):
-        from collections import namedtuple
+    @patch("alertmanager_client.urllib.request.urlopen")
+    def test_reload_succeed(self, urlopen_mock):
+        urlopen_mock.return_value.code = 200
+        urlopen_mock.return_value.reason = "OK"
 
-        Response = namedtuple("Response", ["status_code", "reason", "text", "ok"])
+        self.assertTrue(self.api.reload())
+        urlopen_mock.assert_called()
 
-        # test succeess
-        def mock_response(*args, **kwargs):
-            return Response(200, "OK", json.dumps({"status": "fake"}), True)
+    @patch("alertmanager_client.urllib.request.urlopen")
+    def test_status_succeed(self, urlopen_mock):
+        urlopen_mock.return_value.readlines = lambda: json.dumps({"status": "fake"})
+        urlopen_mock.return_value.code = 200
+        urlopen_mock.return_value.reason = "OK"
 
-        with patch("requests.post", mock_response):
-            self.assertTrue(self.api.reload())
+        status = self.api.status()
+        self.assertIsNotNone(status)
+        self.assertDictEqual({"status": "fake"}, status)
 
-        with patch("requests.get", mock_response):
-            status = self.api.status()
-            self.assertIsNotNone(status)
-            self.assertDictEqual({"status": "fake"}, status)
-
-        # test failure
+    def test_reload_and_status_fail(self):
         def mock_connection_error(*args, **kwargs):
-            import requests
+            import urllib.error
 
-            raise requests.exceptions.ConnectionError
+            raise urllib.error.HTTPError(
+                url="url", code=500, msg="msg", hdrs={"hdr": "smth"}, fp=None
+            )
 
-        with patch("requests.post", mock_connection_error):
+        with patch("alertmanager_client.urllib.request.urlopen", mock_connection_error):
             self.assertFalse(self.api.reload())
 
-        with patch("requests.get", mock_connection_error):
-            self.assertIsNone(self.api.status())
-
-        def mock_timeout(*args, **kwargs):
-            import requests
-
-            raise requests.exceptions.ConnectTimeout
-
-        with patch("requests.post", mock_timeout):
-            self.assertFalse(self.api.reload())
-
-        with patch("requests.get", mock_timeout):
+        with patch("alertmanager_client.urllib.request.urlopen", mock_connection_error):
             self.assertIsNone(self.api.status())

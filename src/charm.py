@@ -2,7 +2,6 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import json
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -86,7 +85,6 @@ class AlertmanagerCharm(CharmBase):
 
         # action observations
         self.framework.observe(self.on.show_config_action, self._on_show_config_action)
-        self.framework.observe(self.on.show_silences_action, self._on_show_silences_action)
 
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
@@ -98,15 +96,6 @@ class AlertmanagerCharm(CharmBase):
         except Exception as e:
             event.fail(str(e))
             raise
-
-    def _on_show_silences_action(self, event: ActionEvent):
-        """Hook for the show-silences action."""
-        event.log("Fetching active silences")
-        active_silences = self.api_client.silences("active")
-        if active_silences is not None:
-            event.set_results({"active-silences": json.dumps(active_silences)})
-        else:
-            event.fail("Error retrieving silences via alertmanager api server")
 
     @property
     def api_port(self):

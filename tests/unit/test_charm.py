@@ -2,20 +2,15 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import json
 import textwrap
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import ops
 from helpers import PushPullMock, patch_network_get, tautology
 from ops.testing import Harness
 
 from charm import Alertmanager, AlertmanagerCharm
-
-# Things to test:
-# - self.harness.charm._stored is updated (unless considered private impl. detail)
-
 
 alertmanager_default_config = textwrap.dedent(
     """
@@ -125,26 +120,4 @@ class TestSingleUnitAfterInitialHooks(unittest.TestCase):
             self.harness.update_config({"pagerduty::service_key": ""})
             self.assertNotIn(
                 "pagerduty_configs", self.push_pull_mock.pull(self.harness.charm._config_path)
-            )
-
-    def test_show_silences_action_failing(self):
-        action_event = Mock(params={})
-        self.harness.charm._on_show_silences_action(action_event)
-        self.assertEqual(
-            action_event.fail.call_args,
-            [("Error retrieving silences via alertmanager api server",)],
-        )
-
-    def test_show_silences_action_succeeding(self):
-        mock_silences = [
-            {"id": "ab12", "status": {"state": "active"}},
-            {"id": "cd34", "status": {"state": "expired"}},
-        ]
-
-        with patch.object(Alertmanager, "silences", lambda *args: mock_silences):
-            action_event = Mock(params={"state": None})
-            self.harness.charm._on_show_silences_action(action_event)
-            self.assertEqual(
-                action_event.set_results.call_args,
-                [({"active-silences": json.dumps(mock_silences)},)],
             )

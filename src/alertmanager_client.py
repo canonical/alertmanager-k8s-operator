@@ -4,10 +4,10 @@
 
 import json
 import logging
+import urllib.error
 import urllib.parse
+import urllib.request
 from typing import List, Optional
-
-import requests
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +28,10 @@ class Alertmanager:
         """
         url = urllib.parse.urljoin(self.base_url, "/-/reload")
         try:
-            response = requests.post(url, timeout=self.timeout)
-            logger.debug("config reload via %s: %d %s", url, response.status_code, response.reason)
-            return response.status_code == 200 and response.reason == "OK"
-        except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout) as e:
+            response = urllib.request.urlopen(url, data=None, timeout=self.timeout)
+            logger.debug("config reload via %s: %d %s", url, response.code, response.reason)
+            return response.code == 200 and response.reason == "OK"
+        except (ValueError, urllib.error.HTTPError) as e:
             logger.debug("config reload error via %s: %s", url, str(e))
             return False
 
@@ -39,12 +39,12 @@ class Alertmanager:
     def _get(url: str, timeout) -> Optional[dict]:
         """Send a GET request with a timeout"""
         try:
-            response = requests.get(url, timeout=timeout)
-            if response.status_code == 200:
-                text = json.loads(response.text)
+            response = urllib.request.urlopen(url, data=None, timeout=timeout)
+            if response.code == 200:
+                text = json.loads(response.readlines())
             else:
                 text = None
-        except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout):
+        except (ValueError, urllib.error.HTTPError):
             text = None
         return text
 

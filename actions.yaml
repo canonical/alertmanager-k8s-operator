@@ -3,5 +3,3 @@
 
 show-config:
   description: Show alertmanager config file.
-show-silences:
-  description: List the currently active silences.
