@@ -66,22 +66,14 @@ class AlertmanagerCharm(CharmBase):
             self.on[self._peer_relation_name].relation_departed, self._on_peer_relation_departed
         )
 
-        self._stored.set_default(
-            pebble_ready=False,
-            config_hash=None,
-            launched_with_peers=False,
-        )
+        self._stored.set_default(pebble_ready=False, config_hash=None, launched_with_peers=False)
 
         self.provider = AlertmanagerProvider(
             self, self._service_name, self.api_client.version or "0.0.0"
         )
         self.provider.api_port = self._api_port
 
-        self.karma_lib = KarmaConsumer(
-            self,
-            "karma-dashboard",
-            consumes={"karma": ">=0.86"},
-        )
+        self.karma_lib = KarmaConsumer(self, "karma-dashboard", consumes={"karma": ">=0.86"})
 
         # action observations
         self.framework.observe(self.on.show_config_action, self._on_show_config_action)
