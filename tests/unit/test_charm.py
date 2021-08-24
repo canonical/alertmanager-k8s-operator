@@ -12,7 +12,7 @@ import ops
 from charm import AlertmanagerAPIClient, AlertmanagerCharm
 from ops.testing import Harness
 
-from .helpers import PushPullMock, patch_network_get, tautology
+from helpers import PushPullMock, patch_network_get, tautology
 
 
 # Things to test:
