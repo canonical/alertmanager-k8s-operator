@@ -15,7 +15,7 @@ from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
-from ops.pebble import ChangeError
+from ops.pebble import ProtocolError
 
 from alertmanager_client import Alertmanager
 from config import PagerdutyConfig, PushoverConfig, WebhookConfig
@@ -90,13 +90,15 @@ class AlertmanagerCharm(CharmBase):
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
         event.log(f"Fetching {self._config_path}")
+        if not self.container.is_ready():
+            event.fail("Container not ready")
+
         try:
             content = self.container.pull(self._config_path)
             # juju requires keys to be lowercase alphanumeric (can't use self._config_path)
             event.set_results({"path": self._config_path, "content": content.read()})
-        except Exception as e:
+        except ProtocolError as e:
             event.fail(str(e))
-            raise
 
     @property
     def api_port(self):
@@ -215,11 +217,13 @@ class AlertmanagerCharm(CharmBase):
         """Helper function for restarting the underlying service."""
         logger.info("Restarting service %s", self._service_name)
 
+        if not self.container.is_ready():
+            logger.error("Cannot (re)start service: container is not ready.")
+            return False
+
         try:
             # if the service does not exist, ModelError will be raised
-            if self.is_service_running:
-                self.container.stop(self._service_name)
-            self.container.start(self._service_name)
+            self.container.restart(self._service_name)
 
             # Update "launched with peers" flag.
             # The service should be restarted when peers joined if this is False.
@@ -231,12 +235,6 @@ class AlertmanagerCharm(CharmBase):
         except ops.model.ModelError:
             logger.warning("Service does not (yet?) exist; (re)start aborted")
             return False
-        except ChangeError as e:
-            logger.error("ChangeError: failed to (re)start service: %s", str(e))
-            return False
-        except Exception as e:
-            logger.error("failed to (re)start service: %s", str(e))
-            raise
 
     def _update_layer(self, restart: bool = True) -> bool:
         """Update service layer to reflect changes in peers (replicas).
@@ -361,6 +359,7 @@ class AlertmanagerCharm(CharmBase):
     def _common_exit_hook(self) -> bool:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self._stored.pebble_ready:
+            # TODO replace with self.container.is_ready() after confirming it indeed obviates
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return False
 
@@ -376,22 +375,21 @@ class AlertmanagerCharm(CharmBase):
         self.karma_lib.target = self.api_address
 
         # Update pebble layer
-        try:
-            layer_changed = self._update_layer(restart=False)
-            if layer_changed and (
-                not self.is_service_running
-                or (self.num_peers > 0 and not self._stored.launched_with_peers)
-            ):
-                self._restart_service()
+        if not self.container.is_ready():
+            logger.error("Cannot update layer - container is not ready")
+            self.unit.status = BlockedStatus("Container not ready")
+            return False
 
-            # Update config file
-            if not self._update_config(restart_on_failure=True):
-                self.unit.status = BlockedStatus("Config update failed")
-                return False
+        layer_changed = self._update_layer(restart=False)
+        if layer_changed and (
+            not self.is_service_running
+            or (self.num_peers > 0 and not self._stored.launched_with_peers)
+        ):
+            self._restart_service()
 
-        except ChangeError as e:
-            logger.error("Pebble error: %s", str(e))
-            self.unit.status = BlockedStatus("Pebble error")
+        # Update config file
+        if not self._update_config(restart_on_failure=True):
+            self.unit.status = BlockedStatus("Config update failed")
             return False
 
         self.provider.ready()
