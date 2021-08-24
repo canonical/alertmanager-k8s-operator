@@ -2,6 +2,7 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import hashlib
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -16,12 +17,18 @@ from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
 
-import utils
 from alertmanager_client import Alertmanager
 from config import PagerdutyConfig, PushoverConfig, WebhookConfig
 from kubernetes_service import K8sServicePatch, PatchFailed
 
 logger = logging.getLogger(__name__)
+
+
+def sha256(hashable) -> str:
+    """Use instead of the builtin hash() for repeatable values"""
+    if isinstance(hashable, str):
+        hashable = hashable.encode("utf-8")
+    return hashlib.sha256(hashable).hexdigest()
 
 
 class AlertmanagerCharm(CharmBase):
@@ -295,7 +302,7 @@ class AlertmanagerCharm(CharmBase):
         }
 
         config_yaml = yaml.safe_dump(config)
-        config_hash = utils.sha256(config_yaml)
+        config_hash = sha256(config_yaml)
 
         logger.debug(
             "recevier: %s - %s",
@@ -462,7 +469,7 @@ class AlertmanagerCharm(CharmBase):
 
         # update config hash
         self._stored.config_hash = (
-            utils.sha256(yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path))))
+            sha256(yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path))))
             if self.container.is_ready()
             else ""
         )
