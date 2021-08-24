@@ -41,10 +41,10 @@ class Alertmanager:
         try:
             response = urllib.request.urlopen(url, data=None, timeout=timeout)
             if response.code == 200:
-                text = json.loads(response.readlines())
+                text = json.loads(response.read())
             else:
                 text = None
-        except (ValueError, urllib.error.HTTPError):
+        except (ValueError, urllib.error.HTTPError, urllib.error.URLError):
             text = None
         return text
 
