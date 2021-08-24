@@ -2,8 +2,9 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import kubernetes
 from typing import List, Tuple
+
+import kubernetes
 
 
 class PatchFailed(RuntimeError):

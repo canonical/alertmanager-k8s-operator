@@ -4,16 +4,14 @@
 
 import json
 import textwrap
-
 import unittest
 from unittest.mock import Mock, patch
 
 import ops
-from charm import AlertmanagerAPIClient, AlertmanagerCharm
+from helpers import PushPullMock, patch_network_get, tautology
 from ops.testing import Harness
 
-from helpers import PushPullMock, patch_network_get, tautology
-
+from charm import AlertmanagerAPIClient, AlertmanagerCharm
 
 # Things to test:
 # - self.harness.charm._stored is updated (unless considered private impl. detail)

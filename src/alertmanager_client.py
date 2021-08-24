@@ -2,12 +2,12 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import urllib
-import requests
-import logging
-from typing import Optional, List
 import json
+import logging
+import urllib
+from typing import List, Optional
 
+import requests
 
 logger = logging.getLogger(__name__)
 

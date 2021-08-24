@@ -2,10 +2,11 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import json
 import unittest
 from unittest.mock import patch
+
 from alertmanager_client import AlertmanagerAPIClient
-import json
 
 
 class TestAlertmanagerAPIClient(unittest.TestCase):

@@ -2,9 +2,8 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+from typing import Callable, Dict
 from unittest.mock import patch
-
-from typing import Dict, Callable
 
 
 def patch_network_get(private_address="10.1.157.116"):

@@ -6,28 +6,28 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from kubernetes_service import K8sServicePatch, PatchFailed
 import ops
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
 from charms.karma_k8s.v0.karma import KarmaConsumer
+from flatten_json import unflatten
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
-from alertmanager_client import AlertmanagerAPIClient
 
 import utils
+from alertmanager_client import AlertmanagerAPIClient
 from config import PagerdutyConfig, PushoverConfig, WebhookConfig
-
-from flatten_json import unflatten
+from kubernetes_service import K8sServicePatch, PatchFailed
 
 logger = logging.getLogger(__name__)
 
 
 class AlertmanagerCharm(CharmBase):
     """A Juju charm for alertmanager"""
+
     # Container name is automatically determined from charm name
     # Layer name is used for the layer label argument in container.add_layer
     # Service name matches charm name for consistency

@@ -3,14 +3,12 @@
 # See LICENSE file for licensing details.
 
 import textwrap
+import unittest
 
 from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerConsumer
-
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.testing import Harness
-
-import unittest
 
 
 class DummyConsumerCharm(CharmBase):

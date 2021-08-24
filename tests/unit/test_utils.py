@@ -2,10 +2,11 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import utils
 import unittest
-from unittest.mock import patch
 from contextlib import contextmanager
+from unittest.mock import patch
+
+import utils
 
 
 class TestUtils(unittest.TestCase):

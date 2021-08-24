@@ -7,14 +7,14 @@
 This library is designed to be used by a charm consuming or providing the `alerting` relation.
 """
 
-import ops
-from ops.framework import EventSource, EventBase
-from ops.relation import ConsumerBase, ProviderBase
-from ops.charm import CharmBase, RelationJoinedEvent, RelationEvent
-from ops.model import Relation
-
-from typing import List
 import logging
+from typing import List
+
+import ops
+from ops.charm import CharmBase, RelationEvent, RelationJoinedEvent
+from ops.framework import EventBase, EventSource
+from ops.model import Relation
+from ops.relation import ConsumerBase, ProviderBase
 
 LIBID = "abcdef1234"  # Unique ID that refers to the library forever
 LIBAPI = 0  # Must match the major version in the import path.
