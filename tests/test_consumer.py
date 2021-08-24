@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
+
 import textwrap
 
 from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerConsumer
