@@ -3,8 +3,8 @@
 # See LICENSE file for licensing details.
 import json
 import logging
-import textwrap
 import urllib.parse
+import urllib.error
 from typing import Any, Dict, List, Optional
 
 from kubernetes_service import K8sServicePatch, PatchFailed
@@ -20,6 +20,9 @@ from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
 
 import utils
+from config import PagerdutyConfig, PushoverConfig, WebhookConfig
+
+from flatten_json import unflatten
 
 logger = logging.getLogger(__name__)
 
@@ -337,59 +340,39 @@ class AlertmanagerCharm(CharmBase):
         Returns:
           True if unchanged, or if changed successfully; False otherwise
         """
-        # The default alertmanager.yml that is created by alertmanager on startup, if none exists
-        default_alertmanager_config = textwrap.dedent(
-            """
-            route:
-              group_by: ['juju_application', 'juju_model', 'juju_model_uuid']
-              group_wait: 30s
-              group_interval: 5m
-              repeat_interval: 1h
-              receiver: 'web.hook'
-            receivers:
-            - name: 'web.hook'
-              webhook_configs:
-              - url: 'http://127.0.0.1:5001/'
-            """
-        )
-        # config: dict = yaml.safe_load(self.container.pull(self._config_path))
-        config: dict = yaml.safe_load(default_alertmanager_config)
+        # Cannot use a period ('.') as a separator because of a mongo/juju issue:
+        # https://github.com/canonical/operator/issues/585
+        unflattened_config = unflatten(dict(self.model.config), "::")
 
-        if pagerduty_key := self.model.config.get("pagerduty_key"):
-            config.update(
-                {
-                    "receivers": [
-                        {
-                            "name": "default_pagerduty",
-                            "pagerduty_configs": [
-                                {"send_resolved": True, "service_key": pagerduty_key}
-                            ],
-                        }
-                    ]
-                }
-            )
-            config["route"]["receiver"] = "default_pagerduty"
-        else:
-            # pagerduty_key evaluates to False: restore sections to default values (alertmanager
-            # won't start without a receiver)
-            config.update(
-                {
-                    "receivers": [
-                        {
-                            "name": "web.hook",
-                            "webhook_configs": [
-                                {
-                                    "url": "http://127.0.0.1:5001/",
-                                }
-                            ],
-                        }
-                    ]
-                }
-            )
-            config["route"]["receiver"] = "web.hook"
+        # Only one receiver is supported at the moment; prioritizing pagerduty.
+        # If none are valid, populating with a dummy, otherwise alertmanager won't start.
+        receiver = (
+            PagerdutyConfig.from_dict(unflattened_config["pagerduty"])
+            or PushoverConfig.from_dict(unflattened_config["pushover"])
+            or WebhookConfig.from_dict(unflattened_config["webhook"])
+            or WebhookConfig.from_dict({"url": "http://127.0.0.1:5001/"})  # dummy
+        )
+
+        config = {
+            "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
+            "route": {
+                "group_by": ["juju_application", "juju_model", "juju_model_uuid"],
+                "group_wait": "30s",
+                "group_interval": "5m",
+                "repeat_interval": "1h",
+                "receiver": receiver["name"],
+            },
+            "receivers": [receiver],
+        }
 
         config_yaml = yaml.safe_dump(config)
         config_hash = utils.sha256(config_yaml)
+
+        logger.debug(
+            "recevier: %s - %s",
+            receiver["name"],
+            "changed" if config_hash != self._stored.config_hash else "no change",
+        )
 
         if config_hash != self._stored.config_hash:
             self.container.push(self._config_path, config_yaml)
@@ -538,7 +521,14 @@ class AlertmanagerCharm(CharmBase):
         # to patch the K8s service
         self._patch_k8s_service()
 
-        # After upgrade (refresh), the unit ip address is not guaranteed to remain the same as before
+        # update config hash
+        self._stored.config_hash = (
+            utils.sha256(yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path))))
+            if self.container.is_ready()
+            else ""
+        )
+
+        # After upgrade (refresh), the unit ip address is not guaranteed to remain the same
         # Calling the common hook to update IP address to the new one
         self._common_exit_hook()
 

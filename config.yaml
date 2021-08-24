@@ -5,5 +5,34 @@
 # If you don't need config, you can remove the file entirely.
 
 options:
-  pagerduty_key:
+  # pagerduty config
+  pagerduty::send_resolved:
+    type: boolean
+    description: Whether or not to notify about resolved alerts (default = true).
+    default: true
+  pagerduty::service_key:
     type: string
+    description: The PagerDuty integration key (when using PagerDuty integration type `Prometheus`).
+    default: ""
+  # pushover config
+  pushover::send_resolved:
+    type: boolean
+    description: Whether or not to notify about resolved alerts (default = true).
+    default: true
+  pushover::user_key:
+    type: string
+    description: The recipient user's user key.
+    default: ""
+  pushover::token:
+    type: string
+    description: Your registered application's API token, see https://pushover.net/apps
+    default: ""
+  # webhook config
+  webhook::send_resolved:
+    type: boolean
+    description: Whether or not to notify about resolved alerts (default = true).
+    default: true
+  webhook::url:
+    type: string
+    description: The endpoint to send HTTP POST requests to.
+    default: ""

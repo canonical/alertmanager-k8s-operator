@@ -2,7 +2,7 @@
 
 ## Description
 
-The [Alertmanager] operator provides an alerting solution for the [Prometheus][Prometheus Docs] 
+The [Alertmanager] operator provides an alerting solution for the [Prometheus][Prometheus Docs]
 [Operator][Prometheus Operator]. It is part of an Observability stack in the [Juju] charm
 [ecosystem]. Alertmanager accepts alerts from Prometheus, then deduplicates, groups
 and routes them to the selected receiver, based on a set of alerting rules. These
@@ -23,12 +23,18 @@ Prometheus by forming a relation with it.
 
 ### Configuration
 
-Currently, supported receivers are
+Currently, supported receivers are:
   - [PagerDuty](https://www.pagerduty.com/) (set up with:
-    `juju config alertmanager-k8s pagerduty_key='your-key'`)
+    `juju config alertmanager-k8s pagerduty::service_key='your-key'`)
+  - [Pushover](https://pushover.net/) (set up with:
+    `juju config alertmanager-k8s pushover::user_key=your_key pushover::token=your_token`)
+  - [Webhook](https://www.prometheus.io/docs/alerting/latest/configuration/#webhook_config)
+    (set up with: `juju config alertmanager-k8s webhook::url=http://your.url`)
+
+See [config.yaml](config.yaml) for additional details.
 
 ### Actions
-None.
+- `show-config`: Show alertmanager config file.
 
 ### Scale Out Usage
 
@@ -47,7 +53,7 @@ Currently, supported relations are:
   - [Prometheus](https://github.com/canonical/prometheus-operator), which forwards alerts to
     Alertmanager over the `alertmanager_dispatch` interface.
     Set up with `juju add-relation alertmanager-k8s prometheus-k8s`.
-  - [Karma](https://github.com/canonical/karma-operator), which displays alerts from all related alertmanager instances 
+  - [Karma](https://github.com/canonical/karma-operator), which displays alerts from all related alertmanager instances
     over the `karma_dashboard` interface.
     Set up with `juju add-relation alertmanager-k8s karma-k8s`.
 
@@ -59,7 +65,7 @@ This charm can be used with the folowing images:
 
 
 ## Additional Information
-- [Logging, Monitoring, and Alerting](https://discourse.ubuntu.com/t/logging-monitoring-and-alerting/19151) (LMA) - 
+- [Logging, Monitoring, and Alerting](https://discourse.ubuntu.com/t/logging-monitoring-and-alerting/19151) (LMA) -
   a tutorial for running Prometheus, Grafana and Alertmanager with LXD.
 - [Alertmanager README](https://github.com/prometheus/alertmanager)
 - [PromCon 2018: Life of an Alert](https://youtube.com/watch?v=PUdjca23Qa4)
