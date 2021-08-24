@@ -26,7 +26,7 @@ class TestAlertmanagerAPIClient(unittest.TestCase):
 
     @patch("alertmanager_client.urllib.request.urlopen")
     def test_status_succeed(self, urlopen_mock):
-        urlopen_mock.return_value.readlines = lambda: json.dumps({"status": "fake"})
+        urlopen_mock.return_value.read = lambda: json.dumps({"status": "fake"})
         urlopen_mock.return_value.code = 200
         urlopen_mock.return_value.reason = "OK"
 

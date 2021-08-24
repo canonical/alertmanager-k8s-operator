@@ -25,7 +25,12 @@ logger = logging.getLogger(__name__)
 
 
 class AlertmanagerCharm(CharmBase):
-    """A Juju charm for alertmanager"""
+    """A Juju charm for alertmanager
+
+    Attributes:
+        api: an API client instance for communicating with the alertmanager workload
+                server
+    """
 
     # Container name is automatically determined from charm name
     # Layer name is used for the layer label argument in container.add_layer
@@ -46,16 +51,22 @@ class AlertmanagerCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+        self._stored.set_default(pebble_ready=False, config_hash=None, launched_with_peers=False)
+        self.api = Alertmanager(port=self._api_port)
+        self.provider = AlertmanagerProvider(self, self._service_name, self.api.version)
+        self.provider.api_port = self._api_port
+        self.karma_lib = KarmaConsumer(self, "karma-dashboard", consumes={"karma": ">=0.86"})
         self.container = self.unit.get_container(self._container_name)
 
-        # event observations
-        self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
-        self.framework.observe(self.on.config_changed, self._on_config_changed)
+        # Core lifecycle events
         self.framework.observe(self.on.install, self._on_install)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
+        # Peer relation events
         self.framework.observe(
             self.on[self._peer_relation_name].relation_joined, self._on_peer_relation_joined
         )
@@ -66,16 +77,7 @@ class AlertmanagerCharm(CharmBase):
             self.on[self._peer_relation_name].relation_departed, self._on_peer_relation_departed
         )
 
-        self._stored.set_default(pebble_ready=False, config_hash=None, launched_with_peers=False)
-
-        self.provider = AlertmanagerProvider(
-            self, self._service_name, self.api_client.version or "0.0.0"
-        )
-        self.provider.api_port = self._api_port
-
-        self.karma_lib = KarmaConsumer(self, "karma-dashboard", consumes={"karma": ">=0.86"})
-
-        # action observations
+        # Action events
         self.framework.observe(self.on.show_config_action, self._on_show_config_action)
 
     def _on_show_config_action(self, event: ActionEvent):
@@ -306,7 +308,7 @@ class AlertmanagerCharm(CharmBase):
 
             # Send an HTTP POST to alertmanager to hot-reload the config.
             # This reduces down-time compared to restarting the service.
-            if self.api_client.reload():
+            if self.api.reload():
                 self._stored.config_hash = config_hash
                 success = True
             else:
@@ -334,12 +336,6 @@ class AlertmanagerCharm(CharmBase):
     def api_address(self):
         """Returns the API address (including scheme and port) of the alertmanager server."""
         return f"http://{self.private_address}:{self.api_port}"
-
-    @property
-    def api_client(self) -> Alertmanager:
-        """:obj:`Alertmanager`: an API client instance for communicating with the alertmanager workload
-        server"""
-        return Alertmanager(port=self._api_port)
 
     def _patch_k8s_service(self):
         """Fix the Kubernetes service that was setup by Juju with correct port numbers"""
@@ -444,7 +440,7 @@ class AlertmanagerCharm(CharmBase):
 
         Logs list of peers, uptime and version info.
         """
-        if status := self.api_client.status():
+        if status := self.api.status():
             logger.info(
                 "alertmanager %s is up and running (uptime: %s); "
                 "cluster mode: %s, with %d peers",

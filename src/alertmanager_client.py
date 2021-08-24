@@ -67,8 +67,8 @@ class Alertmanager:
         )
 
     @property
-    def version(self) -> Optional[str]:
+    def version(self) -> str:
         """Obtain version number from the alertmanager server."""
         if status := self.status():
             return status["versionInfo"]["version"]
-        return None
+        return "0.0.0"
