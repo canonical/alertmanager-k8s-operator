@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class AlertmanagerCharm(CharmBase):
+    """A Juju charm for alertmanager"""
     # Container name is automatically determined from charm name
     # Layer name is used for the layer label argument in container.add_layer
     # Service name matches charm name for consistency
@@ -88,6 +89,7 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(self.on.show_silences_action, self._on_show_silences_action)
 
     def _on_show_config_action(self, event: ActionEvent):
+        """Hook for the show-config action."""
         event.log(f"Fetching {self._config_path}")
         try:
             content = self.container.pull(self._config_path)
@@ -98,6 +100,7 @@ class AlertmanagerCharm(CharmBase):
             raise
 
     def _on_show_silences_action(self, event: ActionEvent):
+        """Hook for the show-silences action."""
         event.log("Fetching active silences")
         active_silences = self.api_client.silences("active")
         if active_silences is not None:
@@ -121,7 +124,10 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def peer_relation(self) -> Optional[ops.model.Relation]:
-        # Returns None if called too early, e.g. during install.
+        """Helper function for obtaining the peer relation object.
+
+        Returns: peer relation object; returns None if called too early, e.g. during install.
+        """
         return self.model.get_relation(self._peer_relation_name)
 
     @property
@@ -213,6 +219,7 @@ class AlertmanagerCharm(CharmBase):
         return self.container.get_service(self._service_name).is_running()
 
     def _restart_service(self) -> bool:
+        """Helper function for restarting the underlying service."""
         logger.info("Restarting service %s", self._service_name)
 
         try:
@@ -341,6 +348,7 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def api_address(self):
+        """Returns the API address (including scheme and port) of the alertmanager server."""
         return f"http://{self.private_address}:{self.api_port}"
 
     @property
@@ -364,6 +372,7 @@ class AlertmanagerCharm(CharmBase):
                 logger.info("Successfully patched the Kubernetes service")
 
     def _common_exit_hook(self) -> bool:
+        """Event processing hook that is common to all events to ensure idempotency."""
         if not self._stored.pebble_ready:
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return False
@@ -403,39 +412,54 @@ class AlertmanagerCharm(CharmBase):
 
         return True
 
-    def _on_pebble_ready(self, event: ops.charm.PebbleReadyEvent):
+    def _on_pebble_ready(self, _):
+        """Event handler for PebbleReadyEvent"""
         self._stored.pebble_ready = True
         self._common_exit_hook()
 
-    def _on_config_changed(self, event: ops.charm.ConfigChangedEvent):
+    def _on_config_changed(self, _):
+        """Event handler for ConfigChangedEvent"""
         self._common_exit_hook()
 
-    def _on_start(self, event: ops.charm.StartEvent):
-        # With Juju 2.9.5 encountered a scenario in which pebble_ready and config_changed fired, but IP address was not
-        # available and the status was stuck on "Waiting for IP address". Adding this hook as a workaround.
+    def _on_start(self, _):
+        """Event handler for StartEvent
+
+        With Juju 2.9.5 encountered a scenario in which pebble_ready and config_changed fired,
+        but IP address was not available and the status was stuck on "Waiting for IP address".
+        Adding this hook reduce the likelihood of that scenario.
+        """
         self._common_exit_hook()
 
     def _on_install(self, _):
-        """Event handler for the install event during which we will update the K8s service"""
+        """Event handler for InstallEvent during which we will update the K8s service"""
         self._patch_k8s_service()
 
-    def _on_peer_relation_joined(self, event: ops.charm.RelationJoinedEvent):
+    def _on_peer_relation_joined(self, _):
+        """Event handler for replica's RelationChangedEvent"""
         self._common_exit_hook()
 
-    def _on_peer_relation_changed(self, event: ops.charm.RelationChangedEvent):
-        # `relation_changed` is needed in addition to `relation_joined` because when a second unit
-        # joins, the first unit must be restarted and provided with the second unit's IP address.
-        # when the first unit sees "joined", it is not guaranteed that the second unit already has
-        # an IP address.
+    def _on_peer_relation_changed(self, _):
+        """Event handler for replica's RelationChangedEvent
+
+        `relation_changed` is needed in addition to `relation_joined` because when a second unit
+        joins, the first unit must be restarted and provided with the second unit's IP address.
+        when the first unit sees "joined", it is not guaranteed that the second unit already has
+        an IP address.
+        """
         self._common_exit_hook()
 
-    def _on_peer_relation_departed(self, event: ops.charm.RelationDepartedEvent):
-        # No need to update peers - the cluster updates itself internally when a unit is not available.
-        # No need to update consumer relations because consumers will get a relation changed event, and
-        # addresses are pulled from unit data bags by the consumer library.
+    def _on_peer_relation_departed(self, _):
+        """Event handler for replica's RelationDepartedEvent"""
+        # No need to update peers - the cluster updates itself internally.
+        # No need to update consumer relations because consumers will get a relation changed event,
+        # and addresses are pulled from unit data bags by the consumer library.
         pass
 
-    def _on_update_status(self, event: ops.charm.UpdateStatusEvent):
+    def _on_update_status(self, _):
+        """Event handler for UpdateStatusEvent.
+
+        Logs list of peers, uptime and version info.
+        """
         if status := self.api_client.status():
             logger.info(
                 "alertmanager %s is up and running (uptime: %s); "
@@ -451,6 +475,7 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_upgrade_charm(self, _):
+        """Event handler for replica's UpgradeCharmEvent"""
         # Ensure that older deployments of Alertmanager run the logic
         # to patch the K8s service
         self._patch_k8s_service()

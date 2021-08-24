@@ -27,7 +27,7 @@ class ClusterChanged(EventBase):
     """Event raised when an alertmanager cluster is changed.
 
     If an alertmanager unit is added to or removed from a relation,
-    then a :class:`ClusterChanged` event is raised.
+    then a :class:`ClusterChanged` event should be emitted.
     """
 
     def __init__(self, handle, data=None):
@@ -105,6 +105,7 @@ class AlertmanagerConsumer(ConsumerBase):
         self.cluster_changed.emit()
 
     def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
+        """This hook notifies the charm that a relation has been completely removed"""
         # inform consumer about the change
         self.cluster_changed.emit()
 
@@ -160,11 +161,21 @@ class AlertmanagerProvider(ProviderBase):
         self.update_relation_data(event)
 
     def _generate_relation_data(self, relation: Relation):
+        """Helper function to generate relation data in the correct format."""
         public_address = f"{self.model.get_binding(relation).network.bind_address}:{self.api_port}"
         return {"public_address": public_address}
 
     def update_relation_data(self, event: RelationEvent = None):
-        # "ingress-address" is auto-populated incorrectly so rolling my own, "public_address"
+        """Helper function for updating relation data bags.
+
+        This function can be used in two different ways:
+        - update relation data bag of a given event (e.g. a newly joined relation);
+        - update relation data for all relations
+
+        Args:
+            event: The event whose data bag needs to be updated. If it is None, update data bags of
+            all relations.
+        """
 
         if event is None:
             # update all existing relation data

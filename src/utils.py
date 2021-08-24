@@ -4,7 +4,7 @@
 
 import hashlib
 import urllib.request
-from typing import Union
+from typing import Optional
 
 
 def append_unless(unless, base, appendable):
@@ -25,7 +25,9 @@ def sha256(hashable) -> str:
     return hashlib.sha256(hashable).hexdigest()
 
 
-def fetch_url(url: str) -> Union[str, None]:
+def fetch_url(url: str) -> Optional[str]:
+    """Helper function for fetching data from a URL, that returns None instead of raising
+    exceptions."""
     try:
         with urllib.request.urlopen(url) as response:
             html = response.read()

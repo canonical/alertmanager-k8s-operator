@@ -37,6 +37,7 @@ class AlertmanagerAPIClient:
 
     @staticmethod
     def _get(url: str, timeout) -> Optional[dict]:
+        """Send a GET request with a timeout"""
         try:
             response = requests.get(url, timeout=timeout)
             if response.status_code == 200:
@@ -48,10 +49,12 @@ class AlertmanagerAPIClient:
         return text
 
     def status(self) -> Optional[dict]:
+        """Obtain status information from the alertmanager server."""
         url = urllib.parse.urljoin(self.base_url, "/api/v2/status")
         return self._get(url, timeout=self.timeout)
 
     def silences(self, state: str = None) -> Optional[List[dict]]:
+        """Obtain information on silences from the alertmanager server."""
         url = urllib.parse.urljoin(self.base_url, "/api/v2/silences")
         silences = self._get(url, timeout=self.timeout)
 
@@ -65,6 +68,7 @@ class AlertmanagerAPIClient:
 
     @property
     def version(self) -> Optional[str]:
+        """Obtain version number from the alertmanager server."""
         if status := self.status():
             return status["versionInfo"]["version"]
         return
