@@ -12,7 +12,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 
-class AlertmanagerAPIClient:
+class Alertmanager:
     """Alertmanager HTTP API client."""
 
     def __init__(self, address: str = "localhost", port: int = 9093, timeout=2.0):

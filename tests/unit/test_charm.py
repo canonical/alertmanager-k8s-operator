@@ -11,7 +11,7 @@ import ops
 from helpers import PushPullMock, patch_network_get, tautology
 from ops.testing import Harness
 
-from charm import AlertmanagerAPIClient, AlertmanagerCharm
+from charm import Alertmanager, AlertmanagerCharm
 
 # Things to test:
 # - self.harness.charm._stored is updated (unless considered private impl. detail)
@@ -40,7 +40,7 @@ alertmanager_default_config = textwrap.dedent(
 
 
 @patch_network_get(private_address="1.1.1.1")
-@patch.object(AlertmanagerAPIClient, "reload", tautology)
+@patch.object(Alertmanager, "reload", tautology)
 class TestSingleUnitAfterInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
@@ -57,7 +57,7 @@ class TestSingleUnitAfterInitialHooks(unittest.TestCase):
         self.harness.set_leader(True)
 
         network_get_patch = patch_network_get(private_address="1.1.1.1")
-        api_get_patch = patch("charm.AlertmanagerAPIClient._get", lambda *a, **kw: None)
+        api_get_patch = patch("charm.Alertmanager._get", lambda *a, **kw: None)
 
         with network_get_patch, api_get_patch:
             # TODO why the context is needed if we already have a class-level patch?
@@ -141,7 +141,7 @@ class TestSingleUnitAfterInitialHooks(unittest.TestCase):
             {"id": "cd34", "status": {"state": "expired"}},
         ]
 
-        with patch.object(AlertmanagerAPIClient, "silences", lambda *args: mock_silences):
+        with patch.object(Alertmanager, "silences", lambda *args: mock_silences):
             action_event = Mock(params={"state": None})
             self.harness.charm._on_show_silences_action(action_event)
             self.assertEqual(

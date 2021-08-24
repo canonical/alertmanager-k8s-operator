@@ -18,7 +18,7 @@ from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from ops.pebble import ChangeError
 
 import utils
-from alertmanager_client import AlertmanagerAPIClient
+from alertmanager_client import Alertmanager
 from config import PagerdutyConfig, PushoverConfig, WebhookConfig
 from kubernetes_service import K8sServicePatch, PatchFailed
 
@@ -355,10 +355,10 @@ class AlertmanagerCharm(CharmBase):
         return f"http://{self.private_address}:{self.api_port}"
 
     @property
-    def api_client(self) -> AlertmanagerAPIClient:
-        """:obj:`AlertmanagerAPIClient`: an API client instance for communicating with the alertmanager workload
+    def api_client(self) -> Alertmanager:
+        """:obj:`Alertmanager`: an API client instance for communicating with the alertmanager workload
         server"""
-        return AlertmanagerAPIClient(port=self._api_port)
+        return Alertmanager(port=self._api_port)
 
     def _patch_k8s_service(self):
         """Fix the Kubernetes service that was setup by Juju with correct port numbers"""

@@ -6,12 +6,12 @@ import json
 import unittest
 from unittest.mock import patch
 
-from alertmanager_client import AlertmanagerAPIClient
+from alertmanager_client import Alertmanager
 
 
 class TestAlertmanagerAPIClient(unittest.TestCase):
     def setUp(self):
-        self.api = AlertmanagerAPIClient("address", 12345)
+        self.api = Alertmanager("address", 12345)
 
     def test_base_url(self):
         self.assertEqual("http://address:12345/", self.api.base_url)
