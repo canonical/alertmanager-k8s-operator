@@ -2,6 +2,8 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+"""Client library for Alertmanager API."""
+
 import json
 import logging
 import urllib.error
@@ -21,6 +23,7 @@ class Alertmanager:
 
     def reload(self) -> bool:
         """Send a POST request to to hot-reload the config.
+
         This reduces down-time compared to restarting the service.
 
         Returns:
@@ -31,7 +34,7 @@ class Alertmanager:
 
     @staticmethod
     def _get(url: str, timeout) -> Optional[str]:
-        """Send a GET request with a timeout"""
+        """Send a GET request with a timeout."""
         try:
             response = urllib.request.urlopen(url, data=None, timeout=timeout)
             if response.code == 200 and response.reason == "OK":

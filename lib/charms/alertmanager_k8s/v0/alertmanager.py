@@ -2,7 +2,7 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-""" # alertmanager library
+"""# alertmanager library.
 
 This library is designed to be used by a charm consuming or providing the `alerting` relation.
 """
@@ -85,13 +85,13 @@ class AlertmanagerConsumer(ConsumerBase):
         )
 
     def _on_relation_changed(self, event: ops.charm.RelationChangedEvent):
-        """This hook notifies the charm that there may have been changes to the cluster"""
+        """This hook notifies the charm that there may have been changes to the cluster."""
         if event.unit:  # event.unit may be `None` in the case of app data change
             # inform consumer about the change
             self.cluster_changed.emit()
 
     def get_cluster_info(self) -> List[str]:
-        """Returns a list of ip addresses of all the alertmanager units"""
+        """Returns a list of ip addresses of all the alertmanager units."""
         alertmanagers: List[str] = []
         if not (relation := self.charm.model.get_relation(self._consumer_relation_name)):
             return alertmanagers
@@ -101,18 +101,18 @@ class AlertmanagerConsumer(ConsumerBase):
         return sorted(alertmanagers)
 
     def _on_relation_departed(self, event: ops.charm.RelationDepartedEvent):
-        """This hook notifies the charm that there may have been changes to the cluster"""
+        """This hook notifies the charm that there may have been changes to the cluster."""
         self.cluster_changed.emit()
 
     def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
-        """This hook notifies the charm that a relation has been completely removed"""
+        """This hook notifies the charm that a relation has been completely removed."""
         # inform consumer about the change
         self.cluster_changed.emit()
 
 
 class AlertmanagerProvider(ProviderBase):
-    """A "provider" handler to be used by the Alertmanager charm for abstracting away all the
-    communication with consumers.
+    """An alertmanager "provider" handler for abstracting away communication with consumers.
+
     This provider auto-registers relation events on behalf of the main Alertmanager charm.
 
     Arguments:
@@ -153,8 +153,8 @@ class AlertmanagerProvider(ProviderBase):
         self._api_port = value
 
     def _on_relation_joined(self, event: RelationJoinedEvent):
-        """This hook stores the public address of the newly-joined "alerting" relation in the
-        corresponding data bag.
+        """This hook stores the public address of the newly-joined "alerting" relation.
+
         This is needed for consumers such as prometheus, which should be aware of all alertmanager
         instances.
         """
@@ -176,7 +176,6 @@ class AlertmanagerProvider(ProviderBase):
             event: The event whose data bag needs to be updated. If it is None, update data bags of
             all relations.
         """
-
         if event is None:
             # update all existing relation data
             # a single consumer charm's unit may be related to multiple providers

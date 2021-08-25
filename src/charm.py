@@ -2,6 +2,8 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+"""A Juju charm for alertmanager."""
+
 import hashlib
 import logging
 from typing import Any, Dict, List, Optional
@@ -25,14 +27,14 @@ logger = logging.getLogger(__name__)
 
 
 def sha256(hashable) -> str:
-    """Use instead of the builtin hash() for repeatable values"""
+    """Use instead of the builtin hash() for repeatable values."""
     if isinstance(hashable, str):
         hashable = hashable.encode("utf-8")
     return hashlib.sha256(hashable).hexdigest()
 
 
 class AlertmanagerCharm(CharmBase):
-    """A Juju charm for alertmanager
+    """A Juju charm for alertmanager.
 
     Attributes:
         api: an API client instance for communicating with the alertmanager workload
@@ -107,7 +109,7 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def num_peers(self) -> int:
-        """Number of peer units (excluding self)"""
+        """Number of peer units (excluding self)."""
         # For some reason in Juju 2.9.5 `self.peer_relation.units` is an empty set
         if self.peer_relation:
             return sum(
@@ -127,6 +129,7 @@ class AlertmanagerCharm(CharmBase):
     @property
     def private_address(self) -> Optional[str]:
         """Get the unit's ip address.
+
         Technically, receiving a "joined" event guarantees an IP address is available. If this is
         called beforehand, a None would be returned.
         When operating a single unit, no "joined" events are visible so obtaining an address is a
@@ -166,7 +169,7 @@ class AlertmanagerCharm(CharmBase):
         """Returns Pebble configuration layer for alertmanager."""
 
         def _command():
-            """Returns full command line to start alertmanager"""
+            """Returns full command line to start alertmanager."""
             peer_addresses = self._get_peer_addresses()
 
             # cluster listen address - empty string disables HA mode
@@ -343,7 +346,7 @@ class AlertmanagerCharm(CharmBase):
         return f"http://{self.private_address}:{self.api_port}"
 
     def _patch_k8s_service(self):
-        """Fix the Kubernetes service that was setup by Juju with correct port numbers"""
+        """Fix the Kubernetes service that was setup by Juju with correct port numbers."""
         if self.unit.is_leader():
             service_ports = [
                 (f"{self.app.name}", self.api_port, self.api_port),
@@ -398,16 +401,16 @@ class AlertmanagerCharm(CharmBase):
         return True
 
     def _on_pebble_ready(self, _):
-        """Event handler for PebbleReadyEvent"""
+        """Event handler for PebbleReadyEvent."""
         self._stored.pebble_ready = True
         self._common_exit_hook()
 
     def _on_config_changed(self, _):
-        """Event handler for ConfigChangedEvent"""
+        """Event handler for ConfigChangedEvent."""
         self._common_exit_hook()
 
     def _on_start(self, _):
-        """Event handler for StartEvent
+        """Event handler for StartEvent.
 
         With Juju 2.9.5 encountered a scenario in which pebble_ready and config_changed fired,
         but IP address was not available and the status was stuck on "Waiting for IP address".
@@ -416,15 +419,15 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_install(self, _):
-        """Event handler for InstallEvent during which we will update the K8s service"""
+        """Event handler for InstallEvent during which we will update the K8s service."""
         self._patch_k8s_service()
 
     def _on_peer_relation_joined(self, _):
-        """Event handler for replica's RelationChangedEvent"""
+        """Event handler for replica's RelationChangedEvent."""
         self._common_exit_hook()
 
     def _on_peer_relation_changed(self, _):
-        """Event handler for replica's RelationChangedEvent
+        """Event handler for replica's RelationChangedEvent.
 
         `relation_changed` is needed in addition to `relation_joined` because when a second unit
         joins, the first unit must be restarted and provided with the second unit's IP address.
@@ -434,7 +437,7 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_peer_relation_departed(self, _):
-        """Event handler for replica's RelationDepartedEvent"""
+        """Event handler for replica's RelationDepartedEvent."""
         # No need to update peers - the cluster updates itself internally.
         # No need to update consumer relations because consumers will get a relation changed event,
         # and addresses are pulled from unit data bags by the consumer library.
@@ -460,7 +463,7 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_upgrade_charm(self, _):
-        """Event handler for replica's UpgradeCharmEvent"""
+        """Event handler for replica's UpgradeCharmEvent."""
         # Ensure that older deployments of Alertmanager run the logic
         # to patch the K8s service
         self._patch_k8s_service()

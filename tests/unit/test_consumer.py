@@ -12,11 +12,11 @@ from ops.testing import Harness
 
 
 class DummyConsumerCharm(CharmBase):
-    """A class for mimicking the bare AlertmanagerCharm functionality needed to test the consumer."""
+    """Mimick bare functionality of AlertmanagerCharm needed to test the consumer."""
 
-    # define custom metadata - without this the harness would parse the metadata.yaml in this repo, which would result
-    # in expressions like self.harness.model.app.name to return "alertmanager-k8s", which is not what we want in a
-    # consumer test
+    # define custom metadata - without this the harness would parse the metadata.yaml in this repo,
+    # which would result in expressions like self.harness.model.app.name to return
+    # "alertmanager-k8s", which is not what we want in a consumer test
     metadata_yaml = textwrap.dedent(
         """
         name: DummyConsumerCharm
@@ -68,7 +68,7 @@ class TestConsumer(unittest.TestCase):
         self.harness.begin_with_initial_hooks()
 
     def _relate_to_alertmanager(self) -> int:
-        """Create relation between 'this app' and a hypothetical (remote) alertmanager"""
+        """Create relation between 'this app' and a hypothetical (remote) alertmanager."""
         rel_id = self.harness.add_relation(relation_name="alerting", remote_app="am")
         return rel_id
 
