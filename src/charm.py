@@ -151,23 +151,6 @@ class AlertmanagerCharm(CharmBase):
             bind_address = str(bind_address)
         return bind_address
 
-    def _store_private_address(self):
-        """Store private address in unit's peer relation data bucket.
-
-        This function is still needed in Juju 2.9.5 because the "private-address" field in the
-        data bag is being populated by the app IP instead of the unit IP.
-        Also in Juju 2.9.5, ip address may be None even after RelationJoinedEvent, for which
-        "ops.model.RelationDataError: relation data values must be strings" would be emitted.
-        """
-        if self.peer_relation:
-            self.peer_relation.data[self.unit]["private_address"] = self.private_address
-
-    def _fetch_private_address(self) -> Optional[str]:
-        """Fetch private address from unit's peer relation data bucket."""
-        if relation := self.peer_relation:
-            return relation.data[self.unit].get("private_address")
-        return None
-
     def _alertmanager_layer(self) -> Dict[str, Any]:
         """Returns Pebble configuration layer for alertmanager."""
 
@@ -207,28 +190,17 @@ class AlertmanagerCharm(CharmBase):
             },
         }
 
-    @property
-    def is_service_running(self) -> bool:
-        """Helper function for checking if the alertmanager service is running.
-
-        Returns:
-          True if the service is running; False otherwise.
-
-        Raises:
-          ModelError: If the service is not defined (e.g. layer does not exist).
-        """
-        return self.container.get_service(self._service_name).is_running()
-
     def _restart_service(self) -> bool:
         """Helper function for restarting the underlying service."""
         logger.info("Restarting service %s", self._service_name)
 
-        if not self.container.is_ready():
-            logger.error("Cannot (re)start service: container is not ready.")
-            return False
+        with self.container.is_ready() as c:
+            # Check if service exists, to avoid ModelError from being raised when the service does
+            # not exist,
+            if not c.get_services().get(self._service_name):
+                logger.error("Cannot (re)start service: service does not (yet) exist.")
+                return False
 
-        try:
-            # if the service does not exist, ModelError will be raised
             self.container.restart(self._service_name)
 
             # Update "launched with peers" flag.
@@ -236,11 +208,12 @@ class AlertmanagerCharm(CharmBase):
             plan = self.container.get_plan()
             service = plan.services.get(self._service_name)
             self._stored.launched_with_peers = "--cluster.peer" in service.command
-            return True
 
-        except ops.model.ModelError:
-            logger.warning("Service does not (yet?) exist; (re)start aborted")
+        if not c.completed:
+            logger.error("Cannot (re)start service: container is not ready.")
             return False
+
+        return True
 
     def _update_layer(self, restart: bool = True) -> bool:
         """Update service layer to reflect changes in peers (replicas).
@@ -376,7 +349,13 @@ class AlertmanagerCharm(CharmBase):
 
         # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
         # setting IP here.
-        self._store_private_address()
+        # Store private address in unit's peer relation data bucket. This is still needed because
+        # the "private-address" field in the data bag is being populated incorrectly.
+        # Also, ip address may still be None even after RelationJoinedEvent, for which
+        # "ops.model.RelationDataError: relation data values must be strings" would be emitted.
+        if self.peer_relation:
+            self.peer_relation.data[self.unit]["private_address"] = self.private_address
+
         self.provider.update_relation_data()
         self.karma_lib.target = self.api_address
 
@@ -387,9 +366,11 @@ class AlertmanagerCharm(CharmBase):
             return False
 
         layer_changed = self._update_layer(restart=False)
+        service_running = (
+            service := self.container.get_service(self._service_name)
+        ) and service.is_running()
         if layer_changed and (
-            not self.is_service_running
-            or (self.num_peers > 0 and not self._stored.launched_with_peers)
+            not service_running or (self.num_peers > 0 and not self._stored.launched_with_peers)
         ):
             self._restart_service()
 
