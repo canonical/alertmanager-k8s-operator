@@ -376,7 +376,7 @@ class AlertmanagerCharm(CharmBase):
 
         # Update config file
         if not self._update_config(restart_on_failure=True):
-            self.unit.status = BlockedStatus("Config update failed")
+            self.unit.status = BlockedStatus("Config update failed. Is config valid?")
             return False
 
         self.provider.ready()
