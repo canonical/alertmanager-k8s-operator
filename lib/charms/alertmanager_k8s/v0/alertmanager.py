@@ -125,18 +125,16 @@ class AlertmanagerProvider(ProviderBase):
             charm (CharmBase): the Alertmanager charm
     """
 
-    _provider_relation_name = "alerting"
-
-    def __init__(self, charm, service_name: str, version: str = None):
-        super().__init__(charm, self._provider_relation_name, service_name, version)
-        self.charm = charm  # TODO remove?
+    def __init__(self, charm, relation_name: str, service_name: str, version: str = None):
+        super().__init__(charm, relation_name, service_name, version)
+        self.charm = charm
         self._service_name = service_name
 
         # Set default value for the public port
         # This is needed here to avoid accessing charm constructs directly
         self._api_port = 9093  # default value
 
-        events = self.charm.on[self._provider_relation_name]
+        events = self.charm.on[self.name]
 
         # No need to observe `relation_departed` or `relation_broken`: data bags are auto-updated
         # so both events are address on the consumer side.

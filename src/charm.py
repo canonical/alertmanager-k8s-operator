@@ -45,6 +45,7 @@ class AlertmanagerCharm(CharmBase):
     # Layer name is used for the layer label argument in container.add_layer
     # Service name matches charm name for consistency
     _container_name = _layer_name = _service_name = "alertmanager"
+    _relation_name = "alerting"
     _peer_relation_name = "replicas"  # must match metadata.yaml peer role name
     _api_port = 9093  # port to listen on for the web interface and API
     _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
@@ -62,7 +63,9 @@ class AlertmanagerCharm(CharmBase):
         super().__init__(*args)
         self._stored.set_default(pebble_ready=False, config_hash=None, launched_with_peers=False)
         self.api = Alertmanager(port=self._api_port)
-        self.provider = AlertmanagerProvider(self, self._service_name, self.api.version)
+        self.provider = AlertmanagerProvider(
+            self, self._relation_name, self._service_name, self.api.version
+        )
         self.provider.api_port = self._api_port
         self.karma_lib = KarmaConsumer(self, "karma-dashboard", consumes={"karma": ">=0.86"})
         self.container = self.unit.get_container(self._container_name)
