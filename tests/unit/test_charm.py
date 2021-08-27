@@ -73,16 +73,15 @@ class TestSingleUnitAfterInitialHooks(unittest.TestCase):
     def test_pebble_layer_added(self):
         with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():
             self.harness.container_pebble_ready(self.container_name)
-        plan = self.harness.get_container_pebble_plan(self.container_name).to_dict()
+        plan = self.harness.get_container_pebble_plan(self.container_name)
 
         # Check we've got the plan as expected
-        self.assertIsNotNone(services := plan.get("services"))
-        self.assertIsNotNone(alertmanager := services.get("alertmanager"))
-        self.assertIsNotNone(command := alertmanager.get("command"))
+        self.assertIsNotNone(plan.services)
+        self.assertIsNotNone(service := plan.services.get(self.harness.charm._service_name))
+        self.assertIsNotNone(command := service.command)
 
         # Check command is as expected
-        expected = self.harness.charm._alertmanager_layer()["services"]["alertmanager"]["command"]
-        self.assertEqual(expected, command)
+        self.assertEqual(plan.services, self.harness.charm._alertmanager_layer().services)
 
         # Check command contains key arguments
         self.assertIn("--config.file", command)

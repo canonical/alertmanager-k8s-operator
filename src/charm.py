@@ -8,6 +8,7 @@ import hashlib
 import logging
 from typing import Any, Dict, List, Optional
 
+from ops.pebble import Layer
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
 from charms.karma_k8s.v0.karma import KarmaConsumer
@@ -153,7 +154,7 @@ class AlertmanagerCharm(CharmBase):
             bind_address = str(bind_address)
         return bind_address
 
-    def _alertmanager_layer(self) -> Dict[str, Any]:
+    def _alertmanager_layer(self) -> Layer:
         """Returns Pebble configuration layer for alertmanager."""
 
         def _command():
@@ -179,7 +180,7 @@ class AlertmanagerCharm(CharmBase):
                 f"{peer_cmd_args}"
             )
 
-        return {
+        return Layer({
             "summary": "alertmanager layer",
             "description": "pebble config layer for alertmanager",
             "services": {
@@ -190,7 +191,7 @@ class AlertmanagerCharm(CharmBase):
                     "startup": "enabled",
                 }
             },
-        }
+        })
 
     def _restart_service(self) -> bool:
         """Helper function for restarting the underlying service."""
@@ -227,16 +228,10 @@ class AlertmanagerCharm(CharmBase):
           True if anything changed; False otherwise
         """
         overlay = self._alertmanager_layer()
-
         plan = self.container.get_plan()
-
         is_changed = False
-        # if this unit has just started, the services does not yet exist - using "get"
-        service = plan.services.get(self._service_name)
-        overlay_command = overlay["services"][self._service_name]["command"]
-        logger.debug("update layer: overlay command: %s", overlay_command)
 
-        if service is None or service.command != overlay_command:
+        if self._service_name not in plan.services or overlay.services != plan.services:
             is_changed = True
             self.container.add_layer(self._layer_name, overlay, combine=True)
 
