@@ -15,8 +15,14 @@ from flatten_json import unflatten
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Relation, Unit
-from ops.pebble import ProtocolError
+from ops.model import (
+    ActiveStatus,
+    BlockedStatus,
+    ErrorsWithMessage,
+    MaintenanceStatus,
+    Relation,
+    Unit,
+)
 
 from alertmanager_client import Alertmanager
 from config import PagerdutyConfig, PushoverConfig, WebhookConfig
@@ -98,7 +104,7 @@ class AlertmanagerCharm(CharmBase):
             content = self.container.pull(self._config_path)
             # juju requires keys to be lowercase alphanumeric (can't use self._config_path)
             event.set_results({"path": self._config_path, "content": content.read()})
-        except ProtocolError as e:
+        except ErrorsWithMessage as e:
             event.fail(str(e))
 
     @property
@@ -193,11 +199,11 @@ class AlertmanagerCharm(CharmBase):
         with self.container.is_ready() as c:
             # Check if service exists, to avoid ModelError from being raised when the service does
             # not exist,
-            if not c.get_services().get(self._service_name):
+            if not c.get_plan().services.get(self._service_name):
                 logger.error("Cannot (re)start service: service does not (yet) exist.")
                 return False
 
-            self.container.restart(self._service_name)
+            c.restart(self._service_name)
 
             # Update "launched with peers" flag.
             # The service should be restarted when peers joined if this is False.
@@ -239,7 +245,7 @@ class AlertmanagerCharm(CharmBase):
 
         return is_changed
 
-    def _update_config(self, restart_on_failure: bool = True) -> bool:
+    def _update_config(self, restart_on_failure) -> bool:
         """Update alertmanager.yml config file to reflect changes in configuration.
 
         Args:
@@ -356,27 +362,31 @@ class AlertmanagerCharm(CharmBase):
         self.karma_lib.target = self.api_address
 
         # Update pebble layer
-        if not self.container.is_ready():
+        # Callees below interact with pebble.
+        # Catching pebble exceptions here for a centralized control of the unit status.
+        with self.container.is_ready() as c:
+            layer_changed = self._update_layer(restart=False)
+            service_running = (
+                service := self.container.get_service(self._service_name)
+            ) and service.is_running()
+            if layer_changed and (
+                not service_running
+                or (self.num_peers > 0 and not self._stored.launched_with_peers)
+            ):
+                self._restart_service()
+
+            # Update config file
+            if not self._update_config(restart_on_failure=True):
+                self.unit.status = BlockedStatus("Config update failed. Is config valid?")
+                return False
+
+            self.provider.ready()
+            self.unit.status = ActiveStatus()
+
+        if not c.completed:
             logger.error("Cannot update layer - container is not ready")
             self.unit.status = BlockedStatus("Container not ready")
             return False
-
-        layer_changed = self._update_layer(restart=False)
-        service_running = (
-            service := self.container.get_service(self._service_name)
-        ) and service.is_running()
-        if layer_changed and (
-            not service_running or (self.num_peers > 0 and not self._stored.launched_with_peers)
-        ):
-            self._restart_service()
-
-        # Update config file
-        if not self._update_config(restart_on_failure=True):
-            self.unit.status = BlockedStatus("Config update failed. Is config valid?")
-            return False
-
-        self.provider.ready()
-        self.unit.status = ActiveStatus()
 
         return True
 
@@ -442,11 +452,13 @@ class AlertmanagerCharm(CharmBase):
         self._patch_k8s_service()
 
         # update config hash
-        self._stored.config_hash = (
-            sha256(yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path))))
-            if self.container.is_ready()
-            else ""
-        )
+        with self.container.is_ready() as c:
+            self._stored.config_hash = sha256(
+                yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path)))
+            )
+
+        if not c.completed:
+            self._stored.config_hash = ""
 
         # After upgrade (refresh), the unit ip address is not guaranteed to remain the same
         # Calling the common hook to update IP address to the new one
