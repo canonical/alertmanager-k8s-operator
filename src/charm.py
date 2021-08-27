@@ -84,9 +84,6 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(
             self.on[self._peer_relation_name].relation_changed, self._on_peer_relation_changed
         )
-        self.framework.observe(
-            self.on[self._peer_relation_name].relation_departed, self._on_peer_relation_departed
-        )
 
         # Action events
         self.framework.observe(self.on.show_config_action, self._on_show_config_action)
@@ -418,13 +415,6 @@ class AlertmanagerCharm(CharmBase):
         an IP address.
         """
         self._common_exit_hook()
-
-    def _on_peer_relation_departed(self, _):
-        """Event handler for replica's RelationDepartedEvent."""
-        # No need to update peers - the cluster updates itself internally.
-        # No need to update consumer relations because consumers will get a relation changed event,
-        # and addresses are pulled from unit data bags by the consumer library.
-        pass
 
     def _on_update_status(self, _):
         """Event handler for UpdateStatusEvent.
