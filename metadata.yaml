@@ -18,16 +18,23 @@ containers:
     resource: alertmanager-image
     mounts:
       - storage: data
+        # nflogs and silences files go here. With a mounted storage for silences, they persist
+        # across container restarts.
+        # This path is passed to alertmanager via the `--storage.path` cli argument.
         location: /alertmanager
 
 # oci-image resources for each container defined above
 resources:
   alertmanager-image:
     type: oci-image
+    # The officially supported image is ubuntu/prometheus-alertmanager
     description: OCI image for alertmanager
 
 provides:
   alerting:
+    # The provider (alertmanager) adds the following key-value pair to the relation data bag of
+    # every alertmanager unit:
+    #   "public_address": <ip_address>:<port>
     interface: alertmanager_dispatch
     # assumed network type: private
 
@@ -49,4 +56,3 @@ storage:
     # (workload location is specified under "containers" section)
     # When unspecified, would be /var/lib/juju/storage/data/0
     # location: /alertmanager
-
