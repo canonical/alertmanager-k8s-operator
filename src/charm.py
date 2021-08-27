@@ -16,7 +16,7 @@ from flatten_json import unflatten
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Unit, Relation
 from ops.pebble import ProtocolError
 
 from alertmanager_client import Alertmanager
@@ -116,13 +116,13 @@ class AlertmanagerCharm(CharmBase):
         # For some reason in Juju 2.9.5 `self.peer_relation.units` is an empty set
         if self.peer_relation:
             return sum(
-                isinstance(unit, ops.model.Unit) and unit is not self.unit
+                isinstance(unit, Unit) and unit is not self.unit
                 for unit in self.peer_relation.data.keys()
             )
         return 0
 
     @property
-    def peer_relation(self) -> Optional[ops.model.Relation]:
+    def peer_relation(self) -> Optional[Relation]:
         """Helper function for obtaining the peer relation object.
 
         Returns: peer relation object; returns None if called too early, e.g. during install.
@@ -215,7 +215,7 @@ class AlertmanagerCharm(CharmBase):
 
         return True
 
-    def _update_layer(self, restart: bool = True) -> bool:
+    def _update_layer(self, restart: bool) -> bool:
         """Update service layer to reflect changes in peers (replicas).
 
         Args:
@@ -463,7 +463,7 @@ class AlertmanagerCharm(CharmBase):
         # Calling the common hook to update IP address to the new one
         self._common_exit_hook()
 
-    def _get_unit_address_map(self) -> Dict[ops.model.Unit, Optional[str]]:
+    def _get_unit_address_map(self) -> Dict[Unit, Optional[str]]:
         """Create a mapping between Unit and its IP address.
 
         The returned addresses do not include ports nor scheme.
@@ -473,7 +473,7 @@ class AlertmanagerCharm(CharmBase):
         addresses = {
             unit: data.get("private_address")
             for unit, data in self.peer_relation.data.items()
-            if isinstance(unit, ops.model.Unit)
+            if isinstance(unit, Unit)
         }
         return addresses
 
