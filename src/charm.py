@@ -279,7 +279,7 @@ class AlertmanagerCharm(CharmBase):
         """
         # Cannot use a period ('.') as a separator because of a mongo/juju issue:
         # https://github.com/canonical/operator/issues/585
-        unflattened_config = unflatten(dict(self.model.config), "::")
+        unflattened_config = unflatten(dict(self.config), "::")
 
         # Only one receiver is supported at the moment; prioritizing pagerduty.
         # If none are valid, populating with a dummy, otherwise alertmanager won't start.
