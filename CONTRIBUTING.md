@@ -38,9 +38,8 @@ The cluster would then auto-update with subsequent changes to the cluster.
 
 ## Setup
 
-A typical setup using [snaps](https://snapcraft.io/), for deployments
-to a [microk8s](https://microk8s.io/) cluster can be found in the
-[Juju docs](https://juju.is/docs/olm/microk8s).
+A typical setup using [snaps](https://snapcraft.io/) can be found in the
+[Juju docs](https://juju.is/docs/sdk/dev-setup).
 
 ## Developing
 
@@ -64,14 +63,12 @@ Later on, upgrade packages as needed
 pip install --upgrade -r requirements.txt
 ```
 
-### Linting
-```shell
-tox -e lint
-```
-
 ### Testing
 ```shell
-tox -e unit
+tox -e prettify  # update your code according to linting rules
+tox -e lint      # code style
+tox -e static    # static analysis
+tox -e unit      # unit tests
 ```
 
 #### Manual testing
@@ -115,11 +112,6 @@ curl -X GET "http://$prom_ip:9090/api/v1/alertmanagers"
 
 
 ## Build charm
-
-Install the charmcraft tool
-```shell
-sudo snap install charmcraft
-```
 
 Build the charm in this git repository using
 ```shell

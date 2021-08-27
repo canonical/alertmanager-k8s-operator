@@ -4,7 +4,7 @@ Alertmanager integrates with any charm that supports the
 
 ### Receivers
 At the moment only one receiver per alertmanager deployment is supported, which
-at the moment can be one of:
+can be one of:
 - PagerDuty
 - Pushover
 - Webhook

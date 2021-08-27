@@ -8,7 +8,6 @@ import hashlib
 import logging
 from typing import Any, Dict, List, Optional
 
-import ops
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
 from charms.karma_k8s.v0.karma import KarmaConsumer
@@ -16,7 +15,7 @@ from flatten_json import unflatten
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Unit, Relation
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Relation, Unit
 from ops.pebble import ProtocolError
 
 from alertmanager_client import Alertmanager
