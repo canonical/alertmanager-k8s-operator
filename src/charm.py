@@ -232,7 +232,7 @@ class AlertmanagerCharm(CharmBase):
         # if this unit has just started, the services does not yet exist - using "get"
         service = plan.services.get(self._service_name)
         overlay_command = overlay["services"][self._service_name]["command"]
-        logger.info("update layer: overlay command: %s", overlay_command)
+        logger.debug("update layer: overlay command: %s", overlay_command)
 
         if service is None or service.command != overlay_command:
             is_changed = True
