@@ -36,11 +36,12 @@ alertmanager_default_config = textwrap.dedent(
 
 @patch_network_get(private_address="1.1.1.1")
 @patch.object(Alertmanager, "reload", tautology)
-class TestSingleUnitAfterInitialHooks(unittest.TestCase):
+class TestWithInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
     @patch.object(AlertmanagerCharm, "_patch_k8s_service", lambda *a, **kw: None)
-    def setUp(self):
+    @patch("ops.testing._TestingPebbleClient.push")
+    def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
 
@@ -60,15 +61,6 @@ class TestSingleUnitAfterInitialHooks(unittest.TestCase):
 
     def test_num_peers(self):
         self.assertEqual(0, self.harness.charm.num_peers)
-
-    def test_unit_status(self):
-        # before pebble_ready, status should be "maintenance"
-        self.assertIsInstance(self.harness.charm.unit.status, ops.model.MaintenanceStatus)
-
-        # after pebble_ready, status should be "active"
-        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():
-            self.harness.container_pebble_ready(self.container_name)
-        self.assertIsInstance(self.harness.charm.unit.status, ops.model.ActiveStatus)
 
     def test_pebble_layer_added(self):
         with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():
@@ -120,3 +112,40 @@ class TestSingleUnitAfterInitialHooks(unittest.TestCase):
             self.assertNotIn(
                 "pagerduty_configs", self.push_pull_mock.pull(self.harness.charm._config_path)
             )
+
+
+@patch_network_get(private_address="1.1.1.1")
+@patch.object(Alertmanager, "reload", tautology)
+class TestWithoutInitialHooks(unittest.TestCase):
+    container_name: str = "alertmanager"
+
+    @patch.object(AlertmanagerCharm, "_patch_k8s_service", lambda *a, **kw: None)
+    @patch("ops.testing._TestingPebbleClient.push")
+    def setUp(self, *unused):
+        self.harness = Harness(AlertmanagerCharm)
+        self.addCleanup(self.harness.cleanup)
+
+        self.push_pull_mock = PushPullMock()
+        self.push_pull_mock.push(AlertmanagerCharm._config_path, alertmanager_default_config)
+
+        self.relation_id = self.harness.add_relation("alerting", "otherapp")
+        self.harness.add_relation_unit(self.relation_id, "otherapp/0")
+        self.harness.set_leader(True)
+
+        network_get_patch = patch_network_get(private_address="1.1.1.1")
+        api_get_patch = patch("charm.Alertmanager._get", lambda *a, **kw: None)
+
+        with network_get_patch, api_get_patch:
+            self.harness.begin()
+            self.harness.add_relation("replicas", "alertmanager")
+
+    def test_unit_status_around_pebble_ready(self):
+        # before pebble_ready, status should be "maintenance"
+        self.assertIsInstance(self.harness.charm.unit.status, ops.model.MaintenanceStatus)
+
+        # after pebble_ready, status should be "active"
+        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():
+            self.harness.container_pebble_ready(self.container_name)
+        self.assertIsInstance(self.harness.charm.unit.status, ops.model.ActiveStatus)
+
+        self.assertEqual(self.harness.model.unit.name, "alertmanager-k8s/0")

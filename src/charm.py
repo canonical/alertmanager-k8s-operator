@@ -6,9 +6,8 @@
 
 import hashlib
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from ops.pebble import Layer
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
 from charms.karma_k8s.v0.karma import KarmaConsumer
@@ -24,6 +23,7 @@ from ops.model import (
     Relation,
     Unit,
 )
+from ops.pebble import Layer
 
 from alertmanager_client import Alertmanager
 from config import PagerdutyConfig, PushoverConfig, WebhookConfig
@@ -67,7 +67,7 @@ class AlertmanagerCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self._stored.set_default(pebble_ready=False, config_hash=None, launched_with_peers=False)
+        self._stored.set_default(config_hash=None, launched_with_peers=False)
         self.api = Alertmanager(port=self._api_port)
         self.provider = AlertmanagerProvider(
             self, self._relation_name, self._service_name, self.api.version
@@ -180,18 +180,20 @@ class AlertmanagerCharm(CharmBase):
                 f"{peer_cmd_args}"
             )
 
-        return Layer({
-            "summary": "alertmanager layer",
-            "description": "pebble config layer for alertmanager",
-            "services": {
-                self._service_name: {
-                    "override": "replace",
-                    "summary": "alertmanager service",
-                    "command": _command(),
-                    "startup": "enabled",
-                }
-            },
-        })
+        return Layer(
+            {
+                "summary": "alertmanager layer",
+                "description": "pebble config layer for alertmanager",
+                "services": {
+                    self._service_name: {
+                        "override": "replace",
+                        "summary": "alertmanager service",
+                        "command": _command(),
+                        "startup": "enabled",
+                    }
+                },
+            }
+        )
 
     def _restart_service(self) -> bool:
         """Helper function for restarting the underlying service."""
@@ -334,7 +336,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _common_exit_hook(self) -> bool:
         """Event processing hook that is common to all events to ensure idempotency."""
-        if not self._stored.pebble_ready:
+        if not self.container.is_ready():
             # TODO replace with self.container.is_ready() after confirming it indeed obviates
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return False
@@ -387,7 +389,6 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
-        self._stored.pebble_ready = True
         self._common_exit_hook()
 
     def _on_config_changed(self, _):
