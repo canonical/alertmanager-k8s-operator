@@ -114,17 +114,6 @@ class AlertmanagerCharm(CharmBase):
         return self._api_port
 
     @property
-    def num_peers(self) -> int:
-        """Number of peer units (excluding self)."""
-        # For some reason in Juju 2.9.5 `self.peer_relation.units` is an empty set
-        if self.peer_relation:
-            return sum(
-                isinstance(unit, Unit) and unit is not self.unit
-                for unit in self.peer_relation.data.keys()
-            )
-        return 0
-
-    @property
     def peer_relation(self) -> Optional[Relation]:
         """Helper function for obtaining the peer relation object.
 
@@ -363,12 +352,15 @@ class AlertmanagerCharm(CharmBase):
         # Catching pebble exceptions here for a centralized control of the unit status.
         with self.container.is_ready() as c:
             layer_changed = self._update_layer(restart=False)
+
             service_running = (
                 service := self.container.get_service(self._service_name)
             ) and service.is_running()
+
+            num_peers = len(self.peer_relation.units)
+
             if layer_changed and (
-                not service_running
-                or (self.num_peers > 0 and not self._stored.launched_with_peers)
+                not service_running or (num_peers > 0 and not self._stored.launched_with_peers)
             ):
                 self._restart_service()
 

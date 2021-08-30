@@ -60,7 +60,7 @@ class TestWithInitialHooks(unittest.TestCase):
             self.harness.begin_with_initial_hooks()
 
     def test_num_peers(self):
-        self.assertEqual(0, self.harness.charm.num_peers)
+        self.assertEqual(0, len(self.harness.charm.peer_relation.units))
 
     def test_pebble_layer_added(self):
         with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():
