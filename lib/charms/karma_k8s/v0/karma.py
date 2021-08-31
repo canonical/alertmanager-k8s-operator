@@ -11,7 +11,7 @@ import logging
 from typing import Dict, List, Optional
 
 import ops.charm
-from ops.charm import RelationDepartedEvent, RelationJoinedEvent
+from ops.charm import RelationJoinedEvent
 from ops.framework import EventBase, EventSource, ObjectEvents, StoredState
 from ops.relation import ConsumerBase, ProviderBase
 
@@ -336,7 +336,6 @@ class KarmaConsumer(ConsumerBase):
             return
 
         self._stored.config.update(config)
-        logger.debug("stored karma config: %s", self._stored.config)
 
         # target changed - must update all relation data
         self._update_relation_data()
