@@ -9,6 +9,7 @@ import logging
 from typing import Dict, List, Optional
 
 import yaml
+
 from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
 from charms.karma_k8s.v0.karma import KarmaConsumer
 from flatten_json import unflatten
@@ -25,7 +26,7 @@ from ops.model import (
 )
 from ops.pebble import Layer
 
-from alertmanager_client import Alertmanager
+from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from config import PagerdutyConfig, PushoverConfig, WebhookConfig
 from kubernetes_service import K8sServicePatch, PatchFailed
 
@@ -69,10 +70,15 @@ class AlertmanagerCharm(CharmBase):
         super().__init__(*args)
         self._stored.set_default(config_hash=None, launched_with_peers=False)
         self.api = Alertmanager(port=self._api_port)
+
+        try:
+            workload_version = self.api.version
+        except AlertmanagerBadResponse:
+            workload_version = "0.0.0"
+
         self.provider = AlertmanagerProvider(
-            self, self._relation_name, self._service_name, self.api.version
+            self, self._relation_name, self._service_name, workload_version, self._api_port
         )
-        self.provider.api_port = self._api_port
         self.karma_lib = KarmaConsumer(self, "karma-dashboard", consumes={"karma": ">=0.86"})
         self.container = self.unit.get_container(self._container_name)
 
@@ -231,12 +237,11 @@ class AlertmanagerCharm(CharmBase):
 
         return is_changed
 
-    def _update_config(self, restart_on_failure) -> bool:
+    def _update_config(self) -> bool:
         """Update alertmanager.yml config file to reflect changes in configuration.
 
-        Args:
-          restart_on_failure: a flag indicating if the service should be restarted if a config
-          hot-reload failed.
+        After pushing a new config, a hot-reload is attempted. If hot-reload fails, the service is
+        restarted.
 
         Returns:
           True if unchanged, or if changed successfully; False otherwise
@@ -275,28 +280,20 @@ class AlertmanagerCharm(CharmBase):
             "changed" if config_hash != self._stored.config_hash else "no change",
         )
 
+        success = True
         if config_hash != self._stored.config_hash:
             self.container.push(self._config_path, config_yaml)
 
             # Send an HTTP POST to alertmanager to hot-reload the config.
             # This reduces down-time compared to restarting the service.
-            if self.api.reload():
+            try:
+                self.api.reload()
                 self._stored.config_hash = config_hash
-                success = True
-            else:
-                logger.warning("config reload via HTTP POST failed")
-                if restart_on_failure:
-                    if self._restart_service():
-                        self._stored.config_hash = config_hash
-                        success = True
-                    else:
-                        success = False
-                else:
-                    # reload failed but not restarting
-                    success = False
-        else:
-            # no change in config
-            success = True
+            except AlertmanagerBadResponse as e:
+                logger.warning("config reload via HTTP POST failed: %s", str(e))
+                # hot-reload failed so attempting a service restart
+                if success := self._restart_service():
+                    self._stored.config_hash = config_hash
 
         # update amtool config file
         amtool_config = yaml.safe_dump({"alertmanager.url": f"http://localhost:{self.api_port}"})
@@ -365,7 +362,7 @@ class AlertmanagerCharm(CharmBase):
                 self._restart_service()
 
             # Update config file
-            if not self._update_config(restart_on_failure=True):
+            if not self._update_config():
                 self.unit.status = BlockedStatus("Config update failed. Is config valid?")
                 return False
 
@@ -419,7 +416,8 @@ class AlertmanagerCharm(CharmBase):
 
         Logs list of peers, uptime and version info.
         """
-        if status := self.api.status():
+        try:
+            status = self.api.status()
             logger.info(
                 "alertmanager %s is up and running (uptime: %s); "
                 "cluster mode: %s, with %d peers",
@@ -428,6 +426,8 @@ class AlertmanagerCharm(CharmBase):
                 status["cluster"]["status"],
                 len(status["cluster"]["peers"]),
             )
+        except AlertmanagerBadResponse as e:
+            logger.error("Failed to obtain status: %s", str(e))
 
         # Calling the common hook to make sure a single unit set its IP in case all events fired
         # before an IP address was ready, leaving UpdateStatue as the last resort.

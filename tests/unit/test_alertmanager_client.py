@@ -6,7 +6,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from alertmanager_client import Alertmanager
+from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
 
 class TestAlertmanagerAPIClient(unittest.TestCase):
@@ -39,11 +39,11 @@ class TestAlertmanagerAPIClient(unittest.TestCase):
             import urllib.error
 
             raise urllib.error.HTTPError(
-                url="url", code=500, msg="msg", hdrs={"hdr": "smth"}, fp=None
+                url="mock://url", code=500, msg="mock msg", hdrs={"mock hdr": "mock smth"}, fp=None
             )
 
         with patch("alertmanager_client.urllib.request.urlopen", mock_connection_error):
-            self.assertFalse(self.api.reload())
+            self.assertRaises(AlertmanagerBadResponse, self.api.reload)
 
         with patch("alertmanager_client.urllib.request.urlopen", mock_connection_error):
-            self.assertIsNone(self.api.status())
+            self.assertRaises(AlertmanagerBadResponse, self.api.status)

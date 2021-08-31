@@ -2,6 +2,7 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import json
 import textwrap
 import unittest
 from unittest.mock import patch
@@ -53,11 +54,19 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.set_leader(True)
 
         network_get_patch = patch_network_get(private_address="1.1.1.1")
-        api_get_patch = patch("charm.Alertmanager._get", lambda *a, **kw: None)
+        api_get_patch = patch(
+            "charm.Alertmanager._get",
+            lambda *a, **kw: json.dumps({"versionInfo": {"version": "0.1.2"}}),
+        )
 
         with network_get_patch, api_get_patch:
             # TODO why the context is needed if we already have a class-level patch?
             self.harness.begin_with_initial_hooks()
+
+    def test_version(self):
+        self.assertEqual(
+            self.harness.charm.provider.provides, {self.harness.charm._service_name: "0.1.2"}
+        )
 
     def test_num_peers(self):
         self.assertEqual(0, len(self.harness.charm.peer_relation.units))

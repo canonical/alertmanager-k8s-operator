@@ -117,22 +117,29 @@ class AlertmanagerProvider(ProviderBase):
 
     Arguments:
             charm (CharmBase): consumer charm
+            relation_name (str): relation name (not interface name)
             service_name (str): a name for the provided service
             consumes (dict): provider specifications
-            multi (bool): multiple relations flag
+            api_port (int): alertmanager server's api port; this is needed here to avoid accessing
+                            charm constructs directly
 
     Attributes:
             charm (CharmBase): the Alertmanager charm
     """
 
-    def __init__(self, charm, relation_name: str, service_name: str, version: str = None):
+    def __init__(
+        self,
+        charm,
+        relation_name: str,
+        service_name: str,
+        version: str = None,
+        api_port: int = 9093,
+    ):
         super().__init__(charm, relation_name, service_name, version)
         self.charm = charm
         self._service_name = service_name
 
-        # Set default value for the public port
-        # This is needed here to avoid accessing charm constructs directly
-        self._api_port = 9093  # default value
+        self._api_port = api_port
 
         events = self.charm.on[self.name]
 
@@ -142,13 +149,8 @@ class AlertmanagerProvider(ProviderBase):
 
     @property
     def api_port(self):
-        """Get the API port number to use for alertmanager (default: 9093)."""
+        """Get the API port number to use for alertmanager."""
         return self._api_port
-
-    @api_port.setter
-    def api_port(self, value: int):
-        """Set the API port number to use for alertmanager (must match the provider charm)."""
-        self._api_port = value
 
     def _on_relation_joined(self, event: RelationJoinedEvent):
         """This hook stores the public address of the newly-joined "alerting" relation.
