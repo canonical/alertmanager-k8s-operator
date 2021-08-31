@@ -6,10 +6,9 @@
 
 import hashlib
 import logging
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import yaml
-
 from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
 from charms.karma_k8s.v0.karma import KarmaConsumer
 from flatten_json import unflatten
@@ -22,7 +21,6 @@ from ops.model import (
     ErrorsWithMessage,
     MaintenanceStatus,
     Relation,
-    Unit,
 )
 from ops.pebble import Layer
 
@@ -452,31 +450,21 @@ class AlertmanagerCharm(CharmBase):
         # Calling the common hook to update IP address to the new one
         self._common_exit_hook()
 
-    def _get_unit_address_map(self) -> Dict[Unit, Optional[str]]:
-        """Create a mapping between Unit and its IP address.
-
-        The returned addresses do not include ports nor scheme.
-        If an IP address is not available, the corresponding value will be None.
-        """
-        # For some reason self.peer_relation.units returns an empty set so using `isinstance`
-        addresses = {
-            unit: data.get("private_address")
-            for unit, data in self.peer_relation.data.items()
-            if isinstance(unit, Unit)
-        }
-        return addresses
-
     def _get_peer_addresses(self) -> List[str]:
         """Create a list of HA addresses of all peer units (all units excluding current).
 
         The returned addresses include the HA port number but do not include scheme (http).
-        If a unit does not have an API, it will be omitted from the list.
+        If a unit does not have an address, it will be omitted from the list.
         """
-        return [
-            f"{address}:{self._ha_port}"
-            for unit, address in self._get_unit_address_map().items()
-            if unit is not self.unit and address is not None
-        ]
+        addresses = []
+        if pr := self.peer_relation:
+            addresses = [
+                f"{address}:{self._ha_port}"
+                for unit in pr.units  # pr.units only holds peers (self.unit is not included)
+                if (address := pr.data[unit].get("private_address"))
+            ]
+
+        return addresses
 
 
 if __name__ == "__main__":
