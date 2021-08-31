@@ -15,7 +15,7 @@ generated.
 An example deployment with pushover may look as follows:
 
 ```shell
-# deploy alertmanager, name it "am", and provide pushover creds
+# deploy alertmanager, name it "am", and provide pushover credentials
 juju deploy alertmanager-k8s am \
   --config pushover::user_key=<your key> --config pushover::token=<your_token>
 ```

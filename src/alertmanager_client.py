@@ -57,7 +57,28 @@ class Alertmanager:
             raise AlertmanagerBadResponse("Bad response") from e
 
     def status(self) -> dict:
-        """Obtain status information from the alertmanager server."""
+        """Obtain status information from the alertmanager server.
+
+        Typical output:
+        {
+          "cluster": {
+            "peers": [],
+            "status": "disabled"
+          },
+          "config": {
+            "original": "global: [...]"
+          },
+          "uptime": "2021-08-31T14:15:31.613Z",
+          "versionInfo": {
+            "branch": "HEAD",
+            "buildDate": "20210324-17:46:50",
+            "buildUser": "root@lgw01-amd64-031",
+            "goVersion": "go1.14.15",
+            "revision": "4c6c03ebfe21009c546e4d1e9b92c371d67c021d",
+            "version": "0.21.0"
+          }
+        }
+        """
         url = urllib.parse.urljoin(self.base_url, "/api/v2/status")
         try:
             return json.loads(self._get(url, timeout=self.timeout))

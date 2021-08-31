@@ -15,7 +15,7 @@ For more information about CharmHub channels, refer to the [Juju charm store](ht
 
 * **Stable revisions** are done in consultation with product manager and engineering manager when the `candidate` revision has been well tested and is deemed ready for production.
 * **Candidate revisions** are done when the charm reaches a state of feature completion with respect to the next planned `stable` release.
-* **Edge revisions** are released at the developers discretion, potentially every time something is merged into `main` and the unit tests pass.
+* **Edge revisions** are released at the developer's discretion, potentially every time something is merged into `main` and the unit tests pass.
 
 ## How to publish revisions
 

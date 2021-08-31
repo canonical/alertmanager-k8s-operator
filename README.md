@@ -2,12 +2,13 @@
 
 ## Description
 
-The [Alertmanager] operator provides an alerting solution for the [Prometheus][Prometheus Docs]
-[Operator][Prometheus Operator]. It is part of an Observability stack in the [Juju] charm
-[ecosystem]. Alertmanager accepts alerts from Prometheus, then deduplicates, groups
-and routes them to the selected receiver, based on a set of alerting rules. These
-alerting rules may be set by any supported [charm] that uses the services of
-Prometheus by forming a relation with it.
+The [Alertmanager] operator provides an alerting solution for the
+[Prometheus][Prometheus Docs] [Operator][Prometheus Operator]. It is part of an
+Observability stack in the [Juju] charm [ecosystem]. Alertmanager accepts
+alerts from Prometheus, then deduplicates, groups and routes them to the
+selected receiver, based on a set of alerting rules. These alerting rules may
+be set by any supported [charm] that uses the services of Prometheus by forming
+a relation with it.
 
 [Alertmanager]: https://prometheus.io/docs/alerting/latest/alertmanager/
 [Prometheus Docs]: https://prometheus.io/docs/introduction/overview/
@@ -17,9 +18,10 @@ Prometheus by forming a relation with it.
 [charm]: https://charmhub.io/
 
 ## Usage
-
-    juju deploy alertmanager-k8s
-
+```shell
+juju deploy alertmanager-k8s
+juju config alertmanager-k8s pagerduty::service_key=your_key
+```
 
 ### Configuration
 
@@ -37,10 +39,18 @@ See [config.yaml](config.yaml) for additional details.
 - `show-config`: Show alertmanager config file.
 
 ### Scale Out Usage
+HA is achieved by providing each Alertmanager instance at least one IP address
+of another instance. The cluster would then auto-update with subsequent changes
+to the cluster.
 
 You may add additional Alertmanager units for high availability
 
-    juju add-unit alertmanager-k8s
+```shell
+juju add-unit alertmanager-k8s
+```
+
+Scaling alertmanager would automatically cause karma to group alerts by
+cluster.
 
 ### Dashboard
 
@@ -59,7 +69,7 @@ Currently, supported relations are:
 
 
 ## OCI Images
-This charm can be used with the folowing images:
+This charm can be used with the following images:
 - [`ubuntu/prometheus-alertmanager`](https://hub.docker.com/r/ubuntu/prometheus-alertmanager) (default)
 - [`quay.io/prometheus/alertmanager`](https://quay.io/repository/prometheus/alertmanager?tab=tags)
 

@@ -113,7 +113,7 @@ class AlertmanagerCharm(CharmBase):
             event.fail(str(e))
 
     @property
-    def api_port(self):
+    def api_port(self) -> int:
         """Get the API port number to use for alertmanager (default: 9093)."""
         return self._api_port
 
@@ -189,7 +189,11 @@ class AlertmanagerCharm(CharmBase):
         )
 
     def _restart_service(self) -> bool:
-        """Helper function for restarting the underlying service."""
+        """Helper function for restarting the underlying service.
+
+        Returns:
+            True if restart succeeded; False otherwise.
+        """
         logger.info("Restarting service %s", self._service_name)
 
         with self.container.is_ready() as c:
@@ -224,16 +228,16 @@ class AlertmanagerCharm(CharmBase):
         """
         overlay = self._alertmanager_layer()
         plan = self.container.get_plan()
-        is_changed = False
 
         if self._service_name not in plan.services or overlay.services != plan.services:
-            is_changed = True
             self.container.add_layer(self._layer_name, overlay, combine=True)
 
-        if is_changed and restart:
-            self._restart_service()
+            if restart:
+                self._restart_service()
 
-        return is_changed
+            return True
+
+        return False
 
     def _update_config(self) -> bool:
         """Update alertmanager.yml config file to reflect changes in configuration.

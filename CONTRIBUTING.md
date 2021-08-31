@@ -11,9 +11,6 @@ necessary, as [Alertmanager's HTTP API][Alertmanager API browser] could be
 [used](https://github.com/prometheus/alertmanager/issues/437#issuecomment-263413632)
 instead.
 
-HA is achieved by providing each Alertmanager instance at least one IP address of another instance.
-The cluster would then auto-update with subsequent changes to the cluster.
-
 ## Known issues
 1. Adding multiple receivers of the same type (e.g. PagerDuty) is not very scalable, due to the
    nature of the `juju config` command. This is likely to improve in the future by using integrator
@@ -21,17 +18,15 @@ The cluster would then auto-update with subsequent changes to the cluster.
 
 ## Bugs and pull requests
 - Generally, before developing enhancements to this charm, you should consider
-  [opening an issue ](https://github.com/canonical/alertmanager-operator) explaining
-  your use case.
+  explaining your use case.
 - If you would like to chat with us about your use-cases or proposed
   implementation, you can reach us at
   [Canonical Mattermost public channel](https://chat.charmhub.io/charmhub/channels/charm-dev)
   or [Discourse](https://discourse.charmhub.io/).
-- All enhancements require review before being merged. Besides the
+- All enhancements require review before being merged. Apart from
   code quality and test coverage, the review will also take into
   account the resulting user experience for Juju administrators using
   this charm.
-
 
 ## Setup
 
@@ -68,6 +63,13 @@ tox -e static    # static analysis
 tox -e unit      # unit tests
 ```
 
+tox creates virtual environment for every tox environment defined in
+[tox.ini](tox.ini). To activate a tox environment for manual testing,
+
+```shell
+source .tox/unit/bin/activate
+```
+
 #### Manual testing
 Alerts can be created using alertmanager's HTTP API,
 [for example](https://gist.github.com/cherti/61ec48deaaab7d288c9fcf17e700853a):
@@ -99,7 +101,6 @@ curl http://$alertmanager_ip:9093/api/v1/alerts
 
 and visible on a karma dashboard, if configured.
 
-
 Relations between alertmanager and prometheus can be verified by
 [querying prometheus](https://prometheus.io/docs/prometheus/latest/querying/api/#alertmanagers)
 for active alertmanagers:
@@ -107,7 +108,6 @@ for active alertmanagers:
 ```shell
 curl -X GET "http://$prom_ip:9090/api/v1/alertmanagers"
 ```
-
 
 ## Build charm
 
@@ -126,6 +126,7 @@ deployment or subsequently. Without any configured receiver
 Alertmanager will use a dummy receiver.
 
 ### Tested images
+For local deployment, this charms was tested with the following images:
 - [`ubuntu/prometheus-alertmanager`](https://hub.docker.com/r/ubuntu/prometheus-alertmanager)
 - [`quay.io/prometheus/alertmanager`](https://quay.io/repository/prometheus/alertmanager?tab=tags)
 
@@ -137,7 +138,7 @@ juju deploy ./alertmanager-k8s.charm \
   --config pagerduty_key='your-key'
 ```
 
-Alternatively you may deploy Alertmanger without a pagerduty key to let it enter the
+Alternatively you may deploy Alertmanger without a PagerDuty key to let it enter the
 blocked state, and provide a key later on to unblock Alertmanager:
 
 ```shell
@@ -169,9 +170,9 @@ juju add-relation prometheus-k8s:alertmanager alertmanager-k8s:alerting
 ## Design choices
 - The `alertmanager.yml` config file is created in its entirety by the charm
   code on startup (the default `alertmanager.yml` is overwritten). This is done
-  to maintain consitency across OCI images.
+  to maintain consistency across OCI images.
 - Hot reload via the alertmanager HTTP API is used whenever possible instead of
-  service restart, to minimize down time.
+  service restart, to minimize downtime.
 
 ## Roadmap
 - Test using pytest-operator

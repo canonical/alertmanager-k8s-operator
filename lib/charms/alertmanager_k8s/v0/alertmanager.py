@@ -100,11 +100,11 @@ class AlertmanagerConsumer(ConsumerBase):
                 alertmanagers.append(address)
         return sorted(alertmanagers)
 
-    def _on_relation_departed(self, event: ops.charm.RelationDepartedEvent):
+    def _on_relation_departed(self, _):
         """This hook notifies the charm that there may have been changes to the cluster."""
         self.cluster_changed.emit()
 
-    def _on_relation_broken(self, event: ops.charm.RelationBrokenEvent):
+    def _on_relation_broken(self, _):
         """This hook notifies the charm that a relation has been completely removed."""
         # inform consumer about the change
         self.cluster_changed.emit()
