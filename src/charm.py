@@ -318,18 +318,18 @@ class AlertmanagerCharm(CharmBase):
             else:
                 logger.info("Successfully patched the Kubernetes service")
 
-    def _common_exit_hook(self) -> bool:
+    def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self.container.is_ready():
             # TODO replace with self.container.is_ready() after confirming it indeed obviates
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
-            return False
+            return
 
         # Wait for IP address. IP address is needed for forming alertmanager clusters and for
         # related apps' config.
         if not self.private_address:
             self.unit.status = MaintenanceStatus("Waiting for IP address")
-            return False
+            return
 
         # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
         # setting IP here.
@@ -363,7 +363,7 @@ class AlertmanagerCharm(CharmBase):
             # Update config file
             if not self._update_config():
                 self.unit.status = BlockedStatus("Config update failed. Is config valid?")
-                return False
+                return
 
             self.provider.ready()
             self.unit.status = ActiveStatus()
@@ -371,9 +371,6 @@ class AlertmanagerCharm(CharmBase):
         if not c.completed:
             logger.error("Cannot update layer - container is not ready")
             self.unit.status = BlockedStatus("Container not ready")
-            return False
-
-        return True
 
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
@@ -434,8 +431,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_upgrade_charm(self, _):
         """Event handler for replica's UpgradeCharmEvent."""
-        # Ensure that older deployments of Alertmanager run the logic
-        # to patch the K8s service
+        # Ensure that older deployments of Alertmanager run the logic to patch the K8s service
         self._patch_k8s_service()
 
         # update config hash
@@ -443,12 +439,11 @@ class AlertmanagerCharm(CharmBase):
             self._stored.config_hash = sha256(
                 yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path)))
             )
-
         if not c.completed:
             self._stored.config_hash = ""
 
-        # After upgrade (refresh), the unit ip address is not guaranteed to remain the same
-        # Calling the common hook to update IP address to the new one
+        # After upgrade (refresh), the unit ip address is not guaranteed to remain the same, and
+        # the config may need update. Calling the common hook to update.
         self._common_exit_hook()
 
     def _get_peer_addresses(self) -> List[str]:
