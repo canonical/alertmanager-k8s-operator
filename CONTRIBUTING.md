@@ -1,13 +1,15 @@
 # Contributing to alertmanager-k8s
-Alertmanager, as the name suggests, filters incoming alerts and routes them to pre-defined
-receivers. Alertmanager reads its configuration from an `alertmanager.yml`, some aspects of which
-are exposed to the user via `juju config` calls (see [`config.yaml`](config.yaml)).
+Alertmanager, as the name suggests, filters incoming alerts and routes them to
+pre-defined receivers. Alertmanager reads its configuration from an
+`alertmanager.yml`, some aspects of which are exposed to the user via
+`juju config` calls (see [`config.yaml`](config.yaml)).
 In the future, integrator charms may be used for configuring Alertmanager.
 
 The intended use case of this operator is to be deployed together with the
-[prometheus-k8s operator](https://github.com/canonical/prometheus-operator), although that is not
+[prometheus-k8s operator][Prometheus operator], although that is not
 necessary, as [Alertmanager's HTTP API][Alertmanager API browser] could be
-[used](https://github.com/prometheus/alertmanager/issues/437#issuecomment-263413632) instead.
+[used](https://github.com/prometheus/alertmanager/issues/437#issuecomment-263413632)
+instead.
 
 HA is achieved by providing each Alertmanager instance at least one IP address of another instance.
 The cluster would then auto-update with subsequent changes to the cluster.
@@ -25,11 +27,6 @@ The cluster would then auto-update with subsequent changes to the cluster.
   implementation, you can reach us at
   [Canonical Mattermost public channel](https://chat.charmhub.io/charmhub/channels/charm-dev)
   or [Discourse](https://discourse.charmhub.io/).
-- It is strongly recommended that prior to engaging in any enhancements
-  to this charm you familiarise your self with Juju.
-- Familiarising yourself with the
-  [Charmed Operator Framework](https://juju.is/docs/sdk).
-  library will help you a lot when working on PRs.
 - All enhancements require review before being merged. Besides the
   code quality and test coverage, the review will also take into
   account the resulting user experience for Juju administrators using
@@ -103,7 +100,8 @@ curl http://$alertmanager_ip:9093/api/v1/alerts
 and visible on a karma dashboard, if configured.
 
 
-Relations between alertmanager and prometheus can be verified by [querying prometheus](https://prometheus.io/docs/prometheus/latest/querying/api/#alertmanagers)
+Relations between alertmanager and prometheus can be verified by
+[querying prometheus](https://prometheus.io/docs/prometheus/latest/querying/api/#alertmanagers)
 for active alertmanagers:
 
 ```shell
@@ -119,15 +117,13 @@ charmcraft pack
 ```
 
 ## Usage
-First deploy Prometheus following instructions from its
-[repository](https://github.com/canonical/prometheus-operator). You
-may also deploy Prometheus using [Charmhub](https://charmhub.io/)
+First deploy [Prometheus][Prometheus operator].
 
 Now deploy the Alertmanger charm you just built. Alertmanager may
-support mulitple alert receivers (see below). In order to use any of
-these receivers relavent configuration information is required at
+support multiple alert receivers (see below). In order to use any of
+these receivers relevant configuration information is required at
 deployment or subsequently. Without any configured receiver
-Alertmanager will enter a blocked state.
+Alertmanager will use a dummy receiver.
 
 ### Tested images
 - [`ubuntu/prometheus-alertmanager`](https://hub.docker.com/r/ubuntu/prometheus-alertmanager)
@@ -159,21 +155,29 @@ juju add-relation prometheus-k8s:alertmanager alertmanager-k8s:alerting
 ```
 
 ## Code overview
-- The main charm class is `AlertmanagerCharm`, which responds to config changes (via `ConfigChangedEvent`) and cluster changes (via `RelationJoinedEvent`, `RelationChangedEvent` and `RelationDepartedEvent`).
-- All lifecycle events call a common hook, `_common_exit_hook` after executing their own business logic.
-  This pattern simplifies state tracking and improves consistency.
-- On startup, the charm waits for `PebbleReadyEvent` and for an IP address to become available before starting
-  the alertmanager service and declaring `ActiveStatus`.
+- The main charm class is `AlertmanagerCharm`, which responds to config changes
+  (via `ConfigChangedEvent`) and cluster changes (via `RelationJoinedEvent`,
+  `RelationChangedEvent` and `RelationDepartedEvent`).
+- All lifecycle events call a common hook, `_common_exit_hook` after executing
+  their own business logic. This pattern simplifies state tracking and improves
+  consistency.
+- On startup, the charm waits for `PebbleReadyEvent` and for an IP address to
+  become available before starting the karma service and declaring
+  `ActiveStatus`. The charm must be related to an alertmanager instance,
+  otherwise the charm will go into blocked state.
 
 ## Design choices
-- The `alertmanager.yml` config file is created in its entirety by the charm code on startup
-  (the default `alertmanager.yml` is overwritten). This is done to maintain consitency across OCI images.
-- Hot reload via the alertmanager HTTP API is used whenever possible instead of service restart, to minimize down time.
+- The `alertmanager.yml` config file is created in its entirety by the charm
+  code on startup (the default `alertmanager.yml` is overwritten). This is done
+  to maintain consitency across OCI images.
+- Hot reload via the alertmanager HTTP API is used whenever possible instead of
+  service restart, to minimize down time.
 
 ## Roadmap
-- Add Karma relation
 - Test using pytest-operator
 - Use integrator charms
 
-## References
-- [Alertmanager API browser](https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml)
+
+[Alertmanager API browser]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml
+[gh:Prometheus operator]: https://github.com/canonical/prometheus-operator
+[Prometheus operator]: https://charmhub.io/prometheus-k8s

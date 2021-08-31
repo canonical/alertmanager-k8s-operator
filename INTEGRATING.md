@@ -27,7 +27,7 @@ in alertmanager.yml.
 ### Related charms
 #### Prometheus
 Alertmanager is typically deployed together with
-[prometheus](https://github.com/canonical/prometheus-operator):
+[prometheus][Prometheus operator]:
 
 ```shell
 juju deploy alertmanager-k8s am
@@ -42,8 +42,8 @@ Scaling alertmanager would automatically update related instances of
 prometheus.
 
 #### Karma
-[Karma](https://github.com/canonical/karma-operator/) provides a super slick
-dashboard for alertmanager. Check it out with:
+[Karma][Karma operator] provides a super slick dashboard for alertmanager.
+Check it out with:
 
 ```shell
 juju deploy alertmanager-k8s am
@@ -58,6 +58,14 @@ Scaling alertmanager would automatically cause karma to group alerts by
 cluster.
 
 #### Karma alertmanager proxy
-The [karma alertmanager proxy](https://github.com/canonical/karma-alertmanager-proxy-operator/)
-is intended for remote alertmanager deployments. This particular use-case is
-covered by that charm.
+The [karma alertmanager proxy][Karma alertmanager proxy operator] is intended
+for remote alertmanager deployments. This particular use-case is covered by
+that charm.
+
+
+[gh:Prometheus operator]: https://github.com/canonical/prometheus-operator
+[Prometheus operator]: https://charmhub.io/prometheus-k8s
+[gh:Karma operator]: https://github.com/canonical/karma-operator/
+[gh:Karma alertmanager proxy operator]: https://github.com/canonical/karma-alertmanager-proxy-operator
+[Karma operator]: https://charmhub.io/karma-k8s/
+[Karma alertmanager proxy operator]: https://charmhub.io/karma-alertmanager-proxy-k8s
