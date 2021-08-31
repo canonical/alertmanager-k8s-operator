@@ -12,8 +12,8 @@ from typing import Dict, List, Optional
 
 import ops.charm
 from ops.charm import RelationJoinedEvent
-from ops.framework import EventBase, EventSource, ObjectEvents, StoredState
-from ops.relation import ConsumerBase, ProviderBase
+from ops.framework import EventBase, EventSource, StoredState
+from ops.relation import ConsumerBase, ConsumerEvents, ProviderBase
 
 # The unique Charmhub library identifier, never change it
 LIBID = "abcdef1234"
@@ -31,10 +31,8 @@ logger = logging.getLogger(__name__)
 class KarmaAlertmanagerConfig:
     """A helper class for alertmanager server configuration for Karma.
 
-    Refer to the `Karma documentation`_ for full details.
-
-    .. _Karma documentation:
-        https://github.com/prymitive/karma/blob/main/docs/CONFIGURATION.md#alertmanagers
+    Refer to the Karma documentation for full details:
+    https://github.com/prymitive/karma/blob/main/docs/CONFIGURATION.md#alertmanagers
     """
 
     required_fields = {"name", "uri"}
@@ -112,16 +110,16 @@ class KarmaAlertmanagerConfigChanged(EventBase):
         self.data = snapshot["data"]
 
 
-class KarmaProviderEvents(ObjectEvents):
-    """Custom events aggregator for the karma provider."""
+class KarmaConsumerEvents(ConsumerEvents):
+    """Custom events aggregator for the karma consumer."""
 
     alertmanager_config_changed = EventSource(KarmaAlertmanagerConfigChanged)
 
 
-class KarmaProvider(ProviderBase):
-    """A "provider" handler to be used by the Karma charm (the 'provides' side).
+class KarmaConsumer(ConsumerBase):
+    """A "consumer" handler to be used by the Karma charm (the 'requires' side).
 
-    This library offers the interface needed in order to provide Alertmanager URLs and associated
+    This library offers the interface needed in order to forward Alertmanager URLs and associated
     information to the Karma application.
 
     To have your charm provide URLs to Karma, declare the interface's use in your charm's
@@ -136,50 +134,49 @@ class KarmaProvider(ProviderBase):
     A typical example of importing this library might be
 
     ```python
-    from charms.alertmanager_karma.v0.karma import KarmaProvider
+    from charms.alertmanager_karma.v0.karma import KarmaConsumer
     ```
 
     In your charm's `__init__` method:
 
     ```python
-    self.provider = KarmaProvider(
+    self.karma_lib = KarmaConsumer(
         self, "karma-dashboard", "karma", "0.86"
     )
     ```
 
-    The provider charm is expected to observe and respond to the
+    The consumer charm is expected to observe and respond to the
     :class:`KarmaAlertmanagerConfigChanged` event, for example:
 
     ```python
     self.framework.observe(
-        self.provider.on.alertmanager_config_changed, self._on_alertmanager_config_changed
+        self.karma_lib.on.alertmanager_config_changed, self._on_alertmanager_config_changed
     )
     ```
 
-    This provider observes relation joined, changed and departed events on behalf of the charm.
+    This consumer observes relation joined, changed and departed events on behalf of the charm.
 
     From charm code you can then obtain the list of proxied alertmanagers via:
 
     ```python
-    alertmanagers = self.provider.get_alertmanager_servers()
+    alertmanagers = self.karma_lib.get_alertmanager_servers()
     ```
 
     Arguments:
             charm (CharmBase): consumer charm
-            name (str): relation name from consumer's metadata.yaml
-            service_name (str): service name (must be consistent the consumer)
-            version (str): semver-compatible version string
+            name (str): from consumer's metadata.yaml
+            consumes (dict): provider specifications
+            multi (bool): multiple relations flag
 
     Attributes:
             charm (CharmBase): consumer charm
     """
 
-    on = KarmaProviderEvents()
+    on = KarmaConsumerEvents()
 
-    def __init__(self, charm, name: str, service_name: str, version: str = None):
-        super().__init__(charm, name, service_name, version)
+    def __init__(self, charm, name: str, consumes: dict, multi: bool = False):
+        super().__init__(charm, name, consumes, multi)
         self.charm = charm
-        self._service_name = service_name
 
         events = self.charm.on[self.name]
         self.framework.observe(events.relation_changed, self._on_relation_changed)
@@ -234,8 +231,8 @@ class KarmaProvider(ProviderBase):
         return len(servers) > 0
 
 
-class KarmaConsumer(ConsumerBase):
-    """A "consumer" handler to be used by charms that relate to Karma (the 'requires' side).
+class KarmaProvider(ProviderBase):
+    """A "provider" handler to be used by charms that relate to Karma (the 'provides' side).
 
     This library offers the interface needed in order to provide Alertmanager URLs and associated
     information to the Karma application.
@@ -244,7 +241,7 @@ class KarmaConsumer(ConsumerBase):
     metadata.yaml file:
 
     ```yaml
-    requires:
+    provides:
       karma-dashboard:
         interface: karma_dashboard
     ```
@@ -252,33 +249,33 @@ class KarmaConsumer(ConsumerBase):
     A typical example of importing this library might be
 
     ```python
-    from charms.karma_k8s.v0.karma import KarmaConsumer
+    from charms.karma_k8s.v0.karma import KarmaProvider
     ```
 
     In your charm's `__init__` method:
 
     ```python
-    self.karma_lib = KarmaConsumer(
+    self.provider = KarmaProvider(
         self,
         "karma-dashboard",
-        consumes={"karma": ">=0.86"},
+        ">=0.86",
     )
     ```
 
-    The consumer charm is expected to set the target URL via the consumer library, for example in
+    The provider charm is expected to set the target URL via the consumer library, for example in
     config-changed:
 
-        self.karma_lib.target = "http://whatever:9093"
+        self.provider.target = "http://whatever:9093"
 
-    The consumer charm can then obtain the configured IP address, for example:
+    The provider charm can then obtain the configured IP address, for example:
 
-        self.unit.status = ActiveStatus("Proxying {}".format(self.karma_lib.target))
+        self.unit.status = ActiveStatus("Proxying {}".format(self.provider.target))
 
     Arguments:
             charm (CharmBase): consumer charm
-            name (str): from consumer's metadata.yaml
-            consumes (dict): provider specifications
-            multi (bool): multiple relations flag
+            name (str): relation name from consumer's metadata.yaml
+            service_name (str): service name (must be consistent the consumer)
+            version (str): semver-compatible version string
 
     Attributes:
             charm (CharmBase): consumer charm
@@ -286,8 +283,8 @@ class KarmaConsumer(ConsumerBase):
 
     _stored = StoredState()
 
-    def __init__(self, charm, name: str, consumes: dict, multi: bool = False):
-        super().__init__(charm, name, consumes, multi)
+    def __init__(self, charm, name: str, service_name: str, version: str = None):
+        super().__init__(charm, name, service_name, version)
         self.charm = charm
 
         # StoredState is used for holding the target URL.

@@ -10,7 +10,7 @@ from typing import List, Optional
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
-from charms.karma_k8s.v0.karma import KarmaConsumer
+from charms.karma_k8s.v0.karma import KarmaProvider
 from flatten_json import unflatten
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
@@ -77,7 +77,11 @@ class AlertmanagerCharm(CharmBase):
         self.provider = AlertmanagerProvider(
             self, self._relation_name, self._service_name, workload_version, self._api_port
         )
-        self.karma_lib = KarmaConsumer(self, "karma-dashboard", consumes={"karma": ">=0.86"})
+        self.karma_provider = KarmaProvider(self, "karma-dashboard", "karma", "0.86")
+
+        # TODO remove after https://github.com/canonical/operator/issues/586 is addressed
+        self.karma_provider.ready()
+
         self.container = self.unit.get_container(self._container_name)
 
         # Core lifecycle events
@@ -345,7 +349,7 @@ class AlertmanagerCharm(CharmBase):
             self.peer_relation.data[self.unit]["private_address"] = self.private_address
 
         self.provider.update_relation_data()
-        self.karma_lib.target = self.api_address
+        self.karma_provider.target = self.api_address
 
         # Update pebble layer
         # Callees below interact with pebble.
