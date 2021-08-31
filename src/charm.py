@@ -325,7 +325,8 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return False
 
-        # Wait for IP address. IP address is needed for config hot-reload and status updates.
+        # Wait for IP address. IP address is needed for forming alertmanager clusters and for
+        # related apps' config.
         if not self.private_address:
             self.unit.status = MaintenanceStatus("Waiting for IP address")
             return False
