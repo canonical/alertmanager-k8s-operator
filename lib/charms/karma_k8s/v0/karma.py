@@ -140,7 +140,7 @@ class KarmaConsumer(ConsumerBase):
     In your charm's `__init__` method:
 
     ```python
-    self.karma_lib = KarmaConsumer(
+    self.karma_consumer = KarmaConsumer(
         self, "karma-dashboard", "karma", "0.86"
     )
     ```
@@ -150,7 +150,7 @@ class KarmaConsumer(ConsumerBase):
 
     ```python
     self.framework.observe(
-        self.karma_lib.on.alertmanager_config_changed, self._on_alertmanager_config_changed
+        self.karma_consumer.on.alertmanager_config_changed, self._on_alertmanager_config_changed
     )
     ```
 
@@ -159,7 +159,7 @@ class KarmaConsumer(ConsumerBase):
     From charm code you can then obtain the list of proxied alertmanagers via:
 
     ```python
-    alertmanagers = self.karma_lib.get_alertmanager_servers()
+    alertmanagers = self.karma_consumer.get_alertmanager_servers()
     ```
 
     Arguments:
@@ -255,7 +255,7 @@ class KarmaProvider(ProviderBase):
     In your charm's `__init__` method:
 
     ```python
-    self.provider = KarmaProvider(
+    self.karma_provider = KarmaProvider(
         self,
         "karma-dashboard",
         ">=0.86",
@@ -265,11 +265,11 @@ class KarmaProvider(ProviderBase):
     The provider charm is expected to set the target URL via the consumer library, for example in
     config-changed:
 
-        self.provider.target = "http://whatever:9093"
+        self.karma_provider.target = "http://whatever:9093"
 
     The provider charm can then obtain the configured IP address, for example:
 
-        self.unit.status = ActiveStatus("Proxying {}".format(self.provider.target))
+        self.unit.status = ActiveStatus("Proxying {}".format(self.karma_provider.target))
 
     Arguments:
             charm (CharmBase): consumer charm
