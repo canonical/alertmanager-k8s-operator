@@ -1,20 +1,19 @@
+#!/usr/bin/env python3
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-""" # Karma library
+"""# Karma library.
 
 This library is designed to be used by a charm consuming or providing the karma-dashboard relation.
 """
 
 import logging
+from typing import Dict, List, Optional
 
 import ops.charm
-from ops.framework import EventBase, EventSource, ObjectEvents
-from ops.charm import RelationJoinedEvent, RelationDepartedEvent
+from ops.charm import RelationJoinedEvent
+from ops.framework import EventBase, EventSource, ObjectEvents, StoredState
 from ops.relation import ConsumerBase, ProviderBase
-from ops.framework import StoredState
-
-from typing import List, Dict, Optional
 
 # The unique Charmhub library identifier, never change it
 LIBID = "abcdef1234"
@@ -50,7 +49,8 @@ class KarmaAlertmanagerConfig:
             config: target configuration to be validated.
 
         Returns:
-            True if all required keys are present and all remaining keys are supported optional fields; False otherwise.
+            True if all required keys are present and all remaining keys are supported optional
+            fields; False otherwise.
         """
         all_required = all(key in config for key in KarmaAlertmanagerConfig.required_fields)
         all_supported = all(key in KarmaAlertmanagerConfig._supported_fields for key in config)
@@ -60,15 +60,15 @@ class KarmaAlertmanagerConfig:
     def from_dict(data: Dict[str, str]) -> Dict[str, str]:
         """Generate alertmanager server configuration from the given dict.
 
-        Configuration is constructed by creating a subset of the provided dictionary that contains only the supported
-        fields.
+        Configuration is constructed by creating a subset of the provided dictionary that contains
+        only the supported fields.
 
         Args:
             data: a dict that may contain alertmanager server configuration for Karma.
 
         Returns:
-            A subset of `data` that contains all the supported fields found in `data`, if the resulting subset makes a
-            valid configuration; False otherwise.
+            A subset of `data` that contains all the supported fields found in `data`, if the
+            resulting subset makes a valid configuration; False otherwise.
         """
         config = {k: data[k] for k in data if k in KarmaAlertmanagerConfig.required_fields}
         optional_config = {
@@ -79,7 +79,7 @@ class KarmaAlertmanagerConfig:
 
     @staticmethod
     def build(name: str, url: str, *, cluster=None) -> Dict[str, str]:
-        """Build alertmanager server configuration for Karma
+        """Build alertmanager server configuration for Karma.
 
         Args:
             name: name for the alertmanager unit.
@@ -93,6 +93,12 @@ class KarmaAlertmanagerConfig:
 
 
 class KarmaAlertmanagerConfigChanged(EventBase):
+    """Event raised when karma configuration is changed.
+
+    If an alertmanager unit is added to or removed from a relation,
+    then a :class:`KarmaAlertmanagerConfigChanged` should be emitted.
+    """
+
     def __init__(self, handle, data=None):
         super().__init__(handle)
         self.data = data
@@ -107,15 +113,19 @@ class KarmaAlertmanagerConfigChanged(EventBase):
 
 
 class KarmaProviderEvents(ObjectEvents):
+    """Custom events aggregator for the karma provider."""
+
     alertmanager_config_changed = EventSource(KarmaAlertmanagerConfigChanged)
 
 
 class KarmaProvider(ProviderBase):
-    """A "provider" handler to be used by the Karma charm (the 'provides' side of the 'karma' relation).
-    This library offers the interface needed in order to provide Alertmanager URLs and associated information to the
-    Karma application.
+    """A "provider" handler to be used by the Karma charm (the 'provides' side).
 
-    To have your charm provide URLs to Karma, declare the interface's use in your charm's metadata.yaml file:
+    This library offers the interface needed in order to provide Alertmanager URLs and associated
+    information to the Karma application.
+
+    To have your charm provide URLs to Karma, declare the interface's use in your charm's
+    metadata.yaml file:
 
     ```yaml
     provides:
@@ -137,8 +147,8 @@ class KarmaProvider(ProviderBase):
     )
     ```
 
-    The provider charm is expected to observe and respond to the :class:`KarmaAlertmanagerConfigChanged` event,
-    for example:
+    The provider charm is expected to observe and respond to the
+    :class:`KarmaAlertmanagerConfigChanged` event, for example:
 
     ```python
     self.framework.observe(
@@ -199,11 +209,12 @@ class KarmaProvider(ProviderBase):
 
         return servers  # TODO sorted
 
-    def _on_relation_changed(self, event):
+    def _on_relation_changed(self, _):
+        """Event handler for RelationChangedEvent."""
         self.on.alertmanager_config_changed.emit()
 
-    def _on_relation_departed(self, event: RelationDepartedEvent):
-        """Hook is called when a unit leaves, but another unit may still be present"""
+    def _on_relation_departed(self, _):
+        """Hook is called when a unit leaves, but another unit may still be present."""
         # At this point the unit data bag of the departing unit is gone from relation data
         self.on.alertmanager_config_changed.emit()
 
@@ -212,9 +223,11 @@ class KarmaProvider(ProviderBase):
         """Check if the current configuration is valid.
 
         Returns:
-            True if the currently stored configuration for an alertmanager target is valid; False otherwise.
+            True if the currently stored configuration for an alertmanager target is valid; False
+            otherwise.
         """
-        # karma will fail starting without alertmanager server(s), which would cause pebble to error out.
+        # karma will fail starting without alertmanager server(s), which would cause pebble to
+        # error out.
 
         # check that there is at least one alertmanager server configured
         servers = self.get_alertmanager_servers()
@@ -222,11 +235,13 @@ class KarmaProvider(ProviderBase):
 
 
 class KarmaConsumer(ConsumerBase):
-    """A "consumer" handler to be used by charms that relate to Karma (the 'requires' side of the 'karma' relation).
-    This library offers the interface needed in order to provide Alertmanager URLs and associated information to the
-    Karma application.
+    """A "consumer" handler to be used by charms that relate to Karma (the 'requires' side).
 
-    To have your charm provide URLs to Karma, declare the interface's use in your charm's metadata.yaml file:
+    This library offers the interface needed in order to provide Alertmanager URLs and associated
+    information to the Karma application.
+
+    To have your charm provide URLs to Karma, declare the interface's use in your charm's
+    metadata.yaml file:
 
     ```yaml
     requires:
@@ -250,7 +265,8 @@ class KarmaConsumer(ConsumerBase):
     )
     ```
 
-    The consumer charm is expected to set the target URL via the consumer library, for example in config-changed:
+    The consumer charm is expected to set the target URL via the consumer library, for example in
+    config-changed:
 
         self.karma_lib.target = "http://whatever:9093"
 
@@ -275,8 +291,9 @@ class KarmaConsumer(ConsumerBase):
         self.charm = charm
 
         # StoredState is used for holding the target URL.
-        # It is needed here because the target URL may be set by the consumer before any "karma-dashboard" relation is
-        # joined, in which case there are no relation unit data bags available for storing the target URL.
+        # It is needed here because the target URL may be set by the consumer before any
+        # "karma-dashboard" relation is joined, in which case there are no relation unit data bags
+        # available for storing the target URL.
         self._stored.set_default(config={})
 
         events = self.charm.on[self.name]
@@ -290,18 +307,20 @@ class KarmaConsumer(ConsumerBase):
         """Check if the current configuration is valid.
 
         Returns:
-            True if the currently stored configuration for an alertmanager target is valid; False otherwise.
+            True if the currently stored configuration for an alertmanager target is valid; False
+            otherwise.
         """
         return KarmaAlertmanagerConfig.is_valid(self._stored.config)
 
     @property
     def target(self) -> Optional[str]:
-        """str: Alertmanager URL to be used by Karma"""
+        """str: Alertmanager URL to be used by Karma."""
         return self._stored.config.get("uri", None)
 
     @target.setter
     def target(self, url: str) -> None:
         """Configure an alertmanager target server to be used by Karma.
+
         Apart from the server's URL, the server configuration is determined from the juju topology.
 
         Args:
@@ -311,18 +330,27 @@ class KarmaConsumer(ConsumerBase):
             None.
         """
         name = self.charm.unit.name
-        cluster = "{}_{}".format(self.charm.model.name, self.charm.app.name)
+        cluster = f"{self.charm.model.name}_{self.charm.app.name}"
         if not (config := KarmaAlertmanagerConfig.build(name, url, cluster=cluster)):
             logger.warning("Invalid config: {%s, %s}", name, url)
             return
 
         self._stored.config.update(config)
-        logger.debug("stored karma config: %s", self._stored.config)
 
         # target changed - must update all relation data
         self._update_relation_data()
 
     def _update_relation_data(self, event: RelationJoinedEvent = None):
+        """Helper function for updating relation data bags.
+
+        This function can be used in two different ways:
+        - update relation data bag of a given event (e.g. a newly joined relation);
+        - update relation data for all relations
+
+        Args:
+            event: The event whose data bag needs to be updated. If it is None, update data bags of
+            all relations.
+        """
         if event is None:
             # update all existing relation data
             # a single consumer charm's unit may be related to multiple karma dashboards

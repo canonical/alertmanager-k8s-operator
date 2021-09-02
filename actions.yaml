@@ -1,4 +1,5 @@
+# Copyright 2021 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 show-config:
   description: Show alertmanager config file.
-show-silences:
-  description: List the currently active silences.

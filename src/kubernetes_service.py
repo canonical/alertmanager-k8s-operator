@@ -1,5 +1,12 @@
-import kubernetes
+#!/usr/bin/env python3
+# Copyright 2021 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""Library for kubernetes services."""
+
 from typing import List, Tuple
+
+import kubernetes
 
 
 class PatchFailed(RuntimeError):
@@ -17,7 +24,7 @@ class K8sServicePatch:
 
     @staticmethod
     def namespace() -> str:
-        """Read the Kubernetes namespace we're deployed in from the mounted service token
+        """Read the Kubernetes namespace we're deployed in from the mounted service token.
 
         Returns:
             str: The current Kubernetes namespace
@@ -27,7 +34,7 @@ class K8sServicePatch:
 
     @staticmethod
     def _k8s_auth():
-        """Authenticate with the Kubernetes API using an in-cluster service token
+        """Authenticate with the Kubernetes API using an in-cluster service token.
 
         Raises:
             PatchFailed: if no permissions to read cluster role
@@ -51,16 +58,16 @@ class K8sServicePatch:
     def _k8s_service(
         app: str, service_ports: List[Tuple[str, int, int]]
     ) -> kubernetes.client.V1Service:
-        """Property accessor to return a valid Kubernetes Service representation for Alertmanager
+        """Property accessor to return a valid Kubernetes Service representation for Alertmanager.
 
         Args:
             app: app name
             service_ports: a list of tuples (name, port, target_port) for every service port.
 
         Returns:
-            kubernetes.client.V1Service: A Kubernetes Service with correctly annotated metadata and ports
+            kubernetes.client.V1Service: A Kubernetes Service with correctly annotated metadata and
+            ports
         """
-
         ports = [
             kubernetes.client.V1ServicePort(name=port[0], port=port[1], target_port=port[2])
             for port in service_ports
@@ -82,14 +89,14 @@ class K8sServicePatch:
 
     @staticmethod
     def set_ports(app: str, service_ports: List[Tuple[str, int, int]]):
-        """Patch the Kubernetes service created by Juju to map the correct port
+        """Patch the Kubernetes service created by Juju to map the correct port.
 
         Currently, Juju uses port 65535 for all endpoints. This can be observed via:
 
             kubectl describe services -n <model_name> | grep Port -C 2
 
-        At runtime, pebble watches which ports are bound and we need to patch the gap for pebble not telling Juju to fix
-        the K8S Service definition.
+        At runtime, pebble watches which ports are bound and we need to patch the gap for pebble
+        not telling Juju to fix the K8S Service definition.
 
         Typical usage example from within charm code (e.g. on_install):
 
@@ -119,4 +126,4 @@ class K8sServicePatch:
                 namespace=ns, body=K8sServicePatch._k8s_service(app, service_ports)
             )
         except kubernetes.client.exceptions.ApiException as e:
-            raise PatchFailed("Failed to patch k8s service: {}".format(e))
+            raise PatchFailed(f"Failed to patch k8s service: {e}") from e
