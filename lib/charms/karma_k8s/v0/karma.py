@@ -141,7 +141,7 @@ class KarmaConsumer(ConsumerBase):
 
     ```python
     self.karma_consumer = KarmaConsumer(
-        self, "karma-dashboard", "karma", "0.86"
+        self, "dashboard", consumes={"karma": "0.86"}
     )
     ```
 
@@ -258,7 +258,8 @@ class KarmaProvider(ProviderBase):
     self.karma_provider = KarmaProvider(
         self,
         "karma-dashboard",
-        ">=0.86",
+        "karma",
+        "0.86",
     )
     ```
 
