@@ -37,8 +37,6 @@ provides:
     #   "public_address": <ip_address>:<port>
     interface: alertmanager_dispatch
     # assumed network type: private
-
-requires:
   karma-dashboard:
     interface: karma_dashboard
 
@@ -52,7 +50,3 @@ storage:
     type: filesystem
     description: >
       Storage path passed to alertmanager via --storage.path argument and used for nflog and silences snapshot
-    # No need to specify a custom location in the charm container
-    # (workload location is specified under "containers" section)
-    # When unspecified, would be /var/lib/juju/storage/data/0
-    # location: /alertmanager
