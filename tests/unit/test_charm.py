@@ -59,7 +59,7 @@ class TestWithInitialHooks(unittest.TestCase):
             lambda *a, **kw: json.dumps({"versionInfo": {"version": "0.1.2"}}),
         )
 
-        with network_get_patch, api_get_patch:
+        with network_get_patch, api_get_patch:  # type: ignore[attr-defined]
             # TODO why the context is needed if we already have a class-level patch?
             self.harness.begin_with_initial_hooks()
 
@@ -72,7 +72,7 @@ class TestWithInitialHooks(unittest.TestCase):
         self.assertEqual(0, len(self.harness.charm.peer_relation.units))
 
     def test_pebble_layer_added(self):
-        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():
+        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
             self.harness.container_pebble_ready(self.container_name)
         plan = self.harness.get_container_pebble_plan(self.container_name)
 
@@ -106,7 +106,7 @@ class TestWithInitialHooks(unittest.TestCase):
         )
 
     def test_pagerduty_config(self):
-        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():
+        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
             self.harness.container_pebble_ready(self.container_name)
 
             for key in ["secret_service_key_42", "a_different_key_this_time"]:
@@ -144,7 +144,7 @@ class TestWithoutInitialHooks(unittest.TestCase):
         network_get_patch = patch_network_get(private_address="1.1.1.1")
         api_get_patch = patch("charm.Alertmanager._get", lambda *a, **kw: None)
 
-        with network_get_patch, api_get_patch:
+        with network_get_patch, api_get_patch:  # type: ignore[attr-defined]
             self.harness.begin()
             self.harness.add_relation("replicas", "alertmanager")
 
@@ -153,7 +153,7 @@ class TestWithoutInitialHooks(unittest.TestCase):
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.MaintenanceStatus)
 
         # after pebble_ready, status should be "active"
-        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():
+        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
             self.harness.container_pebble_ready(self.container_name)
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.ActiveStatus)
 
