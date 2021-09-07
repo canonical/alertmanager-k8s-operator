@@ -52,8 +52,8 @@ warn_unused_ignores = true
 warn_unused_configs = true
 show_traceback = true
 show_error_codes = true
-namespace_packages = true # Enable PEP 420 packages
-explicit_package_bases = true # Find packages without any __init__.py
+namespace_packages = true
+explicit_package_bases = true
 check_untyped_defs = true
 allow_redefinition = true
 
