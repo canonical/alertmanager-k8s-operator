@@ -10,7 +10,6 @@ documentation = "https://charmhub.io/alertmanager-k8s/docs"
 
 [tool.coverage.run]
 branch = true
-source = ["src", "lib/charms/alertmanager_k8s"]
 
 [tool.coverage.report]
 show_missing = true
