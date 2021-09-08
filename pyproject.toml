@@ -61,3 +61,7 @@ allow_redefinition = true
 [[tool.mypy.overrides]]
 module = ["ops.*", "kubernetes.*", "flatten_json.*"]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+log_cli_level = "INFO"
