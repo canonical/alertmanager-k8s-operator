@@ -39,23 +39,15 @@ class DummyConsumerCharm(CharmBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args)
         # relation name must match metadata
-        self.alertmanager_lib = AlertmanagerConsumer(
-            self, relation_name="alerting", consumes={"alertmanager": ">0.0.0"}
-        )
+        self.alertmanager_lib = AlertmanagerConsumer(self, relation_name="alerting")
 
-        self.framework.observe(self.alertmanager_lib.on.available, self._on_available)
         self.framework.observe(
-            self.alertmanager_lib.cluster_changed, self._on_alertmanager_cluster_changed
+            self.alertmanager_lib.on.cluster_changed, self._on_alertmanager_cluster_changed
         )
 
-        self._stored.set_default(
-            alertmanagers=[], on_available_emitted=0, cluster_changed_emitted=0
-        )
+        self._stored.set_default(alertmanagers=[], cluster_changed_emitted=0)
 
-    def _on_available(self, _):
-        self._stored.on_available_emitted += 1
-
-    def _on_alertmanager_cluster_changed(self, event):
+    def _on_alertmanager_cluster_changed(self, _):
         self._stored.cluster_changed_emitted += 1
         self._stored.alertmanagers = self.alertmanager_lib.get_cluster_info()
 

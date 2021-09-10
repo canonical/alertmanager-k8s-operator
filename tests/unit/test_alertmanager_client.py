@@ -47,3 +47,11 @@ class TestAlertmanagerAPIClient(unittest.TestCase):
 
         with patch("alertmanager_client.urllib.request.urlopen", mock_connection_error):
             self.assertRaises(AlertmanagerBadResponse, self.api.status)
+
+    @patch("alertmanager_client.urllib.request.urlopen")
+    def test_version(self, urlopen_mock):
+        urlopen_mock.return_value.read = lambda: json.dumps({"versionInfo": {"version": "0.1.2"}})
+        urlopen_mock.return_value.code = 200
+        urlopen_mock.return_value.reason = "OK"
+
+        self.assertEqual(self.api.version, "0.1.2")
