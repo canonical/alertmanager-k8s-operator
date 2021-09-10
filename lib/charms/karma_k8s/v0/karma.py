@@ -186,8 +186,8 @@ class KarmaConsumer(RelationManagerBase):
         self.charm = charm
 
         events = self.charm.on[self.name]
-        self.charm.framework.observe(events.relation_changed, self._on_relation_changed)
-        self.charm.framework.observe(events.relation_departed, self._on_relation_departed)
+        self.framework.observe(events.relation_changed, self._on_relation_changed)
+        self.framework.observe(events.relation_departed, self._on_relation_departed)
 
     def get_alertmanager_servers(self) -> List[Dict[str, str]]:
         """Return configuration data for all related alertmanager servers.
@@ -299,7 +299,7 @@ class KarmaProvider(RelationManagerBase):
         self._stored.set_default(config={})
 
         events = self.charm.on[self.name]
-        self.charm.framework.observe(events.relation_joined, self._on_relation_joined)
+        self.framework.observe(events.relation_joined, self._on_relation_joined)
 
     def _on_relation_joined(self, event: RelationJoinedEvent):
         self._update_relation_data(event)
