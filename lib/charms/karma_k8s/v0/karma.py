@@ -96,18 +96,6 @@ class KarmaAlertmanagerConfigChanged(EventBase):
     then a :class:`KarmaAlertmanagerConfigChanged` should be emitted.
     """
 
-    def __init__(self, handle, data=None):
-        super().__init__(handle)
-        self.data = data
-
-    def snapshot(self):
-        """Save relation data."""
-        return {"data": self.data}
-
-    def restore(self, snapshot):
-        """Restore relation data."""
-        self.data = snapshot["data"]
-
 
 class KarmaConsumerEvents(ObjectEvents):
     """Event descriptor for events raised by `AlertmanagerConsumer`."""
@@ -116,7 +104,10 @@ class KarmaConsumerEvents(ObjectEvents):
 
 
 class RelationManagerBase(Object):
-    """TODO.
+    """Base class that represents relation ends ("provides" and "requires").
+
+    :class:`RelationManagerBase` is used to create a relation manager. This is done by inheriting
+    from :class:`RelationManagerBase` and customising the sub class as required.
 
     Attributes:
         name (str): consumer's relation name
@@ -262,11 +253,7 @@ class KarmaProvider(RelationManagerBase):
     In your charm's `__init__` method:
 
     ```python
-    self.karma_provider = KarmaProvider(
-        self,
-        "karma-dashboard",
-        "karma",
-    )
+    self.karma_provider = KarmaProvider(self, "karma-dashboard")
     ```
 
     The provider charm is expected to set the target URL via the consumer library, for example in
