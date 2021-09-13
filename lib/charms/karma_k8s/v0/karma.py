@@ -11,9 +11,8 @@ import logging
 from typing import Dict, List, Optional
 
 import ops.charm
-from ops.charm import RelationJoinedEvent
-from ops.framework import EventBase, EventSource, StoredState
-from ops.relation import ConsumerBase, ConsumerEvents, ProviderBase
+from ops.charm import CharmBase, RelationJoinedEvent
+from ops.framework import EventBase, EventSource, Object, ObjectEvents, StoredState
 
 # The unique Charmhub library identifier, never change it
 LIBID = "abcdef1234"
@@ -97,26 +96,29 @@ class KarmaAlertmanagerConfigChanged(EventBase):
     then a :class:`KarmaAlertmanagerConfigChanged` should be emitted.
     """
 
-    def __init__(self, handle, data=None):
-        super().__init__(handle)
-        self.data = data
 
-    def snapshot(self):
-        """Save relation data."""
-        return {"data": self.data}
-
-    def restore(self, snapshot):
-        """Restore relation data."""
-        self.data = snapshot["data"]
-
-
-class KarmaConsumerEvents(ConsumerEvents):
-    """Custom events aggregator for the karma consumer."""
+class KarmaConsumerEvents(ObjectEvents):
+    """Event descriptor for events raised by `AlertmanagerConsumer`."""
 
     alertmanager_config_changed = EventSource(KarmaAlertmanagerConfigChanged)
 
 
-class KarmaConsumer(ConsumerBase):
+class RelationManagerBase(Object):
+    """Base class that represents relation ends ("provides" and "requires").
+
+    :class:`RelationManagerBase` is used to create a relation manager. This is done by inheriting
+    from :class:`RelationManagerBase` and customising the sub class as required.
+
+    Attributes:
+        name (str): consumer's relation name
+    """
+
+    def __init__(self, charm: CharmBase, relation_name):
+        super().__init__(charm, relation_name)
+        self.name = relation_name
+
+
+class KarmaConsumer(RelationManagerBase):
     """A "consumer" handler to be used by the Karma charm (the 'requires' side).
 
     This library offers the interface needed in order to forward Alertmanager URLs and associated
@@ -140,9 +142,7 @@ class KarmaConsumer(ConsumerBase):
     In your charm's `__init__` method:
 
     ```python
-    self.karma_consumer = KarmaConsumer(
-        self, "dashboard", consumes={"karma": "0.86"}
-    )
+    self.karma_consumer = KarmaConsumer(self, "dashboard")
     ```
 
     The consumer charm is expected to observe and respond to the
@@ -165,8 +165,6 @@ class KarmaConsumer(ConsumerBase):
     Arguments:
             charm (CharmBase): consumer charm
             name (str): from consumer's metadata.yaml
-            consumes (dict): provider specifications
-            multi (bool): multiple relations flag
 
     Attributes:
             charm (CharmBase): consumer charm
@@ -174,8 +172,8 @@ class KarmaConsumer(ConsumerBase):
 
     on = KarmaConsumerEvents()
 
-    def __init__(self, charm, name: str, consumes: dict, multi: bool = False):
-        super().__init__(charm, name, consumes, multi)
+    def __init__(self, charm, name: str):
+        super().__init__(charm, name)
         self.charm = charm
 
         events = self.charm.on[self.name]
@@ -231,7 +229,7 @@ class KarmaConsumer(ConsumerBase):
         return len(servers) > 0
 
 
-class KarmaProvider(ProviderBase):
+class KarmaProvider(RelationManagerBase):
     """A "provider" handler to be used by charms that relate to Karma (the 'provides' side).
 
     This library offers the interface needed in order to provide Alertmanager URLs and associated
@@ -255,12 +253,7 @@ class KarmaProvider(ProviderBase):
     In your charm's `__init__` method:
 
     ```python
-    self.karma_provider = KarmaProvider(
-        self,
-        "karma-dashboard",
-        "karma",
-        "0.86",
-    )
+    self.karma_provider = KarmaProvider(self, "karma-dashboard")
     ```
 
     The provider charm is expected to set the target URL via the consumer library, for example in
@@ -275,8 +268,6 @@ class KarmaProvider(ProviderBase):
     Arguments:
             charm (CharmBase): consumer charm
             name (str): relation name from consumer's metadata.yaml
-            service_name (str): service name (must be consistent the consumer)
-            version (str): semver-compatible version string
 
     Attributes:
             charm (CharmBase): consumer charm
@@ -284,8 +275,8 @@ class KarmaProvider(ProviderBase):
 
     _stored = StoredState()
 
-    def __init__(self, charm, name: str, service_name: str, version: str = None):
-        super().__init__(charm, name, service_name, version)
+    def __init__(self, charm, name: str):
+        super().__init__(charm, name)
         self.charm = charm
 
         # StoredState is used for holding the target URL.

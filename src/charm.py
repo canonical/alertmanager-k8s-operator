@@ -15,14 +15,8 @@ from flatten_json import unflatten
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import (
-    ActiveStatus,
-    BlockedStatus,
-    ErrorsWithMessage,
-    MaintenanceStatus,
-    Relation,
-)
-from ops.pebble import Layer
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Relation
+from ops.pebble import Layer, PathError, ProtocolError
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from config import PagerdutyConfig, PushoverConfig, WebhookConfig
@@ -69,18 +63,10 @@ class AlertmanagerCharm(CharmBase):
         self._stored.set_default(config_hash=None, launched_with_peers=False)
         self.api = Alertmanager(port=self._api_port)
 
-        try:
-            workload_version = self.api.version
-        except AlertmanagerBadResponse:
-            workload_version = "0.0.0"
-
-        self.provider = AlertmanagerProvider(
-            self, self._relation_name, self._service_name, workload_version, self._api_port
+        self.alertmanager_provider = AlertmanagerProvider(
+            self, self._relation_name, self._api_port
         )
-        self.karma_provider = KarmaProvider(self, "karma-dashboard", "karma", "0.86")
-
-        # TODO remove after https://github.com/canonical/operator/issues/586 is addressed
-        self.karma_provider.ready()
+        self.karma_provider = KarmaProvider(self, "karma-dashboard")
 
         self.container = self.unit.get_container(self._container_name)
 
@@ -106,14 +92,14 @@ class AlertmanagerCharm(CharmBase):
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
         event.log(f"Fetching {self._config_path}")
-        if not self.container.is_ready():
+        if not self.container.can_connect():
             event.fail("Container not ready")
 
         try:
             content = self.container.pull(self._config_path)
             # juju requires keys to be lowercase alphanumeric (can't use self._config_path)
             event.set_results({"path": self._config_path, "content": content.read()})
-        except ErrorsWithMessage as e:
+        except (ProtocolError, PathError) as e:
             event.fail(str(e))
 
     @property
@@ -200,24 +186,23 @@ class AlertmanagerCharm(CharmBase):
         """
         logger.info("Restarting service %s", self._service_name)
 
-        with self.container.is_ready() as c:
-            # Check if service exists, to avoid ModelError from being raised when the service does
-            # not exist,
-            if not c.get_plan().services.get(self._service_name):
-                logger.error("Cannot (re)start service: service does not (yet) exist.")
-                return False
-
-            c.restart(self._service_name)
-
-            # Update "launched with peers" flag.
-            # The service should be restarted when peers joined if this is False.
-            plan = self.container.get_plan()
-            service = plan.services.get(self._service_name)
-            self._stored.launched_with_peers = "--cluster.peer" in service.command
-
-        if not c.completed:
+        if not self.container.can_connect():
             logger.error("Cannot (re)start service: container is not ready.")
             return False
+
+        # Check if service exists, to avoid ModelError from being raised when the service does
+        # not exist,
+        if not self.container.get_plan().services.get(self._service_name):
+            logger.error("Cannot (re)start service: service does not (yet) exist.")
+            return False
+
+        self.container.restart(self._service_name)
+
+        # Update "launched with peers" flag.
+        # The service should be restarted when peers joined if this is False.
+        plan = self.container.get_plan()
+        service = plan.services.get(self._service_name)
+        self._stored.launched_with_peers = "--cluster.peer" in service.command
 
         return True
 
@@ -328,8 +313,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
-        if not self.container.is_ready():
-            # TODO replace with self.container.is_ready() after confirming it indeed obviates
+        if not self.container.can_connect():
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return
 
@@ -348,37 +332,29 @@ class AlertmanagerCharm(CharmBase):
         if self.peer_relation:
             self.peer_relation.data[self.unit]["private_address"] = self.private_address
 
-        self.provider.update_relation_data()
+        self.alertmanager_provider.update_relation_data()
         self.karma_provider.target = self.api_address
 
         # Update pebble layer
-        # Callees below interact with pebble.
-        # Catching pebble exceptions here for a centralized control of the unit status.
-        with self.container.is_ready() as c:
-            layer_changed = self._update_layer(restart=False)
+        layer_changed = self._update_layer(restart=False)
 
-            service_running = (
-                service := self.container.get_service(self._service_name)
-            ) and service.is_running()
+        service_running = (
+            service := self.container.get_service(self._service_name)
+        ) and service.is_running()
 
-            num_peers = len(self.peer_relation.units)
+        num_peers = len(self.peer_relation.units)
 
-            if layer_changed and (
-                not service_running or (num_peers > 0 and not self._stored.launched_with_peers)
-            ):
-                self._restart_service()
+        if layer_changed and (
+            not service_running or (num_peers > 0 and not self._stored.launched_with_peers)
+        ):
+            self._restart_service()
 
-            # Update config file
-            if not self._update_config():
-                self.unit.status = BlockedStatus("Config update failed. Is config valid?")
-                return
+        # Update config file
+        if not self._update_config():
+            self.unit.status = BlockedStatus("Config update failed. Is config valid?")
+            return
 
-            self.provider.ready()
-            self.unit.status = ActiveStatus()
-
-        if not c.completed:
-            logger.error("Cannot update layer - container is not ready")
-            self.unit.status = BlockedStatus("Container not ready")
+        self.unit.status = ActiveStatus()
 
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
@@ -443,12 +419,11 @@ class AlertmanagerCharm(CharmBase):
         self._patch_k8s_service()
 
         # update config hash
-        with self.container.is_ready() as c:
-            self._stored.config_hash = sha256(
-                yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path)))
-            )
-        if not c.completed:
-            self._stored.config_hash = ""
+        self._stored.config_hash = (
+            ""
+            if not self.container.can_connect()
+            else sha256(yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path))))
+        )
 
         # After upgrade (refresh), the unit ip address is not guaranteed to remain the same, and
         # the config may need update. Calling the common hook to update.

@@ -42,6 +42,7 @@ class TestWithInitialHooks(unittest.TestCase):
 
     @patch.object(AlertmanagerCharm, "_patch_k8s_service", lambda *a, **kw: None)
     @patch("ops.testing._TestingPebbleClient.push")
+    @patch("ops.testing._TestingPebbleClient.get_system_info")
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
@@ -63,15 +64,11 @@ class TestWithInitialHooks(unittest.TestCase):
             # TODO why the context is needed if we already have a class-level patch?
             self.harness.begin_with_initial_hooks()
 
-    def test_version(self):
-        self.assertEqual(
-            self.harness.charm.provider.provides, {self.harness.charm._service_name: "0.1.2"}
-        )
-
     def test_num_peers(self):
         self.assertEqual(0, len(self.harness.charm.peer_relation.units))
 
-    def test_pebble_layer_added(self):
+    @patch("ops.testing._TestingPebbleClient.get_system_info")
+    def test_pebble_layer_added(self, *unused):
         with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
             self.harness.container_pebble_ready(self.container_name)
         plan = self.harness.get_container_pebble_plan(self.container_name)
@@ -96,7 +93,7 @@ class TestWithInitialHooks(unittest.TestCase):
 
     def test_relation_data_provides_public_address(self):
         rel = self.harness.charm.framework.model.get_relation("alerting", self.relation_id)
-        expected_address = "1.1.1.1:{}".format(self.harness.charm.provider.api_port)
+        expected_address = "1.1.1.1:{}".format(self.harness.charm.alertmanager_provider.api_port)
         self.assertEqual({"public_address": expected_address}, rel.data[self.harness.charm.unit])
 
     def test_dummy_receiver_used_when_no_config_provided(self):
@@ -105,7 +102,8 @@ class TestWithInitialHooks(unittest.TestCase):
             "http://127.0.0.1:5001/", self.push_pull_mock.pull(self.harness.charm._config_path)
         )
 
-    def test_pagerduty_config(self):
+    @patch("ops.testing._TestingPebbleClient.get_system_info")
+    def test_pagerduty_config(self, *unused):
         with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
             self.harness.container_pebble_ready(self.container_name)
 
@@ -148,7 +146,8 @@ class TestWithoutInitialHooks(unittest.TestCase):
             self.harness.begin()
             self.harness.add_relation("replicas", "alertmanager")
 
-    def test_unit_status_around_pebble_ready(self):
+    @patch("ops.testing._TestingPebbleClient.get_system_info")
+    def test_unit_status_around_pebble_ready(self, *unused):
         # before pebble_ready, status should be "maintenance"
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.MaintenanceStatus)
 
