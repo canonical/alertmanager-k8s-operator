@@ -9,7 +9,7 @@ import logging
 from typing import List, Optional
 
 import yaml
-from charms.alertmanager_k8s.v0.alertmanager import AlertmanagerProvider
+from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from flatten_json import unflatten
 from ops.charm import ActionEvent, CharmBase
