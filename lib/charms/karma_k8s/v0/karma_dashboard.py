@@ -1,10 +1,25 @@
-#!/usr/bin/env python3
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """# Karma library.
 
 This library is designed to be used by a charm consuming or providing the karma-dashboard relation.
+This library is published as part of the [Karma charm](https://charmhub.io/karma-k8s).
+
+You can file bugs [here](https://github.com/canonical/karma-operator/issues)!
+
+A typical example of including this library might be:
+
+```python
+# ...
+from charms.karma_k8s.v0.karma_dashboard import KarmaConsumer
+
+class SomeApplication(CharmBase):
+  def __init__(self, *args):
+    # ...
+    self.karma_consumer = KarmaConsumer(self, "dashboard")
+    # ...
+```
 """
 
 import logging
@@ -15,14 +30,14 @@ from ops.charm import CharmBase, RelationJoinedEvent
 from ops.framework import EventBase, EventSource, Object, ObjectEvents, StoredState
 
 # The unique Charmhub library identifier, never change it
-LIBID = "abcdef1234"
+LIBID = "98f9dc00f7ff4b1197895886bdd92037"
 
 # Increment this major API version when introducing breaking changes
 LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 1
 
 logger = logging.getLogger(__name__)
 
