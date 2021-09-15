@@ -45,4 +45,7 @@ jobs:
     - name: Run alertmanger tests
       run: tox -e integration
     - name: Run lma bundle tests
-      run: tox -e integration-lma
+      run: |
+        sudo adduser $USER lxd
+        newgrp lxd
+        tox -e integration-lma
