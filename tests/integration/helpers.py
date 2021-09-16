@@ -24,7 +24,7 @@ async def cli_deploy_and_wait(
     if not Path(name).is_file():
         run_args.append(f"--channel={channel}")
 
-    retcode, stdout, stderr = await ops_test._run(*run_args)
+    retcode, stdout, stderr = await ops_test.run(*run_args)
     assert retcode == 0, f"Deploy failed: {(stderr or stdout).strip()}"
     log.info(stdout)
     await ops_test.model.wait_for_idle(apps=[alias], status=wait_for_status, timeout=60)
@@ -37,7 +37,7 @@ async def get_unit_address(ops_test, app_name: str, unit_num: int) -> str:
 
 
 async def update_status_freq(ops_test, interval: str = "10s"):
-    retcode, stdout, stderr = await ops_test._run(
+    retcode, stdout, stderr = await ops_test.run(
         "juju",
         "model-config",
         f"update-status-hook-interval={interval}",
