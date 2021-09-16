@@ -13,17 +13,6 @@ from git import Repo
 log = logging.getLogger(__name__)
 
 
-def listdir(path: str):
-    import pathlib
-
-    if pathlib.Path(path).is_file():
-        path = os.path.dirname(path)
-    try:
-        return os.listdir(path)
-    except FileNotFoundError as e:
-        return str(e)
-
-
 @pytest.mark.abort_on_fail
 async def test_clone_lma_bundle_and_run_its_tests(ops_test):
     charm_under_test = await ops_test.build_charm(".")
@@ -61,5 +50,4 @@ async def test_clone_lma_bundle_and_run_its_tests(ops_test):
 
             # `ops_test.run` creates a subprocess via asyncio.create_subprocess_exec
             retcode, stdout, stderr = await ops_test.run(*run_args)
-            log.info("After: %s", listdir(str(charm_under_test)))
             assert retcode == 0, f"Deploy failed: {(stderr or stdout).strip()}"
