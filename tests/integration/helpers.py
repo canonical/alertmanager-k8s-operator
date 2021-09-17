@@ -31,7 +31,6 @@ async def cli_deploy_and_wait(
 
 
 async def get_unit_address(ops_test, app_name: str, unit_num: int) -> str:
-    # return ops_test.model.applications[app_name].units[unit_num].data["private-address"]
     status = await ops_test.model.get_status()  # noqa: F821
     return status["applications"][app_name]["units"][f"{app_name}/{unit_num}"]["address"]
 

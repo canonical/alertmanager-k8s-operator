@@ -31,7 +31,9 @@ async def test_build_and_deploy(ops_test):
     """
     log.info("build charm from local source folder")
     local_charm = await ops_test.build_charm(".")
-    resources = {"alertmanager-image": "ubuntu/prometheus-alertmanager"}
+    resources = {
+        "alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]
+    }
 
     log.info("deploy stable charm from charmhub")
     await ops_test.model.deploy("ch:alertmanager-k8s", application_name=app_name)

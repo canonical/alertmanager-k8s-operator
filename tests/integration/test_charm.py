@@ -25,7 +25,9 @@ async def test_build_and_deploy(ops_test):
     """
     # build and deploy charm from local source folder
     charm_under_test = await ops_test.build_charm(".")
-    resources = {"alertmanager-image": "ubuntu/prometheus-alertmanager"}
+    resources = {
+        "alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]
+    }
     await ops_test.model.deploy(charm_under_test, resources=resources, application_name="am")
 
     # due to a juju bug, occasionally some charms finish a startup sequence with "waiting for IP
