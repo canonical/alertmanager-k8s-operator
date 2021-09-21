@@ -2,7 +2,6 @@
 # See LICENSE file for licensing details.
 
 name: alertmanager-k8s
-display-name: Alertmanager
 
 summary: |
   Kubernetes charm for Alertmanager.
