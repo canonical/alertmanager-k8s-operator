@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import get_unit_address, update_status_freq  # type: ignore[attr-defined]
+from helpers import get_unit_address  # type: ignore[attr-defined]
 
 log = logging.getLogger(__name__)
 
@@ -31,14 +31,15 @@ async def test_build_and_deploy(ops_test):
     await ops_test.model.deploy(charm_under_test, resources=resources, application_name="am")
 
     # due to a juju bug, occasionally some charms finish a startup sequence with "waiting for IP
-    # address" issuing dummy update_status just to trigger an event
-    await update_status_freq(ops_test, "10s")
+    # address"
+    # issuing dummy update_status just to trigger an event
+    await ops_test.model.set_config({"update-status-hook-interval": "10s"})
 
     await ops_test.model.wait_for_idle(apps=["am"], status="active")
     assert ops_test.model.applications["am"].units[0].workload_status == "active"
 
     # effectively disable the update status from firing
-    await update_status_freq(ops_test, "60m")
+    await ops_test.model.set_config({"update-status-hook-interval": "60m"})
 
 
 @pytest.mark.abort_on_fail
