@@ -58,7 +58,6 @@ async def clone_lma_bundle_and_run_its_tests(
             # `ops_test.run` creates a subprocess via asyncio.create_subprocess_exec
             retcode, stdout, stderr = await ops_test.run(*run_args)
             assert retcode == 0, f"Deploy failed: {(stderr or stdout).strip()}"
-            assert 5 == 7
 
 
 @pytest.mark.abort_on_fail
