@@ -37,7 +37,7 @@ async def test_build_and_deploy(ops_test):
 
     log.info("deploy stable charm from charmhub")
     await ops_test.model.deploy("ch:alertmanager-k8s", application_name=app_name)
-    await ops_test.model.wait_for_idle(apps=[app_name])
+    await ops_test.model.wait_for_idle(apps=[app_name], timeout=1000)
 
     log.info("upgrade deployed charm with local charm %s", local_charm)
     await ops_test.model.applications[app_name].refresh(path=local_charm, resources=resources)

@@ -35,7 +35,7 @@ async def test_build_and_deploy(ops_test):
     # issuing dummy update_status just to trigger an event
     await ops_test.model.set_config({"update-status-hook-interval": "10s"})
 
-    await ops_test.model.wait_for_idle(apps=["am"], status="active")
+    await ops_test.model.wait_for_idle(apps=["am"], status="active", timeout=1000)
     assert ops_test.model.applications["am"].units[0].workload_status == "active"
 
     # effectively disable the update status from firing
