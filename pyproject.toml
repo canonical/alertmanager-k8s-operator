@@ -59,5 +59,9 @@ allow_redefinition = true
 
 # Ignore libraries that do not have type hint nor stubs
 [[tool.mypy.overrides]]
-module = ["ops.*", "kubernetes.*", "flatten_json.*"]
+module = ["ops.*", "kubernetes.*", "flatten_json.*", "git.*"]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+log_cli_level = "INFO"

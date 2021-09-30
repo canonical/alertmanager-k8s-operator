@@ -3,7 +3,8 @@
 
 """# Alertmanager library.
 
-This library is designed to be used by a charm consuming or providing the `alerting` relation.
+This library is designed to be used by a charm consuming or providing the `alertmanager_dispatch`
+relation interface.
 
 This library is published as part of the
 [Alertmanager charm](https://charmhub.io/alertmanager-k8s).
