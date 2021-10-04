@@ -2,6 +2,8 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+"""Helper functions for writing tests."""
+
 from typing import Callable, Dict
 from unittest.mock import patch
 
