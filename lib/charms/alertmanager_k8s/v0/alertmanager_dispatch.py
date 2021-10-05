@@ -121,7 +121,7 @@ class AlertmanagerConsumer(RelationManagerBase):
 
     on = AlertmanagerConsumerEvents()
 
-    def __init__(self, charm: CharmBase, relation_name: str):
+    def __init__(self, charm: CharmBase, relation_name: str = "alerting"):
         super().__init__(charm, relation_name)
         self.charm = charm
 
@@ -202,7 +202,7 @@ class AlertmanagerProvider(RelationManagerBase):
             charm (CharmBase): the Alertmanager charm
     """
 
-    def __init__(self, charm, relation_name: str, api_port: int = 9093):
+    def __init__(self, charm, relation_name: str = "alerting", api_port: int = 9093):
         super().__init__(charm, relation_name)
         self.charm = charm
 
