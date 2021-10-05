@@ -24,12 +24,12 @@ class SomeApplication(CharmBase):
     # ...
 ```
 """
-
+import abc
 import logging
 from typing import List
 
 import ops
-from ops.charm import CharmBase, RelationEvent, RelationJoinedEvent
+from ops.charm import CharmBase, RelationEvent, RelationJoinedEvent, RelationRole
 from ops.framework import EventBase, EventSource, Object, ObjectEvents
 from ops.model import Relation
 
@@ -60,7 +60,16 @@ class AlertmanagerConsumerEvents(ObjectEvents):
     cluster_changed = EventSource(ClusterChanged)
 
 
-class RelationManagerBase(Object):
+class ObjectMeta(abc.ABCMeta, type(Object)):
+    """Create a meta class that combines ABC and the Object meta class.
+
+    https://stackoverflow.com/a/64750313/3516684
+    http://www.phyast.pitt.edu/~micheles/python/metatype.html
+    """
+    pass
+
+
+class RelationManagerBase(abc.ABC, Object, metaclass=ObjectMeta):
     """Base class that represents relation ends ("provides" and "requires").
 
     :class:`RelationManagerBase` is used to create a relation manager. This is done by inheriting
@@ -70,9 +79,15 @@ class RelationManagerBase(Object):
         name (str): consumer's relation name
     """
 
-    def __init__(self, charm: CharmBase, relation_name):
+    def __init__(self, charm: CharmBase, relation_name: str):
         super().__init__(charm, relation_name)
+        self.charm = charm
+        self._validate_relation_name(relation_name)
         self.name = relation_name
+
+    @abc.abstractmethod
+    def _validate_relation_name(self, relation_name: str):
+        ...
 
 
 class AlertmanagerConsumer(RelationManagerBase):
@@ -123,7 +138,6 @@ class AlertmanagerConsumer(RelationManagerBase):
 
     def __init__(self, charm: CharmBase, relation_name: str = "alerting"):
         super().__init__(charm, relation_name)
-        self.charm = charm
 
         self.framework.observe(
             self.charm.on[self.name].relation_changed, self._on_relation_changed
@@ -133,6 +147,13 @@ class AlertmanagerConsumer(RelationManagerBase):
             self._on_relation_departed,
         )
         self.framework.observe(self.charm.on[self.name].relation_broken, self._on_relation_broken)
+
+    def _validate_relation_name(self, relation_name: str):
+        try:
+            if self.charm.meta.relations[relation_name].role != RelationRole.requires:
+                raise ValueError(f"Invalid role for relation: {relation_name}; must be 'requires'")
+        except KeyError:
+            raise ValueError(f"Invalid relation name: {self.name}")
 
     def _on_relation_changed(self, event: ops.charm.RelationChangedEvent):
         """This hook notifies the charm that there may have been changes to the cluster."""
@@ -204,7 +225,6 @@ class AlertmanagerProvider(RelationManagerBase):
 
     def __init__(self, charm, relation_name: str = "alerting", api_port: int = 9093):
         super().__init__(charm, relation_name)
-        self.charm = charm
 
         self._api_port = api_port
 
@@ -213,6 +233,13 @@ class AlertmanagerProvider(RelationManagerBase):
         # No need to observe `relation_departed` or `relation_broken`: data bags are auto-updated
         # so both events are address on the consumer side.
         self.framework.observe(events.relation_joined, self._on_relation_joined)
+
+    def _validate_relation_name(self, relation_name: str):
+        try:
+            if self.charm.meta.relations[relation_name].role != RelationRole.provides:
+                raise ValueError(f"Invalid role for relation: {relation_name}; must be 'provides'")
+        except KeyError:
+            raise ValueError(f"Invalid relation name: {self.name}")
 
     @property
     def api_port(self):
