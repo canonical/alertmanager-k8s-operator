@@ -24,7 +24,6 @@ class SomeApplication(CharmBase):
     # ...
 ```
 """
-import abc
 import logging
 from typing import List
 
@@ -60,16 +59,7 @@ class AlertmanagerConsumerEvents(ObjectEvents):
     cluster_changed = EventSource(ClusterChanged)
 
 
-class ObjectMeta(abc.ABCMeta, type(Object)):
-    """Create a meta class that combines ABC and the Object meta class.
-
-    https://stackoverflow.com/a/64750313/3516684
-    http://www.phyast.pitt.edu/~micheles/python/metatype.html
-    """
-    pass
-
-
-class RelationManagerBase(abc.ABC, Object, metaclass=ObjectMeta):
+class RelationManagerBase(Object):
     """Base class that represents relation ends ("provides" and "requires").
 
     :class:`RelationManagerBase` is used to create a relation manager. This is done by inheriting
@@ -79,15 +69,20 @@ class RelationManagerBase(abc.ABC, Object, metaclass=ObjectMeta):
         name (str): consumer's relation name
     """
 
-    def __init__(self, charm: CharmBase, relation_name: str):
+    def __init__(self, charm: CharmBase, relation_name: str, relation_role: RelationRole):
         super().__init__(charm, relation_name)
         self.charm = charm
-        self._validate_relation_name(relation_name)
+        self._validate_relation(relation_name, relation_role)
         self.name = relation_name
 
-    @abc.abstractmethod
-    def _validate_relation_name(self, relation_name: str):
-        ...
+    def _validate_relation(self, relation_name: str, relation_role: RelationRole):
+        try:
+            if self.charm.meta.relations[relation_name].role != relation_role:
+                raise ValueError(
+                    f"Invalid role for relation: {relation_name}; must be '{relation_role}'"
+                )
+        except KeyError:
+            raise ValueError(f"Invalid relation name: {relation_name}")
 
 
 class AlertmanagerConsumer(RelationManagerBase):
@@ -137,7 +132,7 @@ class AlertmanagerConsumer(RelationManagerBase):
     on = AlertmanagerConsumerEvents()
 
     def __init__(self, charm: CharmBase, relation_name: str = "alerting"):
-        super().__init__(charm, relation_name)
+        super().__init__(charm, relation_name, RelationRole.requires)
 
         self.framework.observe(
             self.charm.on[self.name].relation_changed, self._on_relation_changed
@@ -147,13 +142,6 @@ class AlertmanagerConsumer(RelationManagerBase):
             self._on_relation_departed,
         )
         self.framework.observe(self.charm.on[self.name].relation_broken, self._on_relation_broken)
-
-    def _validate_relation_name(self, relation_name: str):
-        try:
-            if self.charm.meta.relations[relation_name].role != RelationRole.requires:
-                raise ValueError(f"Invalid role for relation: {relation_name}; must be 'requires'")
-        except KeyError:
-            raise ValueError(f"Invalid relation name: {self.name}")
 
     def _on_relation_changed(self, event: ops.charm.RelationChangedEvent):
         """This hook notifies the charm that there may have been changes to the cluster."""
@@ -224,7 +212,7 @@ class AlertmanagerProvider(RelationManagerBase):
     """
 
     def __init__(self, charm, relation_name: str = "alerting", api_port: int = 9093):
-        super().__init__(charm, relation_name)
+        super().__init__(charm, relation_name, RelationRole.provides)
 
         self._api_port = api_port
 
@@ -233,13 +221,6 @@ class AlertmanagerProvider(RelationManagerBase):
         # No need to observe `relation_departed` or `relation_broken`: data bags are auto-updated
         # so both events are address on the consumer side.
         self.framework.observe(events.relation_joined, self._on_relation_joined)
-
-    def _validate_relation_name(self, relation_name: str):
-        try:
-            if self.charm.meta.relations[relation_name].role != RelationRole.provides:
-                raise ValueError(f"Invalid role for relation: {relation_name}; must be 'provides'")
-        except KeyError:
-            raise ValueError(f"Invalid relation name: {self.name}")
 
     @property
     def api_port(self):
