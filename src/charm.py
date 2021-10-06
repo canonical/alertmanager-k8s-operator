@@ -11,7 +11,6 @@ from typing import List, Optional
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
-from flatten_json import unflatten
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -19,7 +18,6 @@ from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Relation
 from ops.pebble import Layer, PathError, ProtocolError
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
-from config import PagerdutyConfig, PushoverConfig, WebhookConfig
 from kubernetes_service import K8sServicePatch, PatchFailed
 
 logger = logging.getLogger(__name__)
@@ -237,38 +235,34 @@ class AlertmanagerCharm(CharmBase):
         Returns:
           True if unchanged, or if changed successfully; False otherwise
         """
-        # Cannot use a period ('.') as a separator because of a mongo/juju issue:
-        # https://github.com/canonical/operator/issues/585
-        unflattened_config = unflatten(dict(self.config), "::")
-
-        # Only one receiver is supported at the moment; prioritizing pagerduty.
-        # If none are valid, populating with a dummy, otherwise alertmanager won't start.
-        receiver = (
-            PagerdutyConfig.from_dict(unflattened_config["pagerduty"])
-            or PushoverConfig.from_dict(unflattened_config["pushover"])
-            or WebhookConfig.from_dict(unflattened_config["webhook"])
-            or WebhookConfig.from_dict({"url": "http://127.0.0.1:5001/"})  # dummy
-        )
-
-        config = {
+        # if no config provided, use default config with a dummy receiver
+        config = yaml.safe_load(self.config["config_file"]) or {
             "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
             "route": {
-                "group_by": ["juju_application", "juju_model", "juju_model_uuid"],
                 "group_wait": "30s",
                 "group_interval": "5m",
                 "repeat_interval": "1h",
-                "receiver": receiver["name"],
+                "receiver": "dummy",
             },
-            "receivers": [receiver],
+            "receivers": [
+                {"name": "dummy", "webhook_configs": [{"url": "http://127.0.0.1:5001/"}]}
+            ],
         }
+
+        # add juju topology to "group_by"
+        route = config.get("route", {})
+        route["group_by"] = list(
+            set(route.get("group_by", [])).union(
+                ["juju_application", "juju_model", "juju_model_uuid"]
+            )
+        )
+        config["route"] = route
 
         config_yaml = yaml.safe_dump(config)
         config_hash = sha256(config_yaml)
 
         logger.debug(
-            "recevier: %s - %s",
-            receiver["name"],
-            "changed" if config_hash != self._stored.config_hash else "no change",
+            "config changed" if config_hash != self._stored.config_hash else "no change",
         )
 
         success = True

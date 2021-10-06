@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 import ops
+import yaml
 from helpers import PushPullMock, patch_network_get, tautology
 from ops.testing import Harness
 
@@ -103,21 +104,36 @@ class TestWithInitialHooks(unittest.TestCase):
         )
 
     @patch("ops.testing._TestingPebbleClient.get_system_info")
-    def test_pagerduty_config(self, *unused):
+    def test_user_provided_config_without_group_by(self, *unused):
         with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
             self.harness.container_pebble_ready(self.container_name)
 
-            for key in ["secret_service_key_42", "a_different_key_this_time"]:
-                with self.subTest(key=key):
-                    self.harness.update_config({"pagerduty::service_key": key})
-                    self.assertIn(
-                        "service_key: {}".format(key),
-                        self.push_pull_mock.pull(self.harness.charm._config_path),
-                    )
+            new_config = yaml.dump({"not a real config": "but good enough for testing"})
+            self.harness.update_config({"config_file": new_config})
+            updated_config = yaml.safe_load(
+                self.push_pull_mock.pull(self.harness.charm._config_path)
+            )
 
-            self.harness.update_config({"pagerduty::service_key": ""})
-            self.assertNotIn(
-                "pagerduty_configs", self.push_pull_mock.pull(self.harness.charm._config_path)
+            self.assertEqual(updated_config["not a real config"], "but good enough for testing")
+            self.assertListEqual(
+                sorted(updated_config["route"]["group_by"]),
+                sorted(["juju_model", "juju_application", "juju_model_uuid"]),
+            )
+
+    @patch("ops.testing._TestingPebbleClient.get_system_info")
+    def test_user_provided_config_with_group_by(self, *unused):
+        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
+            self.harness.container_pebble_ready(self.container_name)
+
+            new_config = yaml.dump({"route": {"group_by": ["alertname", "juju_model"]}})
+            self.harness.update_config({"config_file": new_config})
+            updated_config = yaml.safe_load(
+                self.push_pull_mock.pull(self.harness.charm._config_path)
+            )
+
+            self.assertListEqual(
+                sorted(updated_config["route"]["group_by"]),
+                sorted(["alertname", "juju_model", "juju_application", "juju_model_uuid"]),
             )
 
 
