@@ -79,10 +79,12 @@ class RelationManagerBase(Object):
         try:
             if self.charm.meta.relations[relation_name].role != relation_role:
                 raise ValueError(
-                    f"Invalid role for relation: {relation_name}; must be '{relation_role}'"
+                    f"Relation {relation_name} in the charm's metadata.yaml must be "
+                    f"'{relation_role}' to be managed by this library, but instead it is "
+                    f"{self.charm.meta.relations[relation_name].role}"
                 )
         except KeyError:
-            raise ValueError(f"Invalid relation name: {relation_name}")
+            raise ValueError(f"Relation '{relation_name}' is not in the charm's metadata.yaml")
 
 
 class AlertmanagerConsumer(RelationManagerBase):
