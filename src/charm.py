@@ -52,7 +52,9 @@ class AlertmanagerCharm(CharmBase):
     _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
 
     # path, inside the workload container, to the alertmanager and amtool configuration files
+    # the amalgamated templates file goes in the same folder as the main configuration file
     _config_path = "/etc/alertmanager/alertmanager.yml"
+    _templates_path = "/etc/alertmanager/templates.tmpl"
     _amtool_config_path = "/etc/amtool/config.yml"
 
     # path, inside the workload container for alertmanager data, e.g. 'nflogs', 'silences'.
@@ -265,6 +267,11 @@ class AlertmanagerCharm(CharmBase):
             raise ConfigUpdateFailure(
                 "Invalid config file: use charm's 'templates' config option instead"
             )
+
+        # add templates, if any
+        if templates := self.config["templates_file"]:
+            config["templates"] = [f"'{self._templates_path}'"]
+            self.container.push(self._templates_path, templates, make_dirs=True)
 
         # add juju topology to "group_by"
         route = config.get("route", {})

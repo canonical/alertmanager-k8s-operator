@@ -20,12 +20,14 @@ a relation with it.
 ## Usage
 ```shell
 juju deploy alertmanager-k8s
-juju config alertmanager-k8s config_file='@path/to/alertmanager.yml'
+juju config alertmanager-k8s \
+  config_file='@path/to/alertmanager.yml' \
+  templates_file='@path/to/templates.tmpl'
 ```
 
 ### Configuration
 
-Currently, supported options are:
+See [config.yaml](config.yaml) for the full details.
 
 #### `config_file`
 Use this option to pass your own alertmanager configuration file:
@@ -40,7 +42,25 @@ or after deployment:
 `juju config alertmanager-k8s config_file='@path/to/alertmanager.yml'`
 ```
 
-See [config.yaml](config.yaml) for additional details.
+Refer to the
+[official documentation](https://www.prometheus.io/docs/alerting/latest/configuration/)
+for full details.
+
+Note that the configuration file must not have a `templates` section. Instead,
+you should use the `templates_file` config option.
+This is a slight deviation from the official alertmanager config spec.
+
+#### `templates_file`
+Use this option to push templates that are being used by the configuration
+file.
+
+All templates need to go into this single config option, instead of
+the 'templates' section of the main configuration file. The templates will be
+pushed to the workload container, and the configuration file will be updated
+accordingly.
+Refer to the
+[official documentation](https://prometheus.io/docs/alerting/latest/notification_examples/)
+for more details on templates.
 
 ### Actions
 - `show-config`: Show alertmanager config file.

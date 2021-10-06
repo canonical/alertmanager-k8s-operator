@@ -135,7 +135,8 @@ For local deployment, this charms was tested with the following images:
 ```shell
 juju deploy ./alertmanager-k8s.charm \
   --resource alertmanager-image=ubuntu/prometheus-alertmanager \
-  --config config_file='@path/to/alertmanager.yml'
+  --config config_file='@path/to/alertmanager.yml' \
+  --config templates_file='@path/to/templates.tmpl'
 ```
 
 Alternatively you may deploy Alertmanger without a config file, in which case
@@ -144,10 +145,10 @@ A configuration file can be provided later:
 
 ```shell
 juju deploy ./alertmanager-k8s.charm \
-  --resource alertmanager-image=quay.io/prometheus/alertmanager
+  --resource alertmanager-image=ubuntu/prometheus-alertmanager
 
 # Later on, update configuration with:
-juju config alertmanager-k8s config_file='@path/to/alertmanager.yml'
+juju config alertmanager-k8s config_file='@path/to/alertmanager.yml'  # etc.
 ```
 
 Finally, add a relation between Prometheus and Alertmanager:

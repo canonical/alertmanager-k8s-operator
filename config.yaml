@@ -5,6 +5,16 @@ options:
   config_file:
     type: string
     description: >
-      Alertmanager configuration file (yaml).
+      Alertmanager configuration file (yaml), with the exclusion of the templates section.
       Refer to https://www.prometheus.io/docs/alerting/latest/configuration/ for full details.
+    default: ""
+  templates_file:
+    type: string
+    description: >
+      Alertmanager templates definition file. This is a slight deviation from the official
+      alertmanager config spec. All templates need to go into this single config option, instead of
+      the 'templates' section of the main configuration file. The templates will be pushed to the
+      workload container, and the configuration file will be updated accordingly.
+      Refer to https://prometheus.io/docs/alerting/latest/notification_examples/ for more details
+      on templates.
     default: ""

@@ -10,8 +10,8 @@ from unittest.mock import patch
 import ops
 import yaml
 from helpers import PushPullMock, patch_network_get, tautology
-from ops.testing import Harness
 from ops.model import ActiveStatus, BlockedStatus
+from ops.testing import Harness
 
 from charm import Alertmanager, AlertmanagerCharm
 
@@ -149,6 +149,23 @@ class TestWithInitialHooks(unittest.TestCase):
             new_config = yaml.dump({})
             self.harness.update_config({"config_file": new_config})
             self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
+
+    @patch("ops.testing._TestingPebbleClient.get_system_info")
+    def test_templates_section_added_if_user_provided_templates(self, *unused):
+        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
+            self.harness.container_pebble_ready(self.container_name)
+
+            templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
+            self.harness.update_config({"templates_file": templates})
+            updated_templates = self.push_pull_mock.pull(self.harness.charm._templates_path)
+            self.assertEqual(templates, updated_templates)
+
+            updated_config = yaml.safe_load(
+                self.push_pull_mock.pull(self.harness.charm._config_path)
+            )
+            self.assertEqual(
+                updated_config["templates"], [f"'{self.harness.charm._templates_path}'"]
+            )
 
 
 @patch_network_get(private_address="1.1.1.1")
