@@ -9,6 +9,7 @@ import logging
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +34,21 @@ class Alertmanager:
           True if reload succeeded (returned 200 OK); False otherwise.
         """
         url = urllib.parse.urljoin(self.base_url, "/-/reload")
-        return bool(self._get(url, timeout=self.timeout))
+        if resp := self._post(url, timeout=self.timeout):
+            logger.warning("reload: POST returned a non-empty response: %s", resp)
+            return False
+        return True
 
     @staticmethod
-    def _get(url: str, timeout: float) -> str:
+    def _post(url: str, timeout: float) -> bytes:
+        return Alertmanager._open(url, b"", timeout)
+
+    @staticmethod
+    def _get(url: str, timeout: float) -> bytes:
+        return Alertmanager._open(url, None, timeout)
+
+    @staticmethod
+    def _open(url: str, data: Optional[bytes], timeout: float) -> bytes:
         """Send a GET request with a timeout.
 
         Args:
@@ -47,7 +59,7 @@ class Alertmanager:
             AlertmanagerBadResponse: If no response or invalid response, regardless the reason.
         """
         try:
-            response = urllib.request.urlopen(url, data=None, timeout=timeout)
+            response = urllib.request.urlopen(url, data, timeout)
             if response.code == 200 and response.reason == "OK":
                 return response.read()
             raise AlertmanagerBadResponse(
