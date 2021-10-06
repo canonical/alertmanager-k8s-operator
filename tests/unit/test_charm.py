@@ -11,6 +11,7 @@ import ops
 import yaml
 from helpers import PushPullMock, patch_network_get, tautology
 from ops.testing import Harness
+from ops.model import ActiveStatus, BlockedStatus
 
 from charm import Alertmanager, AlertmanagerCharm
 
@@ -104,7 +105,7 @@ class TestWithInitialHooks(unittest.TestCase):
         )
 
     @patch("ops.testing._TestingPebbleClient.get_system_info")
-    def test_user_provided_config_without_group_by(self, *unused):
+    def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
         with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
             self.harness.container_pebble_ready(self.container_name)
 
@@ -121,7 +122,7 @@ class TestWithInitialHooks(unittest.TestCase):
             )
 
     @patch("ops.testing._TestingPebbleClient.get_system_info")
-    def test_user_provided_config_with_group_by(self, *unused):
+    def test_topology_added_if_user_provided_config_with_group_by(self, *unused):
         with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
             self.harness.container_pebble_ready(self.container_name)
 
@@ -135,6 +136,19 @@ class TestWithInitialHooks(unittest.TestCase):
                 sorted(updated_config["route"]["group_by"]),
                 sorted(["alertname", "juju_model", "juju_application", "juju_model_uuid"]),
             )
+
+    @patch("ops.testing._TestingPebbleClient.get_system_info")
+    def test_charm_blocks_if_user_provided_config_with_templates(self, *unused):
+        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
+            self.harness.container_pebble_ready(self.container_name)
+
+            new_config = yaml.dump({"templates": ["/what/ever/*.tmpl"]})
+            self.harness.update_config({"config_file": new_config})
+            self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
+
+            new_config = yaml.dump({})
+            self.harness.update_config({"config_file": new_config})
+            self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
 
 
 @patch_network_get(private_address="1.1.1.1")

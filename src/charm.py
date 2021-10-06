@@ -30,6 +30,10 @@ def sha256(hashable) -> str:
     return hashlib.sha256(hashable).hexdigest()
 
 
+class ConfigUpdateFailure(RuntimeError):
+    """Custom exception for failed config updates."""
+
+
 class AlertmanagerCharm(CharmBase):
     """A Juju charm for alertmanager.
 
@@ -226,15 +230,19 @@ class AlertmanagerCharm(CharmBase):
 
         return False
 
-    def _update_config(self) -> bool:
+    def _update_config(self) -> None:
         """Update alertmanager.yml config file to reflect changes in configuration.
 
         After pushing a new config, a hot-reload is attempted. If hot-reload fails, the service is
         restarted.
 
-        Returns:
-          True if unchanged, or if changed successfully; False otherwise
+        Raises:
+          ConfigUpdateFailure, if failed to update configuration file.
         """
+        # update amtool config file
+        amtool_config = yaml.safe_dump({"alertmanager.url": f"http://localhost:{self.api_port}"})
+        self.container.push(self._amtool_config_path, amtool_config, make_dirs=True)
+
         # if no config provided, use default config with a dummy receiver
         config = yaml.safe_load(self.config["config_file"]) or {
             "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
@@ -248,6 +256,15 @@ class AlertmanagerCharm(CharmBase):
                 {"name": "dummy", "webhook_configs": [{"url": "http://127.0.0.1:5001/"}]}
             ],
         }
+
+        if "templates" in config:
+            logger.error(
+                "alertmanager config file must not have a 'templates' section; "
+                "use the 'templates' config option instead."
+            )
+            raise ConfigUpdateFailure(
+                "Invalid config file: use charm's 'templates' config option instead"
+            )
 
         # add juju topology to "group_by"
         route = config.get("route", {})
@@ -265,7 +282,6 @@ class AlertmanagerCharm(CharmBase):
             "config changed" if config_hash != self._stored.config_hash else "no change",
         )
 
-        success = True
         if config_hash != self._stored.config_hash:
             self.container.push(self._config_path, config_yaml)
 
@@ -277,14 +293,12 @@ class AlertmanagerCharm(CharmBase):
             except AlertmanagerBadResponse as e:
                 logger.warning("config reload via HTTP POST failed: %s", str(e))
                 # hot-reload failed so attempting a service restart
-                if success := self._restart_service():
+                if self._restart_service():
                     self._stored.config_hash = config_hash
-
-        # update amtool config file
-        amtool_config = yaml.safe_dump({"alertmanager.url": f"http://localhost:{self.api_port}"})
-        self.container.push(self._amtool_config_path, amtool_config, make_dirs=True)
-
-        return success
+                else:
+                    raise ConfigUpdateFailure(
+                        "Is config valid? hot reload and service restart failed."
+                    )
 
     @property
     def api_address(self):
@@ -344,8 +358,10 @@ class AlertmanagerCharm(CharmBase):
             self._restart_service()
 
         # Update config file
-        if not self._update_config():
-            self.unit.status = BlockedStatus("Config update failed. Is config valid?")
+        try:
+            self._update_config()
+        except ConfigUpdateFailure as e:
+            self.unit.status = BlockedStatus(str(e))
             return
 
         self.unit.status = ActiveStatus()
