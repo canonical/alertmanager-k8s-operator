@@ -69,6 +69,8 @@ class RelationManagerBase(Object):
         name (str): consumer's relation name
     """
 
+    INTERFACE_NAME = "alertmanager_dispatch"  # this is set to match metadata.yaml
+
     def __init__(self, charm: CharmBase, relation_name: str, relation_role: RelationRole):
         super().__init__(charm, relation_name)
         self.charm = charm
@@ -79,9 +81,15 @@ class RelationManagerBase(Object):
         try:
             if self.charm.meta.relations[relation_name].role != relation_role:
                 raise ValueError(
-                    f"Relation {relation_name} in the charm's metadata.yaml must be "
+                    f"Relation '{relation_name}' in the charm's metadata.yaml must be "
                     f"'{relation_role}' to be managed by this library, but instead it is "
-                    f"{self.charm.meta.relations[relation_name].role}"
+                    f"'{self.charm.meta.relations[relation_name].role}'"
+                )
+            if self.charm.meta.relations[relation_name].interface_name != self.INTERFACE_NAME:
+                raise ValueError(
+                    f"Relation '{relation_name}' in the charm's metadata.yaml must use the "
+                    f"'{self.INTERFACE_NAME}' interface to be managed by this library, but "
+                    f"instead it is '{self.charm.meta.relations[relation_name].interface_name}'"
                 )
         except KeyError:
             raise ValueError(f"Relation '{relation_name}' is not in the charm's metadata.yaml")
