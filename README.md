@@ -20,18 +20,25 @@ a relation with it.
 ## Usage
 ```shell
 juju deploy alertmanager-k8s
-juju config alertmanager-k8s pagerduty::service_key=your_key
+juju config alertmanager-k8s config_file='@path/to/alertmanager.yml'
 ```
 
 ### Configuration
 
-Currently, supported receivers are:
-  - [PagerDuty](https://www.pagerduty.com/) (set up with:
-    `juju config alertmanager-k8s pagerduty::service_key='your-key'`)
-  - [Pushover](https://pushover.net/) (set up with:
-    `juju config alertmanager-k8s pushover::user_key=your_key pushover::token=your_token`)
-  - [Webhook](https://www.prometheus.io/docs/alerting/latest/configuration/#webhook_config)
-    (set up with: `juju config alertmanager-k8s webhook::url=http://your.url`)
+Currently, supported options are:
+
+#### `config_file`
+Use this option to pass your own alertmanager configuration file:
+
+```shell
+juju deploy alertmanager-k8s --config config_file='@path/to/alertmanager.yml'
+```
+
+or after deployment:
+
+```shell
+`juju config alertmanager-k8s config_file='@path/to/alertmanager.yml'`
+```
 
 See [config.yaml](config.yaml) for additional details.
 
