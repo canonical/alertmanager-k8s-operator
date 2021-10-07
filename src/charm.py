@@ -232,6 +232,21 @@ class AlertmanagerCharm(CharmBase):
 
         return False
 
+    @property
+    def _default_config(self) -> dict:
+        return {
+            "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
+            "route": {
+                "group_wait": "30s",
+                "group_interval": "5m",
+                "repeat_interval": "1h",
+                "receiver": "dummy",
+            },
+            "receivers": [
+                {"name": "dummy", "webhook_configs": [{"url": "http://127.0.0.1:5001/"}]}
+            ],
+        }
+
     def _update_config(self) -> None:
         """Update alertmanager.yml config file to reflect changes in configuration.
 
@@ -246,18 +261,7 @@ class AlertmanagerCharm(CharmBase):
         self.container.push(self._amtool_config_path, amtool_config, make_dirs=True)
 
         # if no config provided, use default config with a dummy receiver
-        config = yaml.safe_load(self.config["config_file"]) or {
-            "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
-            "route": {
-                "group_wait": "30s",
-                "group_interval": "5m",
-                "repeat_interval": "1h",
-                "receiver": "dummy",
-            },
-            "receivers": [
-                {"name": "dummy", "webhook_configs": [{"url": "http://127.0.0.1:5001/"}]}
-            ],
-        }
+        config = yaml.safe_load(self.config["config_file"]) or self._default_config
 
         if "templates" in config:
             logger.error(
