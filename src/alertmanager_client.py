@@ -40,19 +40,29 @@ class Alertmanager:
         return True
 
     @staticmethod
-    def _post(url: str, timeout: float) -> bytes:
-        return Alertmanager._open(url, b"", timeout)
+    def _post(url: str, timeout: float, data=b"") -> bytes:
+        """Send a POST request.
+
+        For an empty POST request, the `data` arg must be b"" to tell urlopen it's a POST and not a
+        GET.
+        """
+        return Alertmanager._open(url, data, timeout)
 
     @staticmethod
-    def _get(url: str, timeout: float) -> bytes:
-        return Alertmanager._open(url, None, timeout)
+    def _get(url: str, timeout: float, data=None) -> bytes:
+        """Send a GET request.
+
+        The `data` arg must be None to tell urlopen it's a GET.
+        """
+        return Alertmanager._open(url, data, timeout)
 
     @staticmethod
     def _open(url: str, data: Optional[bytes], timeout: float) -> bytes:
-        """Send a GET request with a timeout.
+        """Send a request using urlopen.
 
         Args:
-            url: target url to GET from
+            url: target url for the request
+            data: bytes to send to target
             timeout: duration in seconds after which to return, regardless the result
 
         Raises:
