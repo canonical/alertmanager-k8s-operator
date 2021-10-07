@@ -6,6 +6,7 @@
 
 import json
 import logging
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -34,10 +35,20 @@ class Alertmanager:
           True if reload succeeded (returned 200 OK); False otherwise.
         """
         url = urllib.parse.urljoin(self.base_url, "/-/reload")
-        if resp := self._post(url, timeout=self.timeout):
-            logger.warning("reload: POST returned a non-empty response: %s", resp)
-            return False
-        return True
+        for retry in reversed(range(3)):
+            try:
+                if resp := self._post(url, timeout=self.timeout):
+                    logger.warning("reload: POST returned a non-empty response: %s", resp)
+                    return False
+                return True
+            except AlertmanagerBadResponse as e:
+                if retry == 0:
+                    raise AlertmanagerBadResponse("Retry failed") from e
+                else:
+                    time.sleep(0.2)
+                    continue
+
+        assert False, "unreachable"  # help mypy (https://github.com/python/mypy/issues/8964)
 
     @staticmethod
     def _post(url: str, timeout: float, data=b"") -> bytes:
