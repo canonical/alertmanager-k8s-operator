@@ -39,6 +39,8 @@ def tautology(*args, **kwargs) -> bool:
 
 
 class PushPullMock:
+    """Helper class for mocking filesystem operations."""
+
     def __init__(self):
         self._filesystem: Dict[str, str] = {}
 
