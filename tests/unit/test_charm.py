@@ -57,12 +57,12 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.set_leader(True)
 
         network_get_patch = patch_network_get(private_address="1.1.1.1")
-        api_get_patch = patch(
-            "charm.Alertmanager._get",
+        api_open_patch = patch(
+            "charm.Alertmanager._open",
             lambda *a, **kw: json.dumps({"versionInfo": {"version": "0.1.2"}}),
         )
 
-        with network_get_patch, api_get_patch:  # type: ignore[attr-defined]
+        with network_get_patch, api_open_patch:  # type: ignore[attr-defined]
             # TODO why the context is needed if we already have a class-level patch?
             self.harness.begin_with_initial_hooks()
 
@@ -187,9 +187,9 @@ class TestWithoutInitialHooks(unittest.TestCase):
         self.harness.set_leader(True)
 
         network_get_patch = patch_network_get(private_address="1.1.1.1")
-        api_get_patch = patch("charm.Alertmanager._get", lambda *a, **kw: None)
+        api_open_patch = patch("charm.Alertmanager._open", lambda *a, **kw: None)
 
-        with network_get_patch, api_get_patch:  # type: ignore[attr-defined]
+        with network_get_patch, api_open_patch:  # type: ignore[attr-defined]
             self.harness.begin()
             self.harness.add_relation("replicas", "alertmanager")
 
