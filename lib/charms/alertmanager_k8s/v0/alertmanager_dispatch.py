@@ -42,6 +42,9 @@ LIBAPI = 0
 # to 0 if you are raising the major API version
 LIBPATCH = 1
 
+# Set to match metadata.yaml
+INTERFACE_NAME = "alertmanager_dispatch"
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,8 +72,6 @@ class RelationManagerBase(Object):
         name (str): consumer's relation name
     """
 
-    INTERFACE_NAME = "alertmanager_dispatch"  # this is set to match metadata.yaml
-
     def __init__(self, charm: CharmBase, relation_name: str, relation_role: RelationRole):
         super().__init__(charm, relation_name)
         self.charm = charm
@@ -85,10 +86,10 @@ class RelationManagerBase(Object):
                     f"'{relation_role}' to be managed by this library, but instead it is "
                     f"'{self.charm.meta.relations[relation_name].role}'"
                 )
-            if self.charm.meta.relations[relation_name].interface_name != self.INTERFACE_NAME:
+            if self.charm.meta.relations[relation_name].interface_name != INTERFACE_NAME:
                 raise ValueError(
                     f"Relation '{relation_name}' in the charm's metadata.yaml must use the "
-                    f"'{self.INTERFACE_NAME}' interface to be managed by this library, but "
+                    f"'{INTERFACE_NAME}' interface to be managed by this library, but "
                     f"instead it is '{self.charm.meta.relations[relation_name].interface_name}'"
                 )
         except KeyError:
