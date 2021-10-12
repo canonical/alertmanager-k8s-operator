@@ -130,23 +130,25 @@ For local deployment, this charms was tested with the following images:
 - [`ubuntu/prometheus-alertmanager`](https://hub.docker.com/r/ubuntu/prometheus-alertmanager)
 - [`quay.io/prometheus/alertmanager`](https://quay.io/repository/prometheus/alertmanager?tab=tags)
 
-### Deploy Alertmanager with PagerDuty configuration
+### Deploy Alertmanager with custom configuration
 
 ```shell
 juju deploy ./alertmanager-k8s.charm \
   --resource alertmanager-image=ubuntu/prometheus-alertmanager \
-  --config pagerduty_key='your-key'
+  --config config_file='@path/to/alertmanager.yml' \
+  --config templates_file='@path/to/templates.tmpl'
 ```
 
-Alternatively you may deploy Alertmanger without a PagerDuty key to let it enter the
-blocked state, and provide a key later on to unblock Alertmanager:
+Alternatively you may deploy Alertmanger without a config file, in which case
+a default configuration with a dummy receiver would be loaded.
+A configuration file can be provided later:
 
 ```shell
 juju deploy ./alertmanager-k8s.charm \
-  --resource alertmanager-image=quay.io/prometheus/alertmanager
+  --resource alertmanager-image=ubuntu/prometheus-alertmanager
 
-# Later on, unblock with:
-# juju config alertmanager-k8s pagerduty::service_key='your-key'
+# Later on, update configuration with:
+juju config alertmanager-k8s config_file='@path/to/alertmanager.yml'  # etc.
 ```
 
 Finally, add a relation between Prometheus and Alertmanager:

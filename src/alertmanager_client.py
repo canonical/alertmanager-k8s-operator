@@ -6,9 +6,11 @@
 
 import json
 import logging
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -33,28 +35,41 @@ class Alertmanager:
           True if reload succeeded (returned 200 OK); False otherwise.
         """
         url = urllib.parse.urljoin(self.base_url, "/-/reload")
-        return bool(self._get(url, timeout=self.timeout))
+        # for an empty POST request, the `data` arg must be b"" to tell urlopen it's a POST
+        if resp := self._open(url, data=b"", timeout=self.timeout):
+            logger.warning("reload: POST returned a non-empty response: %s", resp)
+            return False
+        return True
 
     @staticmethod
-    def _get(url: str, timeout: float) -> str:
-        """Send a GET request with a timeout.
+    def _open(url: str, data: Optional[bytes], timeout: float) -> bytes:
+        """Send a request using urlopen.
 
         Args:
-            url: target url to GET from
+            url: target url for the request
+            data: bytes to send to target
             timeout: duration in seconds after which to return, regardless the result
 
         Raises:
             AlertmanagerBadResponse: If no response or invalid response, regardless the reason.
         """
-        try:
-            response = urllib.request.urlopen(url, data=None, timeout=timeout)
-            if response.code == 200 and response.reason == "OK":
-                return response.read()
-            raise AlertmanagerBadResponse(
-                f"Bad response (code={response.code}, reason={response.reason})"
-            )
-        except (ValueError, urllib.error.HTTPError, urllib.error.URLError) as e:
-            raise AlertmanagerBadResponse("Bad response") from e
+        for retry in reversed(range(3)):
+            try:
+                response = urllib.request.urlopen(url, data, timeout)
+                if response.code == 200 and response.reason == "OK":
+                    return response.read()
+                elif retry == 0:
+                    raise AlertmanagerBadResponse(
+                        f"Bad response (code={response.code}, reason={response.reason})"
+                    )
+
+            except (ValueError, urllib.error.HTTPError, urllib.error.URLError) as e:
+                if retry == 0:
+                    raise AlertmanagerBadResponse("Bad response") from e
+
+            time.sleep(0.2)
+
+        assert False, "unreachable"  # help mypy (https://github.com/python/mypy/issues/8964)
 
     def status(self) -> dict:
         """Obtain status information from the alertmanager server.
@@ -81,7 +96,8 @@ class Alertmanager:
         """
         url = urllib.parse.urljoin(self.base_url, "/api/v2/status")
         try:
-            return json.loads(self._get(url, timeout=self.timeout))
+            # the `data` arg must be None to tell urlopen it's a GET
+            return json.loads(self._open(url, data=None, timeout=self.timeout))
         except (TypeError, json.decoder.JSONDecodeError) as e:
             raise AlertmanagerBadResponse("Response is not a JSON string") from e
 
