@@ -3,5 +3,5 @@
 
 git+https://github.com/canonical/operator/#egg=ops
 PyYAML
-kubernetes
+lightkube
 flatten_json

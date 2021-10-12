@@ -2,7 +2,6 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import json
 import textwrap
 import unittest
 from unittest.mock import patch
@@ -35,14 +34,14 @@ alertmanager_default_config = textwrap.dedent(
 )
 
 
-@patch_network_get(private_address="1.1.1.1")
-@patch.object(Alertmanager, "reload", tautology)
 class TestWithInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
-    @patch.object(AlertmanagerCharm, "_patch_k8s_service", lambda *a, **kw: None)
+    @patch_network_get(private_address="1.1.1.1")
+    @patch.object(Alertmanager, "reload", tautology)
     @patch("ops.testing._TestingPebbleClient.push")
     @patch("ops.testing._TestingPebbleClient.get_system_info")
+    @patch("charm.KubernetesServicePatch", lambda x, y: None)
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
@@ -54,15 +53,7 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.add_relation_unit(self.relation_id, "otherapp/0")
         self.harness.set_leader(True)
 
-        network_get_patch = patch_network_get(private_address="1.1.1.1")
-        api_get_patch = patch(
-            "charm.Alertmanager._get",
-            lambda *a, **kw: json.dumps({"versionInfo": {"version": "0.1.2"}}),
-        )
-
-        with network_get_patch, api_get_patch:  # type: ignore[attr-defined]
-            # TODO why the context is needed if we already have a class-level patch?
-            self.harness.begin_with_initial_hooks()
+        self.harness.begin_with_initial_hooks()
 
     def test_num_peers(self):
         self.assertEqual(0, len(self.harness.charm.peer_relation.units))
@@ -122,12 +113,12 @@ class TestWithInitialHooks(unittest.TestCase):
 
 
 @patch_network_get(private_address="1.1.1.1")
-@patch.object(Alertmanager, "reload", tautology)
 class TestWithoutInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
-    @patch.object(AlertmanagerCharm, "_patch_k8s_service", lambda *a, **kw: None)
+    @patch.object(Alertmanager, "reload", tautology)
     @patch("ops.testing._TestingPebbleClient.push")
+    @patch("charm.KubernetesServicePatch", lambda x, y: None)
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
@@ -139,12 +130,8 @@ class TestWithoutInitialHooks(unittest.TestCase):
         self.harness.add_relation_unit(self.relation_id, "otherapp/0")
         self.harness.set_leader(True)
 
-        network_get_patch = patch_network_get(private_address="1.1.1.1")
-        api_get_patch = patch("charm.Alertmanager._get", lambda *a, **kw: None)
-
-        with network_get_patch, api_get_patch:  # type: ignore[attr-defined]
-            self.harness.begin()
-            self.harness.add_relation("replicas", "alertmanager")
+        self.harness.begin()
+        self.harness.add_relation("replicas", "alertmanager")
 
     @patch("ops.testing._TestingPebbleClient.get_system_info")
     def test_unit_status_around_pebble_ready(self, *unused):

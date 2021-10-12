@@ -11,6 +11,7 @@ from typing import List, Optional
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
+from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from flatten_json import unflatten
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
@@ -20,7 +21,6 @@ from ops.pebble import Layer, PathError, ProtocolError
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from config import PagerdutyConfig, PushoverConfig, WebhookConfig
-from kubernetes_service import K8sServicePatch, PatchFailed
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +68,17 @@ class AlertmanagerCharm(CharmBase):
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
 
+        self.service_patcher = KubernetesServicePatch(
+            self,
+            [
+                (f"{self.app.name}", self._api_port, self._api_port),
+                (f"{self.app.name}-ha", self._ha_port, self._ha_port),
+            ],
+        )
+
         self.container = self.unit.get_container(self._container_name)
 
         # Core lifecycle events
-        self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
         self.framework.observe(self.on.start, self._on_start)
@@ -297,20 +304,6 @@ class AlertmanagerCharm(CharmBase):
         """Returns the API address (including scheme and port) of the alertmanager server."""
         return f"http://{self.private_address}:{self.api_port}"
 
-    def _patch_k8s_service(self):
-        """Fix the Kubernetes service that was setup by Juju with correct port numbers."""
-        if self.unit.is_leader():
-            service_ports = [
-                (f"{self.app.name}", self.api_port, self.api_port),
-                (f"{self.app.name}-ha", self._ha_port, self._ha_port),
-            ]
-            try:
-                K8sServicePatch.set_ports(self.app.name, service_ports)
-            except PatchFailed as e:
-                logger.error("Unable to patch the Kubernetes service: %s", str(e))
-            else:
-                logger.info("Successfully patched the Kubernetes service")
-
     def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self.container.can_connect():
@@ -373,10 +366,6 @@ class AlertmanagerCharm(CharmBase):
         """
         self._common_exit_hook()
 
-    def _on_install(self, _):
-        """Event handler for InstallEvent during which we will update the K8s service."""
-        self._patch_k8s_service()
-
     def _on_peer_relation_joined(self, _):
         """Event handler for replica's RelationChangedEvent."""
         self._common_exit_hook()
@@ -415,9 +404,6 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_upgrade_charm(self, _):
         """Event handler for replica's UpgradeCharmEvent."""
-        # Ensure that older deployments of Alertmanager run the logic to patch the K8s service
-        self._patch_k8s_service()
-
         # update config hash
         self._stored.config_hash = (
             ""
