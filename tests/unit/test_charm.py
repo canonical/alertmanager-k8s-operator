@@ -55,15 +55,6 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.add_relation_unit(self.relation_id, "otherapp/0")
         self.harness.set_leader(True)
 
-        # network_get_patch = patch_network_get(private_address="1.1.1.1")
-        # api_open_patch = patch(
-        #     "charm.Alertmanager._open",
-        #     lambda *a, **kw: json.dumps({"versionInfo": {"version": "0.1.2"}}),
-        # )
-
-        # with network_get_patch, api_open_patch:  # type: ignore[attr-defined]
-        # TODO why the context is needed if we already have a class-level patch?
-
         self.harness.begin_with_initial_hooks()
 
     def test_num_peers(self):
