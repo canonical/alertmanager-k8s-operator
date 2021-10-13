@@ -2,34 +2,19 @@
 # See LICENSE file for licensing details.
 
 options:
-  # pagerduty config
-  pagerduty::send_resolved:
-    type: boolean
-    description: Whether or not to notify about resolved alerts (default = true).
-    default: true
-  pagerduty::service_key:
+  config_file:
     type: string
-    description: The PagerDuty integration key (when using PagerDuty integration type `Prometheus`).
+    description: >
+      Alertmanager configuration file (yaml), with the exclusion of the templates section.
+      Refer to https://www.prometheus.io/docs/alerting/latest/configuration/ for full details.
     default: ""
-  # pushover config
-  pushover::send_resolved:
-    type: boolean
-    description: Whether or not to notify about resolved alerts (default = true).
-    default: true
-  pushover::user_key:
+  templates_file:
     type: string
-    description: The recipient user's user key.
-    default: ""
-  pushover::token:
-    type: string
-    description: Your registered application's API token, see https://pushover.net/apps
-    default: ""
-  # webhook config
-  webhook::send_resolved:
-    type: boolean
-    description: Whether or not to notify about resolved alerts (default = true).
-    default: true
-  webhook::url:
-    type: string
-    description: The endpoint to send HTTP POST requests to.
+    description: >
+      Alertmanager templates definition file. This is a slight deviation from the official
+      alertmanager config spec. All templates need to go into this single config option, instead of
+      the 'templates' section of the main configuration file. The templates will be pushed to the
+      workload container, and the configuration file will be updated accordingly.
+      Refer to https://prometheus.io/docs/alerting/latest/notification_examples/ for more details
+      on templates.
     default: ""

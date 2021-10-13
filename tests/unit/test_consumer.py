@@ -12,7 +12,7 @@ from ops.testing import Harness
 
 
 class DummyConsumerCharm(CharmBase):
-    """Mimick bare functionality of AlertmanagerCharm needed to test the consumer."""
+    """Mimic bare functionality of AlertmanagerCharm needed to test the consumer."""
 
     # define custom metadata - without this the harness would parse the metadata.yaml in this repo,
     # which would result in expressions like self.harness.model.app.name to return

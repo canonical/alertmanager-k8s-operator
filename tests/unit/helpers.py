@@ -2,6 +2,8 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+"""Helper functions for writing tests."""
+
 from typing import Callable, Dict
 from unittest.mock import patch
 
@@ -37,6 +39,8 @@ def tautology(*args, **kwargs) -> bool:
 
 
 class PushPullMock:
+    """Helper class for mocking filesystem operations."""
+
     def __init__(self):
         self._filesystem: Dict[str, str] = {}
 

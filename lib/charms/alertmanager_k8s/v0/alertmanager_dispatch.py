@@ -24,12 +24,11 @@ class SomeApplication(CharmBase):
     # ...
 ```
 """
-
 import logging
 from typing import List
 
 import ops
-from ops.charm import CharmBase, RelationEvent, RelationJoinedEvent
+from ops.charm import CharmBase, RelationEvent, RelationJoinedEvent, RelationRole
 from ops.framework import EventBase, EventSource, Object, ObjectEvents
 from ops.model import Relation
 
@@ -42,6 +41,9 @@ LIBAPI = 0
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
 LIBPATCH = 1
+
+# Set to match metadata.yaml
+INTERFACE_NAME = "alertmanager_dispatch"
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +72,28 @@ class RelationManagerBase(Object):
         name (str): consumer's relation name
     """
 
-    def __init__(self, charm: CharmBase, relation_name):
+    def __init__(self, charm: CharmBase, relation_name: str, relation_role: RelationRole):
         super().__init__(charm, relation_name)
+        self.charm = charm
+        self._validate_relation(relation_name, relation_role)
         self.name = relation_name
+
+    def _validate_relation(self, relation_name: str, relation_role: RelationRole):
+        try:
+            if self.charm.meta.relations[relation_name].role != relation_role:
+                raise ValueError(
+                    f"Relation '{relation_name}' in the charm's metadata.yaml must be "
+                    f"'{relation_role}' to be managed by this library, but instead it is "
+                    f"'{self.charm.meta.relations[relation_name].role}'"
+                )
+            if self.charm.meta.relations[relation_name].interface_name != INTERFACE_NAME:
+                raise ValueError(
+                    f"Relation '{relation_name}' in the charm's metadata.yaml must use the "
+                    f"'{INTERFACE_NAME}' interface to be managed by this library, but "
+                    f"instead it is '{self.charm.meta.relations[relation_name].interface_name}'"
+                )
+        except KeyError:
+            raise ValueError(f"Relation '{relation_name}' is not in the charm's metadata.yaml")
 
 
 class AlertmanagerConsumer(RelationManagerBase):
@@ -121,9 +142,8 @@ class AlertmanagerConsumer(RelationManagerBase):
 
     on = AlertmanagerConsumerEvents()
 
-    def __init__(self, charm: CharmBase, relation_name: str):
-        super().__init__(charm, relation_name)
-        self.charm = charm
+    def __init__(self, charm: CharmBase, relation_name: str = "alerting"):
+        super().__init__(charm, relation_name, RelationRole.requires)
 
         self.framework.observe(
             self.charm.on[self.name].relation_changed, self._on_relation_changed
@@ -202,9 +222,8 @@ class AlertmanagerProvider(RelationManagerBase):
             charm (CharmBase): the Alertmanager charm
     """
 
-    def __init__(self, charm, relation_name: str, api_port: int = 9093):
-        super().__init__(charm, relation_name)
-        self.charm = charm
+    def __init__(self, charm, relation_name: str = "alerting", api_port: int = 9093):
+        super().__init__(charm, relation_name, RelationRole.provides)
 
         self._api_port = api_port
 

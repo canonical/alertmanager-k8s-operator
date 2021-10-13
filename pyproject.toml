@@ -1,12 +1,5 @@
-[project]
-name = "alertmanager-operator"
-description = "Kubernetes charm for Alertmanager"
-license = "Apache 2.0"
-python = "^3.8"
-readme = "README.md"
-homepage = "https://charmhub.io/alertmanager-k8s"
-repository = "https://github.com/canonical/alertmanager-operator"
-documentation = "https://charmhub.io/alertmanager-k8s/docs"
+# Copyright 2021 Canonical Ltd.
+# See LICENSE file for licensing details.
 
 # Testing tools configuration
 [tool.coverage.run]
@@ -59,7 +52,7 @@ allow_redefinition = true
 
 # Ignore libraries that do not have type hint nor stubs
 [[tool.mypy.overrides]]
-module = ["ops.*", "lightkube.*", "flatten_json.*", "git.*"]
+module = ["ops.*", "lightkube.*", "git.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

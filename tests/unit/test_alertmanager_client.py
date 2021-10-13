@@ -21,7 +21,7 @@ class TestAlertmanagerAPIClient(unittest.TestCase):
         urlopen_mock.return_value.code = 200
         urlopen_mock.return_value.reason = "OK"
 
-        self.assertTrue(self.api.reload())
+        self.api.reload()
         urlopen_mock.assert_called()
 
     @patch("alertmanager_client.urllib.request.urlopen")

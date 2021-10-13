@@ -7,7 +7,9 @@ import unittest
 from unittest.mock import patch
 
 import ops
+import yaml
 from helpers import PushPullMock, patch_network_get, tautology
+from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
 from charm import Alertmanager, AlertmanagerCharm
@@ -53,6 +55,15 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.add_relation_unit(self.relation_id, "otherapp/0")
         self.harness.set_leader(True)
 
+        # network_get_patch = patch_network_get(private_address="1.1.1.1")
+        # api_open_patch = patch(
+        #     "charm.Alertmanager._open",
+        #     lambda *a, **kw: json.dumps({"versionInfo": {"version": "0.1.2"}}),
+        # )
+
+        # with network_get_patch, api_open_patch:  # type: ignore[attr-defined]
+        # TODO why the context is needed if we already have a class-level patch?
+
         self.harness.begin_with_initial_hooks()
 
     def test_num_peers(self):
@@ -94,21 +105,66 @@ class TestWithInitialHooks(unittest.TestCase):
         )
 
     @patch("ops.testing._TestingPebbleClient.get_system_info")
-    def test_pagerduty_config(self, *unused):
+    def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
         with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
             self.harness.container_pebble_ready(self.container_name)
 
-            for key in ["secret_service_key_42", "a_different_key_this_time"]:
-                with self.subTest(key=key):
-                    self.harness.update_config({"pagerduty::service_key": key})
-                    self.assertIn(
-                        "service_key: {}".format(key),
-                        self.push_pull_mock.pull(self.harness.charm._config_path),
-                    )
+            new_config = yaml.dump({"not a real config": "but good enough for testing"})
+            self.harness.update_config({"config_file": new_config})
+            updated_config = yaml.safe_load(
+                self.push_pull_mock.pull(self.harness.charm._config_path)
+            )
 
-            self.harness.update_config({"pagerduty::service_key": ""})
-            self.assertNotIn(
-                "pagerduty_configs", self.push_pull_mock.pull(self.harness.charm._config_path)
+            self.assertEqual(updated_config["not a real config"], "but good enough for testing")
+            self.assertListEqual(
+                sorted(updated_config["route"]["group_by"]),
+                sorted(["juju_model", "juju_application", "juju_model_uuid"]),
+            )
+
+    @patch("ops.testing._TestingPebbleClient.get_system_info")
+    def test_topology_added_if_user_provided_config_with_group_by(self, *unused):
+        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
+            self.harness.container_pebble_ready(self.container_name)
+
+            new_config = yaml.dump({"route": {"group_by": ["alertname", "juju_model"]}})
+            self.harness.update_config({"config_file": new_config})
+            updated_config = yaml.safe_load(
+                self.push_pull_mock.pull(self.harness.charm._config_path)
+            )
+
+            self.assertListEqual(
+                sorted(updated_config["route"]["group_by"]),
+                sorted(["alertname", "juju_model", "juju_application", "juju_model_uuid"]),
+            )
+
+    @patch("ops.testing._TestingPebbleClient.get_system_info")
+    def test_charm_blocks_if_user_provided_config_with_templates(self, *unused):
+        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
+            self.harness.container_pebble_ready(self.container_name)
+
+            new_config = yaml.dump({"templates": ["/what/ever/*.tmpl"]})
+            self.harness.update_config({"config_file": new_config})
+            self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
+
+            new_config = yaml.dump({})
+            self.harness.update_config({"config_file": new_config})
+            self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
+
+    @patch("ops.testing._TestingPebbleClient.get_system_info")
+    def test_templates_section_added_if_user_provided_templates(self, *unused):
+        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
+            self.harness.container_pebble_ready(self.container_name)
+
+            templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
+            self.harness.update_config({"templates_file": templates})
+            updated_templates = self.push_pull_mock.pull(self.harness.charm._templates_path)
+            self.assertEqual(templates, updated_templates)
+
+            updated_config = yaml.safe_load(
+                self.push_pull_mock.pull(self.harness.charm._config_path)
+            )
+            self.assertEqual(
+                updated_config["templates"], [f"'{self.harness.charm._templates_path}'"]
             )
 
 

@@ -4,4 +4,4 @@
 git+https://github.com/canonical/operator/#egg=ops
 PyYAML
 lightkube
-flatten_json
+lightkube-models
