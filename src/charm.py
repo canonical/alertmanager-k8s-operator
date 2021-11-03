@@ -119,10 +119,11 @@ class AlertmanagerCharm(CharmBase):
         return self._api_port
 
     @property
-    def peer_relation(self) -> Optional[Relation]:
+    def peer_relation(self) -> Relation:
         """Helper function for obtaining the peer relation object.
 
-        Returns: peer relation object; returns None if called too early, e.g. during install.
+        Returns: peer relation object
+        (NOTE: would return None if called too early, e.g. during install).
         """
         return self.model.get_relation(self._peer_relation_name)
 
