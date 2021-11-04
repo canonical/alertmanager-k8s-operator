@@ -85,7 +85,11 @@ class TestWithInitialHooks(unittest.TestCase):
         self.assertTrue(service.is_running())
 
     def test_relation_data_provides_public_address(self):
-        rel = self.harness.charm.framework.model.get_relation("alerting", self.relation_id)
+        # to suppress mypy error: Item "None" of "Optional[Any]" has no attribute "get_relation"
+        model = self.harness.charm.framework.model
+        assert model is not None
+
+        rel = model.get_relation("alerting", self.relation_id)
         expected_address = "1.1.1.1:{}".format(self.harness.charm.alertmanager_provider.api_port)
         self.assertEqual({"public_address": expected_address}, rel.data[self.harness.charm.unit])
 

@@ -57,10 +57,12 @@ pip install --upgrade -r requirements.txt
 
 ### Testing
 ```shell
-tox -e prettify  # update your code according to linting rules
-tox -e lint      # code style
-tox -e static    # static analysis
-tox -e unit      # unit tests
+tox -e fmt              # update your code according to linting rules
+tox -e lint             # code style
+tox -e static           # static analysis
+tox -e unit             # unit tests
+tox -e integration      # integration tests
+tox -e integration-lma  # integration tests for the lma-light bundle
 ```
 
 tox creates virtual environment for every tox environment defined in
