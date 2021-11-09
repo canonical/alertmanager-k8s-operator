@@ -73,10 +73,11 @@ source .tox/unit/bin/activate
 ```
 
 #### Manual testing
-Alerts can be created using [`amtool`](https://manpages.debian.org/testing/prometheus-alertmanager/amtool.1.en.html),
+Alerts can be created using 
+[`amtool`](https://manpages.debian.org/testing/prometheus-alertmanager/amtool.1.en.html),
 
 ```shell
-amtool alert add alertname=oops service="my-service" severety=warning \
+amtool alert add alertname=oops service="my-service" severity=warning \
     instance="oops.example.net" --annotation=summary="High latency is high!" \
     --generator-url="http://prometheus.int.example.net"
 ```
