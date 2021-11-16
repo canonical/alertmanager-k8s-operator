@@ -27,7 +27,7 @@ resources:
   alertmanager-image:
     type: oci-image
     description: OCI image for alertmanager
-    upstream-source: ubuntu/prometheus-alertmanager@sha256:30489547ce93a38e3cb3c76d102886e12a72145727f08ff690d2da0db697313d
+    upstream-source: ubuntu/prometheus-alertmanager:0.21-20.04_beta
 provides:
   alerting:
     # The provider (alertmanager) adds the following key-value pair to the relation data bag of
