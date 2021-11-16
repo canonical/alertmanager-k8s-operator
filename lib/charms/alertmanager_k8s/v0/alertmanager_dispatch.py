@@ -40,7 +40,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 2
 
 # Set to match metadata.yaml
 INTERFACE_NAME = "alertmanager_dispatch"
@@ -82,18 +82,26 @@ class RelationManagerBase(Object):
         try:
             if self.charm.meta.relations[relation_name].role != relation_role:
                 raise ValueError(
-                    f"Relation '{relation_name}' in the charm's metadata.yaml must be "
-                    f"'{relation_role}' to be managed by this library, but instead it is "
-                    f"'{self.charm.meta.relations[relation_name].role}'"
+                    "Relation '{}' in the charm's metadata.yaml must be '{}' "
+                    "to be managed by this library, but instead it is '{}'".format(
+                        relation_name,
+                        relation_role,
+                        self.charm.meta.relations[relation_name].role,
+                    )
                 )
             if self.charm.meta.relations[relation_name].interface_name != INTERFACE_NAME:
                 raise ValueError(
-                    f"Relation '{relation_name}' in the charm's metadata.yaml must use the "
-                    f"'{INTERFACE_NAME}' interface to be managed by this library, but "
-                    f"instead it is '{self.charm.meta.relations[relation_name].interface_name}'"
+                    "Relation '{}' in the charm's metadata.yaml must use the '{}' interface "
+                    "to be managed by this library, but instead it is '{}'".format(
+                        relation_name,
+                        INTERFACE_NAME,
+                        self.charm.meta.relations[relation_name].interface_name,
+                    )
                 )
         except KeyError:
-            raise ValueError(f"Relation '{relation_name}' is not in the charm's metadata.yaml")
+            raise ValueError(
+                "Relation '{}' is not in the charm's metadata.yaml".format(relation_name)
+            )
 
 
 class AlertmanagerConsumer(RelationManagerBase):
@@ -162,7 +170,7 @@ class AlertmanagerConsumer(RelationManagerBase):
 
     def get_cluster_info(self) -> List[str]:
         """Returns a list of ip addresses of all the alertmanager units."""
-        alertmanagers: List[str] = []
+        alertmanagers = []  # type: List[str]
         if not (relation := self.charm.model.get_relation(self.name)):
             return alertmanagers
         for unit in relation.units:
@@ -248,8 +256,8 @@ class AlertmanagerProvider(RelationManagerBase):
 
     def _generate_relation_data(self, relation: Relation):
         """Helper function to generate relation data in the correct format."""
-        public_address = (
-            f"{self.charm.model.get_binding(relation).network.bind_address}:{self.api_port}"
+        public_address = "{}:{}".format(
+            self.charm.model.get_binding(relation).network.bind_address, self.api_port
         )
         return {"public_address": public_address}
 
