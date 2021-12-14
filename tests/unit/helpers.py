@@ -4,7 +4,7 @@
 
 """Helper functions for writing tests."""
 
-from typing import Callable, Dict
+from typing import Callable
 from unittest.mock import patch
 
 
@@ -36,22 +36,3 @@ def no_op(*args, **kwargs) -> None:
 
 def tautology(*args, **kwargs) -> bool:
     return True
-
-
-class PushPullMock:
-    """Helper class for mocking filesystem operations."""
-
-    def __init__(self):
-        self._filesystem: Dict[str, str] = {}
-
-    def pull(self, path: str, *args, **kwargs) -> str:
-        return self._filesystem.get(path, "")
-
-    def push(self, path: str, source: str, *args, **kwargs) -> None:
-        self._filesystem[path] = source
-
-    def patch_push(self) -> Callable:
-        return patch("ops.testing._TestingPebbleClient.push", self.push)
-
-    def patch_pull(self) -> Callable:
-        return patch("ops.testing._TestingPebbleClient.pull", self.pull)

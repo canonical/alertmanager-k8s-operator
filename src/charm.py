@@ -302,7 +302,7 @@ class AlertmanagerCharm(CharmBase):
         )
 
         if config_hash != self._stored.config_hash:
-            self.container.push(self._config_path, config_yaml)
+            self.container.push(self._config_path, config_yaml, make_dirs=True)
 
             # Send an HTTP POST to alertmanager to hot-reload the config.
             # This reduces down-time compared to restarting the service.
