@@ -39,12 +39,12 @@ class TestAlertmanagerAPIClient(unittest.TestCase):
             import urllib.error
 
             raise urllib.error.HTTPError(
-                url="mock://url", 
-                code=500, 
-                msg="mock msg", 
+                url="mock://url",
+                code=500,
+                msg="mock msg",
                 hdrs={"mock hdr": "mock smth"},  # type: ignore[arg-type]
-                fp=None
-            )  
+                fp=None,
+            )
 
         with patch("alertmanager_client.urllib.request.urlopen", mock_connection_error):
             self.assertRaises(AlertmanagerBadResponse, self.api.reload)
