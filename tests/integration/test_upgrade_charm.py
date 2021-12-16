@@ -18,10 +18,6 @@ METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 # app_name = "am"
 app_name = METADATA["name"]
 
-pytestmark = pytest.mark.skip(
-    "upgrade charm does not work yet: add_local_charm keeps erroring out with 'ConnectionResetError: [Errno 104] Connection reset by peer'"
-)
-
 
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy(ops_test):
@@ -35,13 +31,26 @@ async def test_build_and_deploy(ops_test):
         "alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]
     }
 
-    log.info("deploy stable charm from charmhub")
-    await ops_test.model.deploy("ch:alertmanager-k8s", application_name=app_name)
+    log.info("deploy charm from charmhub")
+    await ops_test.model.deploy("ch:alertmanager-k8s", application_name=app_name, channel="edge")
     await ops_test.model.wait_for_idle(apps=[app_name], timeout=1000)
 
     log.info("upgrade deployed charm with local charm %s", local_charm)
-    await ops_test.model.applications[app_name].refresh(path=local_charm, resources=resources)
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active")
+    #await ops_test.model.applications[app_name].refresh(path=local_charm, resources=resources)
+    async def cli_upgrade_from_path_and_wait(
+        path: str, alias: str, wait_for_status: str = None
+    ):
+        retcode, stdout, stderr = await ops_test._run(
+            "juju",
+            "refresh",
+            "--path",
+            path,
+            alias,
+        )
+        assert retcode == 0, f"Upgrade failed: {(stderr or stdout).strip()}"
+        log.info(stdout)
+        await ops_test.model.wait_for_idle(apps=[alias], status=wait_for_status, timeout=120)
+    await cli_upgrade_from_path_and_wait(path=local_charm, alias=app_name, wait_for_status="active")
 
 
 @pytest.mark.abort_on_fail
