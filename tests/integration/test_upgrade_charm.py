@@ -45,7 +45,8 @@ async def test_build_and_deploy(ops_test):
             "--path",
             path,
             alias,
-            f"--resource alertmanager-image={resources['alertmanager-image']}",
+            "--resource",
+            f"alertmanager-image={resources['alertmanager-image']}",
         )
         assert retcode == 0, f"Upgrade failed: {(stderr or stdout).strip()}"
         log.info(stdout)
