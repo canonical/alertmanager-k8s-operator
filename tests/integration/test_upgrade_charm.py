@@ -36,21 +36,24 @@ async def test_build_and_deploy(ops_test):
     await ops_test.model.wait_for_idle(apps=[app_name], timeout=1000)
 
     log.info("upgrade deployed charm with local charm %s", local_charm)
-    #await ops_test.model.applications[app_name].refresh(path=local_charm, resources=resources)
-    async def cli_upgrade_from_path_and_wait(
-        path: str, alias: str, wait_for_status: str = None
-    ):
+    # await ops_test.model.applications[app_name].refresh(path=local_charm, resources=resources)
+
+    async def cli_upgrade_from_path_and_wait(path: str, alias: str, wait_for_status: str = None):
         retcode, stdout, stderr = await ops_test._run(
             "juju",
             "refresh",
             "--path",
             path,
             alias,
+            f"--resource alertmanager-image={resources['alertmanager-image']}",
         )
         assert retcode == 0, f"Upgrade failed: {(stderr or stdout).strip()}"
         log.info(stdout)
         await ops_test.model.wait_for_idle(apps=[alias], status=wait_for_status, timeout=120)
-    await cli_upgrade_from_path_and_wait(path=local_charm, alias=app_name, wait_for_status="active")
+
+    await cli_upgrade_from_path_and_wait(
+        path=local_charm, alias=app_name, wait_for_status="active"
+    )
 
 
 @pytest.mark.abort_on_fail
