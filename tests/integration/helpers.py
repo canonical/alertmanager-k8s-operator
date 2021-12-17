@@ -61,7 +61,8 @@ class IPAddressWorkaround:
     """Context manager for deploying a charm that needs to have its IP address.
 
     Due to a juju bug, occasionally some charms finish a startup sequence without
-    having an ip address return by `bind_address`.
+    having an ip address returned by `bind_address`.
+    https://bugs.launchpad.net/juju/+bug/1929364
     Issuing dummy update_status just to trigger an event, and then restore it.
     """
 
