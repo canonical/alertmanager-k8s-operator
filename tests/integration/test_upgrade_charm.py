@@ -33,9 +33,14 @@ async def test_build_and_deploy(ops_test, charm_under_test):
         "alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]
     }
 
+    # due to a juju bug, occasionally some charms finish a startup sequence with "waiting for IP
+    # address"
+    # issuing dummy update_status just to trigger an event
+    await ops_test.model.set_config({"update-status-hook-interval": "10s"})
+
     log.info("deploy charm from charmhub")
     await ops_test.model.deploy("ch:alertmanager-k8s", application_name=app_name, channel="edge")
-    await ops_test.model.wait_for_idle(apps=[app_name], timeout=1000)
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
 
     log.info("upgrade deployed charm with local charm %s", charm_under_test)
     # await ops_test.model.applications[app_name].refresh(path=local_charm, resources=resources)
@@ -47,6 +52,9 @@ async def test_build_and_deploy(ops_test, charm_under_test):
         resources=resources,
         wait_for_status="active",
     )
+
+    # effectively disable the update status from firing
+    await ops_test.model.set_config({"update-status-hook-interval": "60m"})
 
 
 @pytest.mark.abort_on_fail
