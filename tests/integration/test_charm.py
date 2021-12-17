@@ -18,13 +18,12 @@ METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 
 
 @pytest.mark.abort_on_fail
-async def test_build_and_deploy(ops_test):
+async def test_build_and_deploy(ops_test, charm_under_test):
     """Build the charm-under-test and deploy it together with related charms.
 
     Assert on the unit status before any relations/configurations take place.
     """
-    # build and deploy charm from local source folder
-    charm_under_test = await ops_test.build_charm(".")
+    # deploy charm from local source folder
     resources = {
         "alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]
     }
