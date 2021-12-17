@@ -10,7 +10,11 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import get_unit_address  # type: ignore[attr-defined]
+from helpers import (  # type: ignore[attr-defined]
+    IPAddressWorkaround,
+    cli_upgrade_from_path_and_wait,
+    get_unit_address,
+)
 
 log = logging.getLogger(__name__)
 
@@ -18,30 +22,37 @@ METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 # app_name = "am"
 app_name = METADATA["name"]
 
-pytestmark = pytest.mark.skip(
-    "upgrade charm does not work yet: add_local_charm keeps erroring out with 'ConnectionResetError: [Errno 104] Connection reset by peer'"
-)
-
 
 @pytest.mark.abort_on_fail
-async def test_build_and_deploy(ops_test):
+async def test_build_and_deploy(ops_test, charm_under_test):
     """Build the charm-under-test and deploy it together with related charms.
 
     Assert on the unit status before any relations/configurations take place.
     """
     log.info("build charm from local source folder")
-    local_charm = await ops_test.build_charm(".")
     resources = {
         "alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]
     }
 
-    log.info("deploy stable charm from charmhub")
-    await ops_test.model.deploy("ch:alertmanager-k8s", application_name=app_name)
-    await ops_test.model.wait_for_idle(apps=[app_name], timeout=1000)
+    async with IPAddressWorkaround(ops_test):
+        log.info("deploy charm from charmhub")
+        await ops_test.model.deploy(
+            "ch:alertmanager-k8s", application_name=app_name, channel="edge"
+        )
+        await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
 
-    log.info("upgrade deployed charm with local charm %s", local_charm)
-    await ops_test.model.applications[app_name].refresh(path=local_charm, resources=resources)
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active")
+        log.info("upgrade deployed charm with local charm %s", charm_under_test)
+        # await ops_test.model.applications[app_name].refresh(
+        #     path=local_charm, resources=resources
+        # )
+
+        await cli_upgrade_from_path_and_wait(
+            ops_test,
+            path=charm_under_test,
+            alias=app_name,
+            resources=resources,
+            wait_for_status="active",
+        )
 
 
 @pytest.mark.abort_on_fail
