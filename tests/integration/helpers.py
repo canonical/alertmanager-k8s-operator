@@ -3,6 +3,7 @@
 
 """Helper functions for writing tests."""
 
+import asyncio
 import logging
 from typing import Dict
 
@@ -79,3 +80,21 @@ class IPAddressWorkaround:
     async def __aexit__(self, exc_type, exc_value, exc_traceback):
         """On exit, the update status interval is reverted to its original value."""
         await self.ops_test.model.set_config({"update-status-hook-interval": self.revert_to})
+
+
+async def get_leader_unit_num(ops_test: OpsTest, app_name: str):
+    units = ops_test.model.applications[app_name].units
+    is_leader = [await units[i].is_leader_from_status() for i in range(len(units))]
+    log.info("Leaders: %s", is_leader)
+    return is_leader.index(True)
+
+
+async def block_until_leader_elected(ops_test: OpsTest, app_name: str):
+    async def is_leader_elected():
+        units = ops_test.model.applications[app_name].units
+        return any([await units[i].is_leader_from_status() for i in range(len(units))])
+
+    # await ops_test.model.block_until(is_leader_elected)
+    # block_until does not take async (yet?) https://github.com/juju/python-libjuju/issues/609
+    while not await is_leader_elected():
+        await asyncio.sleep(5)
