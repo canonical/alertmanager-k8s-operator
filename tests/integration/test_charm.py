@@ -3,18 +3,17 @@
 # See LICENSE file for licensing details.
 
 
-import json
 import logging
-import urllib.request
 from pathlib import Path
 
 import pytest
 import yaml
-from helpers import IPAddressWorkaround, get_unit_address  # type: ignore[attr-defined]
+from helpers import IPAddressWorkaround, is_alertmanager_up  # type: ignore[import]
 
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+app_name = METADATA["name"]
 resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
 
 
@@ -28,17 +27,7 @@ async def test_build_and_deploy(ops_test, charm_under_test):
     await ops_test.model.deploy(charm_under_test, resources=resources, application_name="am")
 
     async with IPAddressWorkaround(ops_test):
-        await ops_test.model.wait_for_idle(apps=["am"], status="active", timeout=1000)
+        await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
 
-    assert ops_test.model.applications["am"].units[0].workload_status == "active"
-
-
-@pytest.mark.abort_on_fail
-async def test_alertmanager_is_up(ops_test):
-    address = await get_unit_address(ops_test, "am", 0)
-    url = f"http://{address}:9093"
-    logger.info("am public address: %s", url)
-
-    response = urllib.request.urlopen(f"{url}/api/v2/status", data=None, timeout=2.0)
-    assert response.code == 200
-    assert "versionInfo" in json.loads(response.read())
+    assert ops_test.model.applications[app_name].units[0].workload_status == "active"
+    assert await is_alertmanager_up(ops_test, app_name)

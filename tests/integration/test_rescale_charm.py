@@ -11,18 +11,16 @@
 """
 
 
-import json
 import logging
-import urllib.request
 from pathlib import Path
 
 import pytest
 import yaml
-from helpers import (  # type: ignore[attr-defined]
+from helpers import (  # type: ignore[import]
     IPAddressWorkaround,
     block_until_leader_elected,
     get_leader_unit_num,
-    get_unit_address,
+    is_alertmanager_up,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,6 +63,7 @@ async def test_scale_down_to_single_unit_with_leadership_change(ops_test):
     await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=1000, wait_for_exact_units=1
     )
+    assert await is_alertmanager_up(ops_test, app_name)
 
 
 @pytest.mark.abort_on_fail
@@ -74,6 +73,7 @@ async def test_scale_up_from_single_unit(ops_test):
     await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=1000, wait_for_exact_units=3
     )
+    assert await is_alertmanager_up(ops_test, app_name)
 
 
 @pytest.mark.abort_on_fail
@@ -83,14 +83,4 @@ async def test_scale_down_to_single_unit_without_leadership_change(ops_test):
     await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=1000, wait_for_exact_units=1
     )
-
-
-@pytest.mark.abort_on_fail
-async def test_alertmanager_is_up(ops_test):
-    address = await get_unit_address(ops_test, app_name, 0)
-    url = f"http://{address}:9093"
-    logger.info("am public address: %s", url)
-
-    response = urllib.request.urlopen(f"{url}/api/v2/status", data=None, timeout=2.0)
-    assert response.code == 200
-    assert "versionInfo" in json.loads(response.read())
+    assert await is_alertmanager_up(ops_test, app_name)
