@@ -25,23 +25,20 @@ from helpers import (  # type: ignore[attr-defined]
     get_unit_address,
 )
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
-# app_name = "am"
 app_name = METADATA["name"]
+resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
 
 
 @pytest.mark.abort_on_fail
 async def test_deploy_multiple_units(ops_test, charm_under_test):
     """Deploy the charm-under-test."""
-    log.info("build charm from local source folder")
-    resources = {
-        "alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]
-    }
+    logger.info("build charm from local source folder")
 
     while True:
-        log.info("deploy charm")
+        logger.info("deploy charm")
         await ops_test.model.deploy(
             charm_under_test, application_name=app_name, resources=resources, num_units=10
         )
@@ -52,7 +49,7 @@ async def test_deploy_multiple_units(ops_test, charm_under_test):
 
         # we're unlucky: unit/0 is the leader, which means no scale down could trigger a
         # leadership change event - repeat
-        log.info("Elected leader is unit/0 - resetting and repeating")
+        logger.info("Elected leader is unit/0 - resetting and repeating")
         await ops_test.model.applications[app_name].remove()
         await ops_test.model.block_until(lambda: len(ops_test.model.applications) == 0)
         await ops_test.model.reset()
@@ -98,7 +95,7 @@ async def test_scale_down_to_single_unit_without_leadership_change(ops_test):
 async def test_alertmanager_is_up(ops_test):
     address = await get_unit_address(ops_test, app_name, 0)
     url = f"http://{address}:9093"
-    log.info("am public address: %s", url)
+    logger.info("am public address: %s", url)
 
     response = urllib.request.urlopen(f"{url}/api/v2/status", data=None, timeout=2.0)
     assert response.code == 200

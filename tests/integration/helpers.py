@@ -89,12 +89,13 @@ async def get_leader_unit_num(ops_test: OpsTest, app_name: str):
     return is_leader.index(True)
 
 
-async def block_until_leader_elected(ops_test: OpsTest, app_name: str):
-    async def is_leader_elected():
-        units = ops_test.model.applications[app_name].units
-        return any([await units[i].is_leader_from_status() for i in range(len(units))])
+async def is_leader_elected(ops_test, app_name):
+    units = ops_test.model.applications[app_name].units
+    return any([await units[i].is_leader_from_status() for i in range(len(units))])
 
+
+async def block_until_leader_elected(ops_test: OpsTest, app_name: str):
     # await ops_test.model.block_until(is_leader_elected)
     # block_until does not take async (yet?) https://github.com/juju/python-libjuju/issues/609
-    while not await is_leader_elected():
+    while not await is_leader_elected(ops_test, app_name):
         await asyncio.sleep(5)
