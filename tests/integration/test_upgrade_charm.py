@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import IPAddressWorkaround, is_alertmanager_up  # type: ignore[import]
+from helpers import IPAddressWorkaround, is_alertmanager_up
 
 logger = logging.getLogger(__name__)
 

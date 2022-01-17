@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import ops
 import yaml
-from helpers import patch_network_get, tautology  # type: ignore[import]
+from helpers import patch_network_get, tautology
 from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 

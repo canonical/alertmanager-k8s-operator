@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import (  # type: ignore[import]
+from helpers import (
     IPAddressWorkaround,
     block_until_leader_elected,
     get_leader_unit_num,
