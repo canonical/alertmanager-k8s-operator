@@ -4,12 +4,14 @@
 """Helper functions for writing tests."""
 
 import asyncio
+import json
 import logging
+import urllib.request
 from typing import Dict
 
 from pytest_operator.plugin import OpsTest
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 async def get_unit_address(ops_test: OpsTest, app_name: str, unit_num: int) -> str:
@@ -52,9 +54,9 @@ async def cli_upgrade_from_path_and_wait(
         *resource_args,
     ]
 
-    retcode, stdout, stderr = await ops_test._run(*cmd)
+    retcode, stdout, stderr = await ops_test.run(*cmd)
     assert retcode == 0, f"Upgrade failed: {(stderr or stdout).strip()}"
-    log.info(stdout)
+    logger.info(stdout)
     await ops_test.model.wait_for_idle(apps=[alias], status=wait_for_status, timeout=120)
 
 
@@ -85,11 +87,11 @@ class IPAddressWorkaround:
 async def get_leader_unit_num(ops_test: OpsTest, app_name: str):
     units = ops_test.model.applications[app_name].units
     is_leader = [await units[i].is_leader_from_status() for i in range(len(units))]
-    log.info("Leaders: %s", is_leader)
+    logger.info("Leaders: %s", is_leader)
     return is_leader.index(True)
 
 
-async def is_leader_elected(ops_test, app_name):
+async def is_leader_elected(ops_test: OpsTest, app_name: str):
     units = ops_test.model.applications[app_name].units
     return any([await units[i].is_leader_from_status() for i in range(len(units))])
 
@@ -99,3 +101,21 @@ async def block_until_leader_elected(ops_test: OpsTest, app_name: str):
     # block_until does not take async (yet?) https://github.com/juju/python-libjuju/issues/609
     while not await is_leader_elected(ops_test, app_name):
         await asyncio.sleep(5)
+
+
+async def is_alertmanage_unit_up(ops_test: OpsTest, app_name: str, unit_num: int):
+    address = await get_unit_address(ops_test, app_name, unit_num)
+    url = f"http://{address}:9093"
+    logger.info("am public address: %s", url)
+
+    response = urllib.request.urlopen(f"{url}/api/v2/status", data=None, timeout=2.0)
+    return response.code == 200 and "versionInfo" in json.loads(response.read())
+
+
+async def is_alertmanager_up(ops_test: OpsTest, app_name: str):
+    return all(
+        [
+            await is_alertmanage_unit_up(ops_test, app_name, unit_num)
+            for unit_num in range(len(ops_test.model.applications[app_name].units))
+        ]
+    )

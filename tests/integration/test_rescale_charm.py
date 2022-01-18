@@ -11,19 +11,18 @@
 """
 
 
-import json
 import logging
-import urllib.request
 from pathlib import Path
 
 import pytest
 import yaml
-from helpers import (  # type: ignore[attr-defined]
+from helpers import (
     IPAddressWorkaround,
     block_until_leader_elected,
     get_leader_unit_num,
-    get_unit_address,
+    is_alertmanager_up,
 )
+from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 
 
 @pytest.mark.abort_on_fail
-async def test_deploy_multiple_units(ops_test, charm_under_test):
+async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
     """Deploy the charm-under-test."""
     logger.info("build charm from local source folder")
 
@@ -59,44 +58,30 @@ async def test_deploy_multiple_units(ops_test, charm_under_test):
 
 
 @pytest.mark.abort_on_fail
-async def test_scale_down_to_single_unit_with_leadership_change(ops_test):
+async def test_scale_down_to_single_unit_with_leadership_change(ops_test: OpsTest):
     """Scale down below current leader to trigger a leadership change event."""
     await ops_test.model.applications[app_name].scale(scale=1)
-
-    # block_until is needed because of https://github.com/juju/python-libjuju/issues/608
-    await ops_test.model.block_until(lambda: len(ops_test.model.applications[app_name].units) == 1)
-
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    await ops_test.model.wait_for_idle(
+        apps=[app_name], status="active", timeout=1000, wait_for_exact_units=1
+    )
+    assert await is_alertmanager_up(ops_test, app_name)
 
 
 @pytest.mark.abort_on_fail
-async def test_scale_up_from_single_unit(ops_test):
+async def test_scale_up_from_single_unit(ops_test: OpsTest):
     """Add a few more units."""
     await ops_test.model.applications[app_name].scale(scale_change=2)
-
-    # block_until is needed because of https://github.com/juju/python-libjuju/issues/608
-    await ops_test.model.block_until(lambda: len(ops_test.model.applications[app_name].units) == 3)
-
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    await ops_test.model.wait_for_idle(
+        apps=[app_name], status="active", timeout=1000, wait_for_exact_units=3
+    )
+    assert await is_alertmanager_up(ops_test, app_name)
 
 
 @pytest.mark.abort_on_fail
 async def test_scale_down_to_single_unit_without_leadership_change(ops_test):
     """Remove a few units."""
     await ops_test.model.applications[app_name].scale(scale_change=-2)
-
-    # block_until is needed because of https://github.com/juju/python-libjuju/issues/608
-    await ops_test.model.block_until(lambda: len(ops_test.model.applications[app_name].units) == 1)
-
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
-
-
-@pytest.mark.abort_on_fail
-async def test_alertmanager_is_up(ops_test):
-    address = await get_unit_address(ops_test, app_name, 0)
-    url = f"http://{address}:9093"
-    logger.info("am public address: %s", url)
-
-    response = urllib.request.urlopen(f"{url}/api/v2/status", data=None, timeout=2.0)
-    assert response.code == 200
-    assert "versionInfo" in json.loads(response.read())
+    await ops_test.model.wait_for_idle(
+        apps=[app_name], status="active", timeout=1000, wait_for_exact_units=1
+    )
+    assert await is_alertmanager_up(ops_test, app_name)

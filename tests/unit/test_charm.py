@@ -2,38 +2,16 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import textwrap
 import unittest
 from unittest.mock import patch
 
 import ops
 import yaml
-from helpers import PushPullMock, patch_network_get, tautology
+from helpers import patch_network_get, tautology
 from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
 from charm import Alertmanager, AlertmanagerCharm
-
-alertmanager_default_config = textwrap.dedent(
-    """
-            route:
-              group_by: ['alertname']
-              group_wait: 30s
-              group_interval: 5m
-              repeat_interval: 1h
-              receiver: 'web.hook'
-            receivers:
-            - name: 'web.hook'
-              webhook_configs:
-              - url: 'http://127.0.0.1:5001/'
-            inhibit_rules:
-              - source_match:
-                  severity: 'critical'
-                target_match:
-                  severity: 'warning'
-                equal: ['alertname', 'dev', 'instance']
-    """
-)
 
 
 class TestWithInitialHooks(unittest.TestCase):
@@ -41,15 +19,11 @@ class TestWithInitialHooks(unittest.TestCase):
 
     @patch_network_get(private_address="1.1.1.1")
     @patch.object(Alertmanager, "reload", tautology)
-    @patch("ops.testing._TestingPebbleClient.push")
     @patch("ops.testing._TestingPebbleClient.get_system_info")
     @patch("charm.KubernetesServicePatch", lambda x, y: None)
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
-
-        self.push_pull_mock = PushPullMock()
-        self.push_pull_mock.push(AlertmanagerCharm._config_path, alertmanager_default_config)
 
         self.relation_id = self.harness.add_relation("alerting", "otherapp")
         self.harness.add_relation_unit(self.relation_id, "otherapp/0")
@@ -62,8 +36,7 @@ class TestWithInitialHooks(unittest.TestCase):
 
     @patch("ops.testing._TestingPebbleClient.get_system_info")
     def test_pebble_layer_added(self, *unused):
-        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
-            self.harness.container_pebble_ready(self.container_name)
+        self.harness.container_pebble_ready(self.container_name)
         plan = self.harness.get_container_pebble_plan(self.container_name)
 
         # Check we've got the plan as expected
@@ -93,74 +66,62 @@ class TestWithInitialHooks(unittest.TestCase):
         expected_address = "1.1.1.1:{}".format(self.harness.charm.alertmanager_provider.api_port)
         self.assertEqual({"public_address": expected_address}, rel.data[self.harness.charm.unit])
 
-    def test_dummy_receiver_used_when_no_config_provided(self):
-        self.assertIn("webhook_configs", self.push_pull_mock.pull(self.harness.charm._config_path))
-        self.assertIn(
-            "http://127.0.0.1:5001/", self.push_pull_mock.pull(self.harness.charm._config_path)
+    @patch("ops.testing._TestingPebbleClient.get_system_info")
+    def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
+        self.harness.container_pebble_ready(self.container_name)
+
+        new_config = yaml.dump({"not a real config": "but good enough for testing"})
+        self.harness.update_config({"config_file": new_config})
+        updated_config = yaml.safe_load(
+            self.harness.charm.container.pull(self.harness.charm._config_path)
+        )
+
+        self.assertEqual(updated_config["not a real config"], "but good enough for testing")
+        self.assertListEqual(
+            sorted(updated_config["route"]["group_by"]),
+            sorted(["juju_model", "juju_application", "juju_model_uuid"]),
         )
 
     @patch("ops.testing._TestingPebbleClient.get_system_info")
-    def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
-        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
-            self.harness.container_pebble_ready(self.container_name)
-
-            new_config = yaml.dump({"not a real config": "but good enough for testing"})
-            self.harness.update_config({"config_file": new_config})
-            updated_config = yaml.safe_load(
-                self.push_pull_mock.pull(self.harness.charm._config_path)
-            )
-
-            self.assertEqual(updated_config["not a real config"], "but good enough for testing")
-            self.assertListEqual(
-                sorted(updated_config["route"]["group_by"]),
-                sorted(["juju_model", "juju_application", "juju_model_uuid"]),
-            )
-
-    @patch("ops.testing._TestingPebbleClient.get_system_info")
     def test_topology_added_if_user_provided_config_with_group_by(self, *unused):
-        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
-            self.harness.container_pebble_ready(self.container_name)
+        self.harness.container_pebble_ready(self.container_name)
 
-            new_config = yaml.dump({"route": {"group_by": ["alertname", "juju_model"]}})
-            self.harness.update_config({"config_file": new_config})
-            updated_config = yaml.safe_load(
-                self.push_pull_mock.pull(self.harness.charm._config_path)
-            )
+        new_config = yaml.dump({"route": {"group_by": ["alertname", "juju_model"]}})
+        self.harness.update_config({"config_file": new_config})
+        updated_config = yaml.safe_load(
+            self.harness.charm.container.pull(self.harness.charm._config_path)
+        )
 
-            self.assertListEqual(
-                sorted(updated_config["route"]["group_by"]),
-                sorted(["alertname", "juju_model", "juju_application", "juju_model_uuid"]),
-            )
+        self.assertListEqual(
+            sorted(updated_config["route"]["group_by"]),
+            sorted(["alertname", "juju_model", "juju_application", "juju_model_uuid"]),
+        )
 
     @patch("ops.testing._TestingPebbleClient.get_system_info")
     def test_charm_blocks_if_user_provided_config_with_templates(self, *unused):
-        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
-            self.harness.container_pebble_ready(self.container_name)
+        self.harness.container_pebble_ready(self.container_name)
 
-            new_config = yaml.dump({"templates": ["/what/ever/*.tmpl"]})
-            self.harness.update_config({"config_file": new_config})
-            self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
+        new_config = yaml.dump({"templates": ["/what/ever/*.tmpl"]})
+        self.harness.update_config({"config_file": new_config})
+        self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
 
-            new_config = yaml.dump({})
-            self.harness.update_config({"config_file": new_config})
-            self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
+        new_config = yaml.dump({})
+        self.harness.update_config({"config_file": new_config})
+        self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
 
     @patch("ops.testing._TestingPebbleClient.get_system_info")
     def test_templates_section_added_if_user_provided_templates(self, *unused):
-        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
-            self.harness.container_pebble_ready(self.container_name)
+        self.harness.container_pebble_ready(self.container_name)
 
-            templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
-            self.harness.update_config({"templates_file": templates})
-            updated_templates = self.push_pull_mock.pull(self.harness.charm._templates_path)
-            self.assertEqual(templates, updated_templates)
+        templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
+        self.harness.update_config({"templates_file": templates})
+        updated_templates = self.harness.charm.container.pull(self.harness.charm._templates_path)
+        self.assertEqual(templates, updated_templates.read())
 
-            updated_config = yaml.safe_load(
-                self.push_pull_mock.pull(self.harness.charm._config_path)
-            )
-            self.assertEqual(
-                updated_config["templates"], [f"'{self.harness.charm._templates_path}'"]
-            )
+        updated_config = yaml.safe_load(
+            self.harness.charm.container.pull(self.harness.charm._config_path)
+        )
+        self.assertEqual(updated_config["templates"], [f"'{self.harness.charm._templates_path}'"])
 
 
 @patch_network_get(private_address="1.1.1.1")
@@ -168,14 +129,10 @@ class TestWithoutInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
     @patch.object(Alertmanager, "reload", tautology)
-    @patch("ops.testing._TestingPebbleClient.push")
     @patch("charm.KubernetesServicePatch", lambda x, y: None)
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
-
-        self.push_pull_mock = PushPullMock()
-        self.push_pull_mock.push(AlertmanagerCharm._config_path, alertmanager_default_config)
 
         self.relation_id = self.harness.add_relation("alerting", "otherapp")
         self.harness.add_relation_unit(self.relation_id, "otherapp/0")
@@ -190,8 +147,7 @@ class TestWithoutInitialHooks(unittest.TestCase):
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.MaintenanceStatus)
 
         # after pebble_ready, status should be "active"
-        with self.push_pull_mock.patch_push(), self.push_pull_mock.patch_pull():  # type: ignore[attr-defined]
-            self.harness.container_pebble_ready(self.container_name)
+        self.harness.container_pebble_ready(self.container_name)
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.ActiveStatus)
 
         self.assertEqual(self.harness.model.unit.name, "alertmanager-k8s/0")
