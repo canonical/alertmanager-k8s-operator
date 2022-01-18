@@ -114,6 +114,8 @@ async def is_alertmanage_unit_up(ops_test: OpsTest, app_name: str, unit_num: int
 
 async def is_alertmanager_up(ops_test: OpsTest, app_name: str):
     return all(
-        await is_alertmanage_unit_up(ops_test, app_name, unit_num)
-        for unit_num in range(len(ops_test.model.applications[app_name].units))
+        [
+            await is_alertmanage_unit_up(ops_test, app_name, unit_num)
+            for unit_num in range(len(ops_test.model.applications[app_name].units))
+        ]
     )
