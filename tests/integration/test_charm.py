@@ -25,7 +25,7 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     Assert on the unit status before any relations/configurations take place.
     """
     # deploy charm from local source folder
-    await ops_test.model.deploy(charm_under_test, resources=resources, application_name="am")
+    await ops_test.model.deploy(charm_under_test, resources=resources, application_name=app_name)
 
     async with IPAddressWorkaround(ops_test):
         await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
