@@ -41,7 +41,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
     @given(st.booleans())
     def test_single_unit_cluster(self, is_leader):
         """Scenario: Current unit is the only unit present."""
-        # WHEN only one unit is
+        # WHEN only one unit is present
         self.assertEqual(self.harness.model.app.planned_units(), 1)
         self.harness.set_leader(is_leader)
 
