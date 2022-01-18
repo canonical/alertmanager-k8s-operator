@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 from helpers import IPAddressWorkaround, is_alertmanager_up
+from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 
 
 @pytest.mark.abort_on_fail
-async def test_deploy_from_local_path(ops_test, charm_under_test):
+async def test_deploy_from_local_path(ops_test: OpsTest, charm_under_test):
     """Deploy the charm-under-test."""
     logger.debug("deploy local charm")
 
@@ -31,7 +32,7 @@ async def test_deploy_from_local_path(ops_test, charm_under_test):
 
 
 @pytest.mark.abort_on_fail
-async def test_kubectl_delete_pod(ops_test):
+async def test_kubectl_delete_pod(ops_test: OpsTest):
     pod_name = f"{app_name}-0"
 
     cmd = [

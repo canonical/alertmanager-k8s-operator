@@ -91,7 +91,7 @@ async def get_leader_unit_num(ops_test: OpsTest, app_name: str):
     return is_leader.index(True)
 
 
-async def is_leader_elected(ops_test, app_name):
+async def is_leader_elected(ops_test: OpsTest, app_name: str):
     units = ops_test.model.applications[app_name].units
     return any([await units[i].is_leader_from_status() for i in range(len(units))])
 
@@ -103,7 +103,7 @@ async def block_until_leader_elected(ops_test: OpsTest, app_name: str):
         await asyncio.sleep(5)
 
 
-async def is_alertmanage_unit_up(ops_test, app_name, unit_num):
+async def is_alertmanage_unit_up(ops_test: OpsTest, app_name: str, unit_num: int):
     address = await get_unit_address(ops_test, app_name, unit_num)
     url = f"http://{address}:9093"
     logger.info("am public address: %s", url)
@@ -112,7 +112,7 @@ async def is_alertmanage_unit_up(ops_test, app_name, unit_num):
     return response.code == 200 and "versionInfo" in json.loads(response.read())
 
 
-async def is_alertmanager_up(ops_test, app_name):
+async def is_alertmanager_up(ops_test: OpsTest, app_name: str):
     return all(
         await is_alertmanage_unit_up(ops_test, app_name, unit_num)
         for unit_num in range(len(ops_test.model.applications[app_name].units))
