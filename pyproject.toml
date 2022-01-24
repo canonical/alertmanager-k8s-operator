@@ -62,3 +62,10 @@ warn_unused_ignores = false
 [tool.pytest.ini_options]
 minversion = "6.0"
 log_cli_level = "INFO"
+
+[tool.mutmut]
+paths_to_mutate = "src/"
+backup = "False"
+runner = "tox -e unit"
+tests_dir = "tests/unit/"
+

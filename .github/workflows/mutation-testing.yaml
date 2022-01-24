@@ -1,0 +1,21 @@
+name: Run-Tests
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  mutation-testing:
+    name: Mutation testing
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Install dependencies
+      run: python3 -m pip install tox mutmut
+    - name: Run mutation testing (charm)
+      run: mutmut run --paths-to-mutate src/ --runner "tox -e unit" --tests-dir tests/unit/
+    - name: Run mutation testing (lib)
+      run: mutmut run --paths-to-mutate lib/charms/alertmanager_k8s/ --runner "tox -e unit" --tests-dir tests/unit/
+    - name: Show summary of survived mutations
+      run: mutmut show
