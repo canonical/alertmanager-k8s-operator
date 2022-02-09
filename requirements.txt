@@ -10,19 +10,19 @@ certifi==2021.10.8
     # via
     #   httpcore
     #   httpx
-charset-normalizer==2.0.10
+charset-normalizer==2.0.11
     # via httpx
 h11==0.12.0
     # via httpcore
-httpcore==0.14.5
+httpcore==0.14.7
     # via httpx
-httpx==0.21.3
+httpx==0.22.0
     # via lightkube
 idna==3.3
     # via
     #   anyio
     #   rfc3986
-lightkube==0.10.0
+lightkube==0.10.1
     # via -r requirements.in
 lightkube-models==1.23.1.4
     # via
