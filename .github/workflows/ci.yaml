@@ -69,5 +69,5 @@ jobs:
         provider: microk8s
     - name: Run alertmanger tests
       run: tox -vve integration
-    - name: Run lma bundle tests
-      run: tox -vve integration-lma
+#    - name: Run lma bundle tests
+#      run: tox -vve integration-lma
