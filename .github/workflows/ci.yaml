@@ -65,6 +65,7 @@ jobs:
     - name: Setup operator environment
       uses: charmed-kubernetes/actions-operator@main
       with:
+        juju-channel: latest/candidate # FIXME: Once 2.9.24 hits stable
         provider: microk8s
     - name: Run alertmanger tests
       run: tox -vve integration
