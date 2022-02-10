@@ -324,16 +324,16 @@ class AlertmanagerCharm(CharmBase):
         """Returns the API address (including scheme and port) of the alertmanager server."""
         return f"http://{self.private_address}:{self.api_port}"
 
+    @property
+    def hostname(self):
+        """Returns the hostname of the unit."""
+        pod_name = self.unit.name.replace("/", "-")
+        return f"{pod_name}.{self.app.name}-endpoints.{self.model.name}.svc.cluster.local"
+
     def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self.container.can_connect():
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
-            return
-
-        # Wait for IP address. IP address is needed for forming alertmanager clusters and for
-        # related apps' config.
-        if not self.private_address:
-            self.unit.status = MaintenanceStatus("Waiting for IP address")
             return
 
         # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
@@ -343,10 +343,11 @@ class AlertmanagerCharm(CharmBase):
         # Also, ip address may still be None even after RelationJoinedEvent, for which
         # "ops.model.RelationDataError: relation data values must be strings" would be emitted.
         if self.peer_relation:
-            self.peer_relation.data[self.unit]["private_address"] = self.private_address
+            self.peer_relation.data[self.unit]["private_address"] = self.hostname
 
         self.alertmanager_provider.update_relation_data()
-        self.karma_provider.target = self.api_address
+        if karma_address := self.api_address:
+            self.karma_provider.target = karma_address
 
         # Update pebble layer
         layer_changed = self._update_layer(restart=False)
