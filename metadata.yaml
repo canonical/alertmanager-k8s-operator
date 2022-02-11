@@ -11,10 +11,6 @@ description: |
   It takes care of deduplicating, grouping, and routing them to the correct receiver integrations
   such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
-
-assumes:
-  - juju >= 2.9.24
-
 # workload containers
 containers:
   alertmanager:  # container key used by pebble
