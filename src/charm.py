@@ -6,6 +6,7 @@
 
 import hashlib
 import logging
+import socket
 from typing import List, Optional
 
 import yaml
@@ -324,12 +325,6 @@ class AlertmanagerCharm(CharmBase):
         """Returns the API address (including scheme and port) of the alertmanager server."""
         return f"http://{self.private_address}:{self.api_port}"
 
-    @property
-    def hostname(self):
-        """Returns the hostname of the unit."""
-        pod_name = self.unit.name.replace("/", "-")
-        return f"{pod_name}.{self.app.name}-endpoints.{self.model.name}.svc.cluster.local"
-
     def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self.container.can_connect():
@@ -343,7 +338,7 @@ class AlertmanagerCharm(CharmBase):
         # Also, ip address may still be None even after RelationJoinedEvent, for which
         # "ops.model.RelationDataError: relation data values must be strings" would be emitted.
         if self.peer_relation:
-            self.peer_relation.data[self.unit]["private_address"] = self.hostname
+            self.peer_relation.data[self.unit]["private_address"] = socket.getfqdn()
 
         self.alertmanager_provider.update_relation_data()
         if karma_address := self.api_address:

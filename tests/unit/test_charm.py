@@ -138,8 +138,6 @@ class TestWithoutInitialHooks(unittest.TestCase):
         self.harness.add_relation_unit(self.relation_id, "otherapp/0")
         self.harness.set_leader(True)
 
-        self.harness.set_model_name("alertmanager-test-model")
-
         self.harness.begin()
         self.harness.add_relation("replicas", "alertmanager")
 
@@ -153,9 +151,3 @@ class TestWithoutInitialHooks(unittest.TestCase):
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.ActiveStatus)
 
         self.assertEqual(self.harness.model.unit.name, "alertmanager-k8s/0")
-
-    def test_hostname(self):
-        self.assertEqual(
-            self.harness.charm.hostname,
-            "alertmanager-k8s-0.alertmanager-k8s-endpoints.alertmanager-test-model.svc.cluster.local",
-        )
