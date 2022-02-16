@@ -6,6 +6,7 @@
 
 import hashlib
 import logging
+import socket
 from typing import List, Optional
 
 import yaml
@@ -330,12 +331,6 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return
 
-        # Wait for IP address. IP address is needed for forming alertmanager clusters and for
-        # related apps' config.
-        if not self.private_address:
-            self.unit.status = MaintenanceStatus("Waiting for IP address")
-            return
-
         # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
         # setting IP here.
         # Store private address in unit's peer relation data bucket. This is still needed because
@@ -343,10 +338,11 @@ class AlertmanagerCharm(CharmBase):
         # Also, ip address may still be None even after RelationJoinedEvent, for which
         # "ops.model.RelationDataError: relation data values must be strings" would be emitted.
         if self.peer_relation:
-            self.peer_relation.data[self.unit]["private_address"] = self.private_address
+            self.peer_relation.data[self.unit]["private_address"] = socket.getfqdn()
 
         self.alertmanager_provider.update_relation_data()
-        self.karma_provider.target = self.api_address
+        if karma_address := self.api_address:
+            self.karma_provider.target = karma_address
 
         # Update pebble layer
         layer_changed = self._update_layer(restart=False)
