@@ -1,5 +1,7 @@
 # Alertmanager Operator (k8s)
 
+[![Test Suite](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/ci.yaml/badge.svg)](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/ci.yaml)
+
 ## Description
 
 The [Alertmanager] operator provides an alerting solution for the
@@ -100,9 +102,16 @@ This charm can be used with the following images:
 - [`ubuntu/prometheus-alertmanager`](https://hub.docker.com/r/ubuntu/prometheus-alertmanager) (default)
 - [`quay.io/prometheus/alertmanager`](https://quay.io/repository/prometheus/alertmanager?tab=tags)
 
+### Resource revisions
+| Resource           | Revision | Image             |
+|--------------------|:--------:|-------------------|
+| alertmanager-image | r1       | [0.21-20.04_beta] |
 
 ## Additional Information
 - [Logging, Monitoring, and Alerting](https://discourse.ubuntu.com/t/logging-monitoring-and-alerting/19151) (LMA) -
   a tutorial for running Prometheus, Grafana and Alertmanager with LXD.
 - [Alertmanager README](https://github.com/prometheus/alertmanager)
 - [PromCon 2018: Life of an Alert](https://youtube.com/watch?v=PUdjca23Qa4)
+
+
+[0.21-20.04_beta]: https://hub.docker.com/layers/ubuntu/prometheus-alertmanager/0.21-20.04_beta/images/sha256-1418c677768887c2c717d043c9cb8397a32552a61354cb98c25cef23eeeb2b3f?context=explore

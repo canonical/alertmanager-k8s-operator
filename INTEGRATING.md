@@ -3,12 +3,6 @@ Alertmanager integrates with any charm that supports the
 `alertmanager_dispatch` interface.
 
 ### Receivers
-At the moment only one receiver per alertmanager deployment is supported, which
-can be one of:
-- PagerDuty
-- Pushover
-- Webhook
-
 By default, when alertmanager starts without user config, a dummy receiver is
 generated.
 
