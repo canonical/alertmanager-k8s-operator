@@ -1,61 +1,47 @@
 # Contributing to alertmanager-k8s
-Alertmanager, as the name suggests, filters incoming alerts and routes them to
-pre-defined receivers. Alertmanager reads its configuration from an
-`alertmanager.yml`, some aspects of which are exposed to the user via
-`juju config` calls (see [`config.yaml`](config.yaml)).
-In the future, integrator charms may be used for configuring Alertmanager.
 
-The intended use case of this operator is to be deployed together with the
-[prometheus-k8s operator][Prometheus operator], although that is not
-necessary, as [Alertmanager's HTTP API][Alertmanager API browser] could be
-[used](https://github.com/prometheus/alertmanager/issues/437#issuecomment-263413632)
-instead.
+## Overview
 
-## Known issues
-1. Adding multiple receivers of the same type (e.g. PagerDuty) is not very scalable, due to the
-   nature of the `juju config` command. This is likely to improve in the future by using integrator
-   charms.
+This documents explains the processes and practices recommended for
+contributing enhancements or bug fixing to the Alertmanager Charmed Operator.
 
-## Bugs and pull requests
-- Generally, before developing enhancements to this charm, you should consider
-  explaining your use case.
-- If you would like to chat with us about your use-cases or proposed
-  implementation, you can reach us at
-  [Canonical Mattermost public channel](https://chat.charmhub.io/charmhub/channels/charm-dev)
-  or [Discourse](https://discourse.charmhub.io/).
-- All enhancements require review before being merged. Apart from
-  code quality and test coverage, the review will also take into
-  account the resulting user experience for Juju administrators using
-  this charm.
+The intended use case of this operator is to be deployed as part of the
+[COS Lite] bundle, although that is not necessary.
+
 
 ## Setup
 
 A typical setup using [snaps](https://snapcraft.io/) can be found in the
 [Juju docs](https://juju.is/docs/sdk/dev-setup).
 
+
 ## Developing
 
-Use your existing Python 3 development environment or create and
-activate a Python 3 virtualenv
+- Prior to getting started on a pull request, we first encourage you to open an
+  issue explaining the use case or bug.
+  This gives other contributors a chance to weigh in early in the process.
+- To author PRs you should know [what is jujuj](https://juju.is/#what-is-juju)
+  and [how operators are written](https://juju.is/docs/sdk).
+- The best way to get a head start is to join the conversation on our
+  [Mattermost channel] or [Discourse].
+- All enhancements require review before being merged. Besides the
+  code quality and test coverage, the review will also take into
+  account the resulting user experience for Juju administrators using
+  this charm. To be able to merge you would have to rebase
+  onto the `main` branch. We do this to avoid merge commits and to have a
+  linear Git history.
+- We use [`tox`](https://tox.wiki/en/latest/#) to manage all virtualenvs for
+  the development lifecycle.
 
-```shell
-virtualenv -p python3 venv
-source venv/bin/activate
-```
-
-Install the development requirements
-
-```shell
-pip install -r requirements.txt
-```
-
-Later on, upgrade packages as needed
-
-```shell
-pip install --upgrade -r requirements.txt
-```
 
 ### Testing
+Unit tests are written with the Operator Framework [test harness] and
+integration tests are written using [pytest-operator] and [python-libjuju].
+
+All default tests can be executed by running `tox` without arguments.
+
+You can also manually run specific test environment:
+
 ```shell
 tox -e fmt              # update your code according to linting rules
 tox -e lint             # code style
@@ -65,15 +51,16 @@ tox -e integration      # integration tests
 tox -e integration-lma  # integration tests for the lma-light bundle
 ```
 
-tox creates virtual environment for every tox environment defined in
+`tox` creates a virtual environment for every tox environment defined in
 [tox.ini](tox.ini). To activate a tox environment for manual testing,
 
 ```shell
 source .tox/unit/bin/activate
 ```
 
+
 #### Manual testing
-Alerts can be created using 
+Alerts can be created using
 [`amtool`](https://manpages.debian.org/testing/prometheus-alertmanager/amtool.1.en.html),
 
 ```shell
@@ -82,7 +69,7 @@ amtool alert add alertname=oops service="my-service" severity=warning \
     --generator-url="http://prometheus.int.example.net"
 ```
 
-or using alertmanager's HTTP API,
+or using [Alertmanager's HTTP API][Alertmanager API browser],
 [for example](https://gist.github.com/cherti/61ec48deaaab7d288c9fcf17e700853a):
 
 ```shell
@@ -123,25 +110,12 @@ curl -X GET "http://$prom_ip:9090/api/v1/alertmanagers"
 ## Build charm
 
 Build the charm in this git repository using
+
 ```shell
 charmcraft pack
 ```
 
-## Usage
-First deploy [Prometheus][Prometheus operator].
-
-Now deploy the Alertmanger charm you just built. Alertmanager may
-support multiple alert receivers (see below). In order to use any of
-these receivers relevant configuration information is required at
-deployment or subsequently. Without any configured receiver
-Alertmanager will use a dummy receiver.
-
-### Tested images
-For local deployment, this charms was tested with the following images:
-- [`ubuntu/prometheus-alertmanager`](https://hub.docker.com/r/ubuntu/prometheus-alertmanager)
-- [`quay.io/prometheus/alertmanager`](https://quay.io/repository/prometheus/alertmanager?tab=tags)
-
-### Deploy Alertmanager with custom configuration
+which will create a `*.charm` file you can deploy with:
 
 ```shell
 juju deploy ./alertmanager-k8s.charm \
@@ -150,23 +124,6 @@ juju deploy ./alertmanager-k8s.charm \
   --config templates_file='@path/to/templates.tmpl'
 ```
 
-Alternatively you may deploy Alertmanger without a config file, in which case
-a default configuration with a dummy receiver would be loaded.
-A configuration file can be provided later:
-
-```shell
-juju deploy ./alertmanager-k8s.charm \
-  --resource alertmanager-image=ubuntu/prometheus-alertmanager
-
-# Later on, update configuration with:
-juju config alertmanager-k8s config_file='@path/to/alertmanager.yml'  # etc.
-```
-
-Finally, add a relation between Prometheus and Alertmanager:
-
-```shell
-juju add-relation prometheus-k8s:alertmanager alertmanager-k8s:alerting
-```
 
 ## Code overview
 - The main charm class is `AlertmanagerCharm`, which responds to config changes
@@ -187,11 +144,13 @@ juju add-relation prometheus-k8s:alertmanager alertmanager-k8s:alerting
 - Hot reload via the alertmanager HTTP API is used whenever possible instead of
   service restart, to minimize downtime.
 
-## Roadmap
-- Test using pytest-operator
-- Use integrator charms
-
 
 [Alertmanager API browser]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml
 [gh:Prometheus operator]: https://github.com/canonical/prometheus-operator
 [Prometheus operator]: https://charmhub.io/prometheus-k8s
+[COS Lite]: https://charmhub.io/cos-lite
+[Mattermost channel]: https://chat.charmhub.io/charmhub/channels/observability
+[Discourse]: https://discourse.charmhub.io/tag/alertmanager
+[test harness]: https://ops.readthedocs.io/en/latest/#module-ops.testing
+[pytest-operator]: https://github.com/charmed-kubernetes/pytest-operator/blob/main/docs/reference.md
+[python-libjuju]: https://pythonlibjuju.readthedocs.io/en/latest/
