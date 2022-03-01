@@ -17,7 +17,7 @@ from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Relation
-from ops.pebble import Layer, PathError, ProtocolError
+from ops.pebble import APIError, Layer, PathError, ProtocolError
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
@@ -301,8 +301,9 @@ class AlertmanagerCharm(CharmBase):
         if config_hash == self._stored.config_hash:
             logger.debug("no change in config")
             return
+        else:
+            logger.debug("config changed")
 
-        logger.debug("config changed")
         self._push_config_and_reload(config_yaml)
         self._stored.config_hash = config_hash
 
@@ -334,12 +335,12 @@ class AlertmanagerCharm(CharmBase):
         except AlertmanagerBadResponse:
             config_from_server_before = None
 
-        # Send an HTTP POST to alertmanager to hot-reload the config.
+        # Send a SIGHUP to alertmanager to hot-reload the config.
         # This reduces down-time compared to restarting the service.
         try:
-            self.api.reload()
-        except AlertmanagerBadResponse as e:
-            logger.warning("config reload via HTTP POST failed: %s", str(e))
+            self.container.send_signal("SIGHUP", self._service_name)
+        except APIError as e:
+            logger.warning("config reload via SIGHUP failed: %s", str(e))
             # hot-reload failed so attempting a service restart
             if not self._restart_service():
                 raise ConfigUpdateFailure(
