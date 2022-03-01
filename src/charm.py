@@ -17,7 +17,7 @@ from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Relation
-from ops.pebble import Layer, PathError, ProtocolError
+from ops.pebble import APIError, Layer, PathError, ProtocolError
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
@@ -298,27 +298,65 @@ class AlertmanagerCharm(CharmBase):
         config_yaml = yaml.safe_dump(config)
         config_hash = sha256(config_yaml)
 
-        logger.debug(
-            "config changed" if config_hash != self._stored.config_hash else "no change",
-        )
+        if config_hash == self._stored.config_hash:
+            logger.debug("no change in config")
+            return
+        else:
+            logger.debug("config changed")
 
-        if config_hash != self._stored.config_hash:
-            self.container.push(self._config_path, config_yaml, make_dirs=True)
+        self._push_config_and_reload(config_yaml)
+        self._stored.config_hash = config_hash
 
-            # Send an HTTP POST to alertmanager to hot-reload the config.
-            # This reduces down-time compared to restarting the service.
-            try:
-                self.api.reload()
-                self._stored.config_hash = config_hash
-            except AlertmanagerBadResponse as e:
-                logger.warning("config reload via HTTP POST failed: %s", str(e))
-                # hot-reload failed so attempting a service restart
-                if self._restart_service():
-                    self._stored.config_hash = config_hash
-                else:
-                    raise ConfigUpdateFailure(
-                        "Is config valid? hot reload and service restart failed."
-                    )
+    def _push_config_and_reload(self, config_yaml):
+        """Push config into workload container, and trigger a hot-reload (or service restart).
+
+        Args:
+            config_yaml: contents of the new config file.
+
+        Raises:
+            ConfigUpdateFailure, if config update fails.
+        """
+        self.container.push(self._config_path, config_yaml, make_dirs=True)
+
+        # Obtain a "before" snapshot of the config from the server.
+        # This is different from `config` above because alertmanager adds in a bunch of details
+        # such as:
+        #
+        #   smtp_hello: localhost
+        #   smtp_require_tls: true
+        #   pagerduty_url: https://events.pagerduty.com/v2/enqueue
+        #   opsgenie_api_url: https://api.opsgenie.com/
+        #   wechat_api_url: https://qyapi.weixin.qq.com/cgi-bin/
+        #   victorops_api_url: https://alert.victorops.com/integrations/generic/20131114/alert/
+        #
+        # The snapshot is needed to determine if reloading took place.
+        try:
+            config_from_server_before = self.api.config()
+        except AlertmanagerBadResponse:
+            config_from_server_before = None
+
+        # Send a SIGHUP to alertmanager to hot-reload the config.
+        # This reduces down-time compared to restarting the service.
+        try:
+            self.container.send_signal("SIGHUP", self._service_name)
+        except APIError as e:
+            logger.warning("config reload via SIGHUP failed: %s", str(e))
+            # hot-reload failed so attempting a service restart
+            if not self._restart_service():
+                raise ConfigUpdateFailure(
+                    "Is config valid? hot reload and service restart failed."
+                )
+
+        # Obtain an "after" snapshot of the config from the server.
+        try:
+            config_from_server_after = self.api.config()
+        except AlertmanagerBadResponse:
+            config_from_server_after = None
+
+        if config_from_server_before is None or config_from_server_after is None:
+            logger.warning("cannot determine if reload succeeded")
+        elif config_from_server_before == config_from_server_after:
+            logger.warning("config remained the same after a reload")
 
     @property
     def api_address(self):

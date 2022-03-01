@@ -26,6 +26,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
 
     @patch_network_get(private_address="1.1.1.1")
     @patch.object(Alertmanager, "reload", tautology)
+    @patch("ops.testing._TestingPebbleClient.send_signal")
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     def setUp(self, *_):
         self.harness = Harness(AlertmanagerCharm)

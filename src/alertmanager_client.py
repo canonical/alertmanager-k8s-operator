@@ -12,6 +12,8 @@ import urllib.parse
 import urllib.request
 from typing import Optional
 
+import yaml
+
 logger = logging.getLogger(__name__)
 
 
@@ -108,3 +110,15 @@ class Alertmanager:
             return self.status()["versionInfo"]["version"]
         except KeyError as e:
             raise AlertmanagerBadResponse("Unexpected response") from e
+
+    def config(self) -> str:
+        """Obtain config from the alertmanager server."""
+        try:
+            config = self.status()["config"]["original"]
+        except KeyError as e:
+            raise AlertmanagerBadResponse("Unexpected response") from e
+
+        try:
+            return yaml.safe_load(config)
+        except yaml.YAMLError as e:
+            raise AlertmanagerBadResponse("Response is not a YAML string") from e
