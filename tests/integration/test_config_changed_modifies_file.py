@@ -18,7 +18,6 @@ from helpers import IPAddressWorkaround, get_unit_address, is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 
 from alertmanager_client import Alertmanager
-from charm import AlertmanagerCharm
 
 logger = logging.getLogger(__name__)
 
@@ -44,14 +43,12 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
 
 
 async def test_update_config(ops_test: OpsTest):
-    config = AlertmanagerCharm._default_config()  # type: dict
-
     # Obtain a "before" snapshot of the config from the server.
     client = Alertmanager(await get_unit_address(ops_test, app_name, 0))
     config_from_server_before = client.config()
     # Make sure the defaults is what we expect them to be (this is only a partial check, but an
     # easy one).
-    assert config_from_server_before["receivers"] == config["receivers"]
+    assert "receivers" in config_from_server_before
 
     def rename_toplevel_receiver(config: dict, new_name: str):
         old_name = config["route"]["receiver"]
@@ -62,6 +59,7 @@ async def test_update_config(ops_test: OpsTest):
                 receiver["name"] = new_name
 
     # Modify the default config
+    config = config_from_server_before.copy()
     receiver_name = config["route"]["receiver"]
     rename_toplevel_receiver(config, receiver_name * 2)
 
