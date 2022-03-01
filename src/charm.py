@@ -272,7 +272,7 @@ class AlertmanagerCharm(CharmBase):
         # if no config provided, use default config with a dummy receiver
         config = yaml.safe_load(self.config["config_file"]) or self._default_config()
 
-        if "templates" in config:
+        if config.get("templates", []):
             logger.error(
                 "alertmanager config file must not have a 'templates' section; "
                 "use the 'templates' config option instead."
