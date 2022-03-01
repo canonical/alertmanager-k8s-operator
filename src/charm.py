@@ -7,7 +7,7 @@
 import hashlib
 import logging
 import socket
-from typing import List, Optional
+from typing import List, Optional, cast
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
@@ -241,8 +241,8 @@ class AlertmanagerCharm(CharmBase):
 
         return False
 
-    @property
-    def _default_config(self) -> dict:
+    @classmethod
+    def _default_config(cls) -> dict:
         return {
             "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
             "route": {
@@ -270,7 +270,7 @@ class AlertmanagerCharm(CharmBase):
         self.container.push(self._amtool_config_path, amtool_config, make_dirs=True)
 
         # if no config provided, use default config with a dummy receiver
-        config = yaml.safe_load(self.config["config_file"]) or self._default_config
+        config = yaml.safe_load(self.config["config_file"]) or self._default_config()
 
         if "templates" in config:
             logger.error(
@@ -287,7 +287,7 @@ class AlertmanagerCharm(CharmBase):
             self.container.push(self._templates_path, templates, make_dirs=True)
 
         # add juju topology to "group_by"
-        route = config.get("route", {})
+        route = cast(dict, config.get("route", {}))
         route["group_by"] = list(
             set(route.get("group_by", [])).union(
                 ["juju_application", "juju_model", "juju_model_uuid"]
