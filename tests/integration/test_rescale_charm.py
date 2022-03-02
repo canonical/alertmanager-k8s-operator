@@ -36,7 +36,8 @@ async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
     """Deploy the charm-under-test."""
     logger.info("build charm from local source folder")
 
-    while True:
+    num_reties = 3
+    for i in range(num_reties):
         logger.info("deploy charm")
         await ops_test.model.deploy(
             charm_under_test, application_name=app_name, resources=resources, num_units=10
@@ -48,6 +49,9 @@ async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
 
         # we're unlucky: unit/0 is the leader, which means no scale down could trigger a
         # leadership change event - repeat
+        if i + 1 >= num_reties:
+            assert 0, "No luck in electing a leader that is not the zero unit. Try re-running?"
+
         logger.info("Elected leader is unit/0 - resetting and repeating")
         await ops_test.model.applications[app_name].remove()
         await ops_test.model.block_until(lambda: len(ops_test.model.applications) == 0)
