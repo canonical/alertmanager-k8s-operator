@@ -241,8 +241,8 @@ class AlertmanagerCharm(CharmBase):
 
         return False
 
-    @classmethod
-    def _default_config(cls) -> dict:
+    @property
+    def _default_config(self) -> dict:
         return {
             "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
             "route": {
@@ -270,7 +270,7 @@ class AlertmanagerCharm(CharmBase):
         self.container.push(self._amtool_config_path, amtool_config, make_dirs=True)
 
         # if no config provided, use default config with a dummy receiver
-        config = yaml.safe_load(self.config["config_file"]) or self._default_config()
+        config = yaml.safe_load(self.config["config_file"]) or self._default_config
 
         if config.get("templates", []):
             logger.error(
