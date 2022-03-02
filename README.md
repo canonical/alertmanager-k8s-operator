@@ -37,9 +37,8 @@ of [the page](https://charmhub.io/alertmanager-k8s) and can also be retrieved wi
 Charmcraft CLI:
 
 ```shell
-charmcraft status alertmanager-k8s
-```
-```
+$ charmcraft status alertmanager-k8s
+
 Track    Base                  Channel    Version    Revision    Resources
 latest   ubuntu 20.04 (amd64)  stable     -          -           -
                                candidate  -          -           -
@@ -145,7 +144,7 @@ Internally, HA is achieved by providing each Alertmanager instance at least one 
 Cluster information is passed to Alertmanager via [`--cluster.peer` command line arguments](https://github.com/prometheus/alertmanager#high-availability). This can be verified by looking at the current pebble plan:
 
 ```shell
-> $ juju exec --unit alertmanager-k8s/0 -- \
+$ juju exec --unit alertmanager-k8s/0 -- \
   PEBBLE_SOCKET=/charm/containers/alertmanager/pebble.socket \
   pebble plan
 
@@ -160,7 +159,7 @@ services:
 To manually verify a cluster is indeed formed, you can query the alertmanager HTTP API directly:
 
 ```shell
-> curl -s $ALERTMANAGER_IP:9093/api/v1/status \
+$ curl -s $ALERTMANAGER_IP:9093/api/v1/status \
   | jq '.data.clusterStatus.peers[].address'
 "10.1.179.220:9094"
 "10.1.179.221:9094"
