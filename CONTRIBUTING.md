@@ -38,7 +38,8 @@ A typical setup using [snaps](https://snapcraft.io/) can be found in the
 Unit tests are written with the Operator Framework [test harness] and
 integration tests are written using [pytest-operator] and [python-libjuju].
 
-All default tests can be executed by running `tox` without arguments.
+The default test environments - lint, static and unit - will run if you start
+`tox` without arguments.
 
 You can also manually run a specific test environment:
 
