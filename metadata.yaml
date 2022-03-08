@@ -11,6 +11,8 @@ description: |
   It takes care of deduplicating, grouping, and routing them to the correct receiver integrations
   such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
+docs: https://discourse.charmhub.io/t/alertmanager-k8s-docs-index/5788
+
 # workload containers
 containers:
   alertmanager:  # container key used by pebble

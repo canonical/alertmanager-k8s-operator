@@ -1,104 +1,209 @@
 # Alertmanager Operator (k8s)
 
-## Description
+[![Test Suite](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/ci.yaml/badge.svg)](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/ci.yaml)
+![Discourse status](https://img.shields.io/discourse/status?server=https%3A%2F%2Fdiscourse.charmhub.io&style=flat)
 
-The [Alertmanager] operator provides an alerting solution for the
-[Prometheus][Prometheus Docs] [Operator][Prometheus Operator]. It is part of an
-Observability stack in the [Juju] charm [ecosystem]. Alertmanager accepts
-alerts from Prometheus, then deduplicates, groups and routes them to the
-selected receiver, based on a set of alerting rules. These alerting rules may
-be set by any supported [charm] that uses the services of Prometheus by forming
-a relation with it.
+This Charmed Operator handles instantiation, scaling, configuration, and Day 2
+operations specific to [Alertmanager].
+
+This operator drives the Alertmanager application, and it can be composed with
+other operators to deliver a complex application or service,
+such as [COS Lite][COS Lite bundle].
+
+Alertmanager receives alerts from supporting applications, such as
+[Prometheus][Prometheus operator] or [Loki][Loki operator], then deduplicates,
+groups and routes them to the configured receiver(s).
+
 
 [Alertmanager]: https://prometheus.io/docs/alerting/latest/alertmanager/
-[Prometheus Docs]: https://prometheus.io/docs/introduction/overview/
-[Prometheus Operator]: https://github.com/canonical/prometheus-operator
-[Juju]: https://jaas.ai/
-[ecosystem]: https://charmhub.io/
-[charm]: https://charmhub.io/
+[COS Lite bundle]: https://charmhub.io/cos-lite
+[Loki operator]: https://charmhub.io/loki-k8s
+[Prometheus operator]: https://charmhub.io/prometheus-k8s
 
-## Usage
+
+## Getting started
+
+### Basic deployment
+
+Once you have a controller and model ready, you can deploy alertmanager
+using the Juju CLI:
+
 ```shell
-juju deploy alertmanager-k8s
+juju deploy --channel=beta alertmanager-k8s
+```
+
+The available [channels](https://snapcraft.io/docs/channels) are listed at the top
+of [the page](https://charmhub.io/alertmanager-k8s) and can also be retrieved with
+Charmcraft CLI:
+
+```shell
+$ charmcraft status alertmanager-k8s
+
+Track    Base                  Channel    Version    Revision    Resources
+latest   ubuntu 20.04 (amd64)  stable     -          -           -
+                               candidate  -          -           -
+                               beta       9          9           alertmanager-image (r1)
+                               edge       9          9           alertmanager-image (r1)
+```
+
+Once the Charmed Operator is deployed, the status can be checked by running:
+
+```shell
+juju status --relations --storage --color
+```
+
+
+### Configuration
+
+In order to have alerts dispatched to your receiver(s) of choice,
+a [configuration file](https://www.prometheus.io/docs/alerting/latest/configuration/)
+must be provided to Alertmanager using the
+[`config_file`](https://charmhub.io/alertmanager-k8s/configure#config_file) option:
+
+```shell
+juju config alertmanager-k8s \
+  config_file='@path/to/alertmanager.yml'
+```
+
+Note that if you use templates, you should use the `templates_file` config option
+instead of having a `templates` section in your `yaml` configuration file.
+(This is a slight deviation from the official alertmanager config spec.)
+
+
+Use the [`templates_file`](https://charmhub.io/alertmanager-k8s/configure#templates_file)
+option to push templates that are being used by the configuration file:
+
+```shell
 juju config alertmanager-k8s \
   config_file='@path/to/alertmanager.yml' \
   templates_file='@path/to/templates.tmpl'
 ```
 
-### Configuration
-
-See [config.yaml](config.yaml) for the full details.
-
-#### `config_file`
-Use this option to pass your own alertmanager configuration file:
-
-```shell
-juju deploy alertmanager-k8s --config config_file='@path/to/alertmanager.yml'
-```
-
-or after deployment:
-
-```shell
-`juju config alertmanager-k8s config_file='@path/to/alertmanager.yml'`
-```
-
-Refer to the
-[official documentation](https://www.prometheus.io/docs/alerting/latest/configuration/)
-for full details.
-
-Note that the configuration file must not have a `templates` section. Instead,
-you should use the `templates_file` config option.
-This is a slight deviation from the official alertmanager config spec.
-
-#### `templates_file`
-Use this option to push templates that are being used by the configuration
-file.
-
 All templates need to go into this single config option, instead of
 the 'templates' section of the main configuration file. The templates will be
 pushed to the workload container, and the configuration file will be updated
 accordingly.
+
 Refer to the
-[official documentation](https://prometheus.io/docs/alerting/latest/notification_examples/)
-for more details on templates.
+[official templates documentation](https://prometheus.io/docs/alerting/latest/notification_examples/)
+for more details.
 
-### Actions
-- `show-config`: Show alertmanager config file.
 
-### Scale Out Usage
-HA is achieved by providing each Alertmanager instance at least one IP address
-of another instance. The cluster would then auto-update with subsequent changes
-to the cluster.
+To verify Alertmanager is using the expected configuration you can use the
+[`show-config`](https://charmhub.io/alertmanager-k8s/actions#show-config) action:
 
-You may add additional Alertmanager units for high availability
+```shell
+juju run-action alertmanager-k8s/0 show-config --wait
+```
+
+
+### Dashboard and HTTP API
+
+The Alertmanager dashboard and
+[HTTP API](https://www.prometheus.io/docs/alerting/latest/management_api/)
+can be accessed at the default port (9093) on the Alertmanager IP address,
+which is determinable with a `juju status` command.
+
+To obtain the load-balanaced application IP,
+
+```shell
+juju status alertmanager-k8s --format=json \
+  | jq -r '.applications."alertmanager-k8s".address'
+```
+
+Similarly, to obtain an individual unit's IP address:
+
+```shell
+juju status alertmanager-k8s --format=json \
+  | jq -r '.applications."alertmanager-k8s".units."alertmanager-k8s/0".address'
+```
+
+
+## Clustering
+
+### Forming a cluster
+
+Alertmanager [supports clustering](https://www.prometheus.io/docs/alerting/latest/alertmanager/#high-availability)
+and all you need to do to create/update a cluster is to rescale the application to the desired number
+of units using `add-unit`:
 
 ```shell
 juju add-unit alertmanager-k8s
 ```
 
-Scaling alertmanager would automatically cause karma to group alerts by
-cluster.
+or using `scale-application`:
 
-### Dashboard
+```shell
+juju scale-application alertmanager-k8s 3
+```
 
-The Alertmanager dashboard may be accessed at the default port (9093) on the IP
-address of the Alertmanager unit, which is determinable with a `juju status` command.
+Internally, HA is achieved by providing each Alertmanager instance at least one IP address of another instance. The cluster would then auto-update with subsequent changes to the units present.
 
-## Relations
+### Verification
+#### Pebble plan
+Cluster information is passed to Alertmanager via [`--cluster.peer` command line arguments](https://github.com/prometheus/alertmanager#high-availability). This can be verified by looking at the current pebble plan:
 
-Currently, supported relations are:
-  - [Prometheus](https://github.com/canonical/prometheus-operator), which forwards alerts to
-    Alertmanager over the `alertmanager_dispatch` interface.
-    Set up with `juju add-relation alertmanager-k8s prometheus-k8s`.
-  - [Karma](https://github.com/canonical/karma-operator), which displays alerts from all related alertmanager instances
-    over the `karma_dashboard` interface.
-    Set up with `juju add-relation alertmanager-k8s karma-k8s`.
+```shell
+$ juju exec --unit alertmanager-k8s/0 -- \
+  PEBBLE_SOCKET=/charm/containers/alertmanager/pebble.socket \
+  pebble plan
+
+services:
+    alertmanager:
+        summary: alertmanager service
+        startup: enabled
+        override: replace
+        command: alertmanager --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager --web.listen-address=:9093 --cluster.listen-address=0.0.0.0:9094 --cluster.peer=10.1.179.220:9094 --cluster.peer=10.1.179.221:9094
+```
+#### HTTP API
+To manually verify a cluster is indeed formed, you can query the alertmanager HTTP API directly:
+
+```shell
+$ curl -s $ALERTMANAGER_IP:9093/api/v1/status \
+  | jq '.data.clusterStatus.peers[].address'
+"10.1.179.220:9094"
+"10.1.179.221:9094"
+"10.1.179.217:9094"
+```
 
 
 ## OCI Images
-This charm can be used with the following images:
-- [`ubuntu/prometheus-alertmanager`](https://hub.docker.com/r/ubuntu/prometheus-alertmanager) (default)
-- [`quay.io/prometheus/alertmanager`](https://quay.io/repository/prometheus/alertmanager?tab=tags)
+This charm is published on Charmhub with alertmanager images from
+[ubuntu/prometheus-alertmanager], however, it should also work with the
+official [quay.io/prometheus/alertmanager].
+
+To try the charm with a different image you can use `juju refresh`. For example:
+
+```shell
+juju refresh alertmanager-k8s \
+  --resource alertmanager-image=quay.io/prometheus/alertmanager
+```
+
+(Note: currently, refreshing to a different image only works when deploying from a local
+charm - [lp/1954462](https://bugs.launchpad.net/juju/+bug/1954462).)
+
+### Resource revisions
+Workload images are archived on charmhub by revision number.
+
+| Resource           | Revision | Image             |
+|--------------------|:--------:|-------------------|
+| alertmanager-image | r1       | [0.21-20.04_beta] |
+
+You can use `charmcraft` to see the mapping between charm revisions and resource revisions:
+
+```shell
+charmcraft status alertmanager-k8s
+```
+
+[ubuntu/prometheus-alertmanager]: https://hub.docker.com/r/ubuntu/prometheus-alertmanager
+[quay.io/prometheus/alertmanager]: https://quay.io/repository/prometheus/alertmanager?tab=tags
+[0.21-20.04_beta]: https://hub.docker.com/layers/ubuntu/prometheus-alertmanager/0.21-20.04_beta/images/sha256-1418c677768887c2c717d043c9cb8397a32552a61354cb98c25cef23eeeb2b3f?context=explore
+
+
+## Official alertmanager documentation
+
+For further details about Alertmanager configuration and usage, please refer to
+the [official Alertmanager documentation](https://www.prometheus.io/docs/alerting/latest/overview/).
 
 
 ## Additional Information
