@@ -20,7 +20,7 @@ A typical setup using [snaps](https://snapcraft.io/) can be found in the
 - Prior to getting started on a pull request, we first encourage you to open an
   issue explaining the use case or bug.
   This gives other contributors a chance to weigh in early in the process.
-- To author PRs you should know [what is jujuj](https://juju.is/#what-is-juju)
+- To author PRs you should be familiar with [juju](https://juju.is/#what-is-juju)
   and [how operators are written](https://juju.is/docs/sdk).
 - The best way to get a head start is to join the conversation on our
   [Mattermost channel] or [Discourse].
@@ -40,7 +40,7 @@ integration tests are written using [pytest-operator] and [python-libjuju].
 
 All default tests can be executed by running `tox` without arguments.
 
-You can also manually run specific test environment:
+You can also manually run a specific test environment:
 
 ```shell
 tox -e fmt              # update your code according to linting rules
