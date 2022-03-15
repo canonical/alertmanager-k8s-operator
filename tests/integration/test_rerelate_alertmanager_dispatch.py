@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 app_name = METADATA["name"]
 resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
-related_app = "related_app"
+related_app = "related-app"
 
 
 @pytest.mark.abort_on_fail

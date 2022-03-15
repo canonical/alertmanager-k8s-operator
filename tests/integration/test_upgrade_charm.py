@@ -65,7 +65,7 @@ async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_
 @pytest.mark.abort_on_fail
 async def test_upgrade_with_multiple_units(ops_test: OpsTest, charm_under_test):
     # Add unit
-    await ops_test.model.applications[app_name].add_units(count=1)
+    await ops_test.model.applications[app_name].scale(scale_change=1)
     await ops_test.model.wait_for_idle(
         apps=[app_name, "prom", "karma"], status="active", timeout=1000
     )
