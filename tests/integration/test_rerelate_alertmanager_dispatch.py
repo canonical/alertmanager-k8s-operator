@@ -46,9 +46,7 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
 
 @pytest.mark.abort_on_fail
 async def test_remove_relation(ops_test: OpsTest):
-    await ops_test.model.applications[app_name].remove_relation(
-        "alertmanager_dispatch", related_app
-    )
+    await ops_test.model.applications[app_name].remove_relation("alerting", related_app)
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)
 
