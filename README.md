@@ -1,6 +1,6 @@
 # Alertmanager Operator (k8s)
 
-[![Test Suite](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-to-edge.yaml/badge.svg)](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-to-edge.yaml)
+[![Test Suite](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-edge.yaml/badge.svg)](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-edge.yaml)
 ![Discourse status](https://img.shields.io/discourse/status?server=https%3A%2F%2Fdiscourse.charmhub.io&style=flat)
 
 This Charmed Operator handles instantiation, scaling, configuration, and Day 2
