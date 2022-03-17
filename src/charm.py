@@ -301,9 +301,8 @@ class AlertmanagerCharm(CharmBase):
         if config_hash == self._stored.config_hash:
             logger.debug("no change in config")
             return
-        else:
-            logger.debug("config changed")
 
+        logger.debug("config changed")
         self._push_config_and_reload(config_yaml)
         self._stored.config_hash = config_hash
 
