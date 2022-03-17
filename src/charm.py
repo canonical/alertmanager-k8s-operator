@@ -17,7 +17,7 @@ from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Relation
-from ops.pebble import APIError, Layer, PathError, ProtocolError
+from ops.pebble import Layer, PathError, ProtocolError
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
@@ -335,12 +335,12 @@ class AlertmanagerCharm(CharmBase):
         except AlertmanagerBadResponse:
             config_from_server_before = None
 
-        # Send a SIGHUP to alertmanager to hot-reload the config.
+        # Send an HTTP POST to alertmanager to hot-reload the config.
         # This reduces down-time compared to restarting the service.
         try:
-            self.container.send_signal("SIGHUP", self._service_name)
-        except APIError as e:
-            logger.warning("config reload via SIGHUP failed: %s", str(e))
+            self.api.reload()
+        except AlertmanagerBadResponse as e:
+            logger.warning("config reload via HTTP POST failed: %s", str(e))
             # hot-reload failed so attempting a service restart
             if not self._restart_service():
                 raise ConfigUpdateFailure(
