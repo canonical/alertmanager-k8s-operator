@@ -61,6 +61,9 @@ async def test_rerelate(ops_test: OpsTest):
 @pytest.mark.abort_on_fail
 async def test_remove_related_app(ops_test: OpsTest):
     await ops_test.model.applications[related_app].remove()
+    # Block until it is really gone. Added after an itest failed when tried to redeploy:
+    # juju.errors.JujuError: ['cannot add application "related-app": application already exists']
+    await ops_test.model.block_until(lambda: related_app not in ops_test.model.applications)
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)
 
