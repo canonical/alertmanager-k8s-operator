@@ -26,7 +26,7 @@ import logging
 from typing import Dict, List, Optional
 
 import ops.charm
-from ops.charm import CharmBase, RelationJoinedEvent
+from ops.charm import CharmBase, RelationJoinedEvent, RelationRole
 from ops.framework import EventBase, EventSource, Object, ObjectEvents, StoredState
 
 # The unique Charmhub library identifier, never change it
@@ -37,7 +37,10 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 3
+
+# Set to match metadata.yaml
+INTERFACE_NAME = "karma_dashboard"
 
 logger = logging.getLogger(__name__)
 
@@ -128,9 +131,36 @@ class RelationManagerBase(Object):
         name (str): consumer's relation name
     """
 
-    def __init__(self, charm: CharmBase, relation_name):
+    def __init__(self, charm: CharmBase, relation_name, relation_role: RelationRole):
         super().__init__(charm, relation_name)
+        self.charm = charm
+        self._validate_relation(relation_name, relation_role)
         self.name = relation_name
+
+    def _validate_relation(self, relation_name: str, relation_role: RelationRole):
+        try:
+            if self.charm.meta.relations[relation_name].role != relation_role:
+                raise ValueError(
+                    "Relation '{}' in the charm's metadata.yaml must be '{}' "
+                    "to be managed by this library, but instead it is '{}'".format(
+                        relation_name,
+                        relation_role,
+                        self.charm.meta.relations[relation_name].role,
+                    )
+                )
+            if self.charm.meta.relations[relation_name].interface_name != INTERFACE_NAME:
+                raise ValueError(
+                    "Relation '{}' in the charm's metadata.yaml must use the '{}' interface "
+                    "to be managed by this library, but instead it is '{}'".format(
+                        relation_name,
+                        INTERFACE_NAME,
+                        self.charm.meta.relations[relation_name].interface_name,
+                    )
+                )
+        except KeyError:
+            raise ValueError(
+                "Relation '{}' is not in the charm's metadata.yaml".format(relation_name)
+            )
 
 
 class KarmaConsumer(RelationManagerBase):
@@ -151,7 +181,7 @@ class KarmaConsumer(RelationManagerBase):
     A typical example of importing this library might be
 
     ```python
-    from charms.alertmanager_karma.v0.karma import KarmaConsumer
+    from charms.alertmanager_karma.v0.karma_dashboard import KarmaConsumer
     ```
 
     In your charm's `__init__` method:
@@ -182,13 +212,13 @@ class KarmaConsumer(RelationManagerBase):
             name (str): from consumer's metadata.yaml
 
     Attributes:
-            charm (CharmBase): consumer charm
+            relation_charm (CharmBase): consumer charm
     """
 
     on = KarmaConsumerEvents()
 
-    def __init__(self, charm, name: str):
-        super().__init__(charm, name)
+    def __init__(self, charm, relation_name: str = "karma-dashboard"):
+        super().__init__(charm, relation_name, RelationRole.requires)
         self.charm = charm
 
         events = self.charm.on[self.name]
@@ -262,7 +292,7 @@ class KarmaProvider(RelationManagerBase):
     A typical example of importing this library might be
 
     ```python
-    from charms.karma_k8s.v0.karma import KarmaProvider
+    from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
     ```
 
     In your charm's `__init__` method:
@@ -282,7 +312,7 @@ class KarmaProvider(RelationManagerBase):
 
     Arguments:
             charm (CharmBase): consumer charm
-            name (str): relation name from consumer's metadata.yaml
+            relation_name (str): relation name from consumer's metadata.yaml
 
     Attributes:
             charm (CharmBase): consumer charm
@@ -290,8 +320,8 @@ class KarmaProvider(RelationManagerBase):
 
     _stored = StoredState()
 
-    def __init__(self, charm, name: str):
-        super().__init__(charm, name)
+    def __init__(self, charm, relation_name: str = "dashboard"):
+        super().__init__(charm, relation_name, RelationRole.provides)
         self.charm = charm
 
         # StoredState is used for holding the target URL.
@@ -334,8 +364,9 @@ class KarmaProvider(RelationManagerBase):
             None.
         """
         name = self.charm.unit.name
-        cluster = f"{self.charm.model.name}_{self.charm.app.name}"
-        if not (config := KarmaAlertmanagerConfig.build(name, url, cluster=cluster)):
+        cluster = "{}_{}".format(self.charm.model.name, self.charm.app.name)
+        config = KarmaAlertmanagerConfig.build(name, url, cluster=cluster)
+        if not config:
             logger.warning("Invalid config: {%s, %s}", name, url)
             return
 

@@ -7,7 +7,7 @@
 import hashlib
 import logging
 import socket
-from typing import List, Optional
+from typing import List, Optional, cast
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
@@ -272,7 +272,7 @@ class AlertmanagerCharm(CharmBase):
         # if no config provided, use default config with a dummy receiver
         config = yaml.safe_load(self.config["config_file"]) or self._default_config
 
-        if "templates" in config:
+        if config.get("templates", []):
             logger.error(
                 "alertmanager config file must not have a 'templates' section; "
                 "use the 'templates' config option instead."
@@ -287,7 +287,7 @@ class AlertmanagerCharm(CharmBase):
             self.container.push(self._templates_path, templates, make_dirs=True)
 
         # add juju topology to "group_by"
-        route = config.get("route", {})
+        route = cast(dict, config.get("route", {}))
         route["group_by"] = list(
             set(route.get("group_by", [])).union(
                 ["juju_application", "juju_model", "juju_model_uuid"]
@@ -298,27 +298,64 @@ class AlertmanagerCharm(CharmBase):
         config_yaml = yaml.safe_dump(config)
         config_hash = sha256(config_yaml)
 
-        logger.debug(
-            "config changed" if config_hash != self._stored.config_hash else "no change",
-        )
+        if config_hash == self._stored.config_hash:
+            logger.debug("no change in config")
+            return
 
-        if config_hash != self._stored.config_hash:
-            self.container.push(self._config_path, config_yaml, make_dirs=True)
+        logger.debug("config changed")
+        self._push_config_and_reload(config_yaml)
+        self._stored.config_hash = config_hash
 
-            # Send an HTTP POST to alertmanager to hot-reload the config.
-            # This reduces down-time compared to restarting the service.
-            try:
-                self.api.reload()
-                self._stored.config_hash = config_hash
-            except AlertmanagerBadResponse as e:
-                logger.warning("config reload via HTTP POST failed: %s", str(e))
-                # hot-reload failed so attempting a service restart
-                if self._restart_service():
-                    self._stored.config_hash = config_hash
-                else:
-                    raise ConfigUpdateFailure(
-                        "Is config valid? hot reload and service restart failed."
-                    )
+    def _push_config_and_reload(self, config_yaml):
+        """Push config into workload container, and trigger a hot-reload (or service restart).
+
+        Args:
+            config_yaml: contents of the new config file.
+
+        Raises:
+            ConfigUpdateFailure, if config update fails.
+        """
+        self.container.push(self._config_path, config_yaml, make_dirs=True)
+
+        # Obtain a "before" snapshot of the config from the server.
+        # This is different from `config` above because alertmanager adds in a bunch of details
+        # such as:
+        #
+        #   smtp_hello: localhost
+        #   smtp_require_tls: true
+        #   pagerduty_url: https://events.pagerduty.com/v2/enqueue
+        #   opsgenie_api_url: https://api.opsgenie.com/
+        #   wechat_api_url: https://qyapi.weixin.qq.com/cgi-bin/
+        #   victorops_api_url: https://alert.victorops.com/integrations/generic/20131114/alert/
+        #
+        # The snapshot is needed to determine if reloading took place.
+        try:
+            config_from_server_before = self.api.config()
+        except AlertmanagerBadResponse:
+            config_from_server_before = None
+
+        # Send an HTTP POST to alertmanager to hot-reload the config.
+        # This reduces down-time compared to restarting the service.
+        try:
+            self.api.reload()
+        except AlertmanagerBadResponse as e:
+            logger.warning("config reload via HTTP POST failed: %s", str(e))
+            # hot-reload failed so attempting a service restart
+            if not self._restart_service():
+                raise ConfigUpdateFailure(
+                    "Is config valid? hot reload and service restart failed."
+                )
+
+        # Obtain an "after" snapshot of the config from the server.
+        try:
+            config_from_server_after = self.api.config()
+        except AlertmanagerBadResponse:
+            config_from_server_after = None
+
+        if config_from_server_before is None or config_from_server_after is None:
+            logger.warning("cannot determine if reload succeeded")
+        elif config_from_server_before == config_from_server_after:
+            logger.warning("config remained the same after a reload")
 
     @property
     def api_address(self):
