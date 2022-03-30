@@ -12,7 +12,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
     - name: Install dependencies
-      run: python3 -m pip install tox mutmut
+      run: python3 -m pip install tox git+https://github.com/boxed/mutmut
     - name: Run mutation testing
       run: mutmut run --paths-to-mutate src/,lib/charms/alertmanager_k8s/ --runner "tox -e unit" --tests-dir tests/unit/
     - name: Show summary of survived mutations
