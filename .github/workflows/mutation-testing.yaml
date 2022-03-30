@@ -13,9 +13,7 @@ jobs:
       uses: actions/checkout@v2
     - name: Install dependencies
       run: python3 -m pip install tox mutmut
-    - name: Run mutation testing (charm)
-      run: mutmut run --paths-to-mutate src/ --runner "tox -e unit" --tests-dir tests/unit/
-    - name: Run mutation testing (lib)
-      run: mutmut run --paths-to-mutate lib/charms/alertmanager_k8s/ --runner "tox -e unit" --tests-dir tests/unit/
+    - name: Run mutation testing
+      run: mutmut run --paths-to-mutate src/,lib/charms/alertmanager_k8s/ --runner "tox -e unit" --tests-dir tests/unit/
     - name: Show summary of survived mutations
       run: mutmut show
