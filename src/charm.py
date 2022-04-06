@@ -47,10 +47,12 @@ class AlertmanagerCharm(CharmBase):
     # Layer name is used for the layer label argument in container.add_layer
     # Service name matches charm name for consistency
     _container_name = _layer_name = _service_name = "alertmanager"
+    _configurer_container_name = _configurer_layer_name = _configurer_service_name = "alertmanager-configurer"
     _relation_name = "alerting"
     _peer_relation_name = "replicas"  # must match metadata.yaml peer role name
     _api_port = 9093  # port to listen on for the web interface and API
     _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
+    _configurer_port = 9101  # port for alertmanager configurer
 
     # path, inside the workload container, to the alertmanager and amtool configuration files
     # the amalgamated templates file goes in the same folder as the main configuration file
@@ -78,10 +80,12 @@ class AlertmanagerCharm(CharmBase):
             [
                 (f"{self.app.name}", self._api_port, self._api_port),
                 (f"{self.app.name}-ha", self._ha_port, self._ha_port),
+                (f"{self.app.name}-configurer", self._configurer_port, self._configurer_port),
             ],
         )
 
         self.container = self.unit.get_container(self._container_name)
+        self.configurer_container = self.unit.get_container(self._configurer_container_name)
 
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
@@ -191,6 +195,27 @@ class AlertmanagerCharm(CharmBase):
             }
         )
 
+    def _configurer_layer(self):
+
+        return Layer(
+            {
+                "summary": "alertmanager configurer layer",
+                "description": "pebble config layer for alertmanager configurer",
+                "services": {
+                    self._configurer_service_name: {
+                        "override": "replace",
+                        "startup": "enabled",
+                        "command": f"alertmanager_configurer "
+                        f"-port={str(self._configurer_port)} "
+                        f"-alertmanager-conf={self._config_path} "
+                        f"-alertmanagerURL={self.app.name}:{self._api_port} "
+                        f"-multitenant-label=networkID "
+                        f"-delete-route-with-receiver=true ",
+                    }
+                }
+            }
+        )
+
     def _restart_service(self) -> bool:
         """Helper function for restarting the underlying service.
 
@@ -239,6 +264,14 @@ class AlertmanagerCharm(CharmBase):
 
             return True
 
+        return False
+
+    def _configurer_update_layer(self) -> bool:
+        configurer_overlay = self._configurer_layer()
+        configurer_plan = self.configurer_container.get_plan()
+        if self._configurer_service_name not in configurer_plan.services or configurer_overlay.services != configurer_plan.services:
+            self.configurer_container.add_layer(self._configurer_layer_name, configurer_overlay, combine=True)
+            return True
         return False
 
     @property
@@ -357,6 +390,10 @@ class AlertmanagerCharm(CharmBase):
             not service_running or (num_peers > 0 and not self._stored.launched_with_peers)
         ):
             self._restart_service()
+
+        configurer_layer_changed = self._configurer_update_layer()
+        if configurer_layer_changed:
+            self.configurer_container.restart(self._configurer_service_name)
 
         # Update config file
         try:

@@ -23,6 +23,13 @@ containers:
         # across container restarts.
         # This path is passed to alertmanager via the `--storage.path` cli argument.
         location: /alertmanager
+      - storage: config
+        location: /etc/alertmanager
+  alertmanager-configurer:
+    resource: alertmanager-configurer-image
+    mounts:
+      - storage: config
+        location: /etc/alertmanager
 
 # oci-image resources for each container defined above
 resources:
@@ -30,6 +37,10 @@ resources:
     type: oci-image
     description: OCI image for alertmanager
     upstream-source: ubuntu/prometheus-alertmanager:0.21-20.04_beta
+  alertmanager-configurer-image:
+    type: oci-image
+    description: OCI image for alertmanager-configurer
+    upstream-source: docker.io/facebookincubator/alertmanager-configurer:1.0.4
 provides:
   alerting:
     # The provider (alertmanager) adds the following key-value pair to the relation data bag of
@@ -50,3 +61,7 @@ storage:
     type: filesystem
     description: >
       Storage path passed to alertmanager via --storage.path argument and used for nflog and silences snapshot
+  config:
+    type: filesystem
+    description: >
+      Config path passed to alertmanager via --config.file argument
