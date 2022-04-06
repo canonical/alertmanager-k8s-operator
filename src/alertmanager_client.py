@@ -12,6 +12,8 @@ import urllib.parse
 import urllib.request
 from typing import Optional
 
+import yaml
+
 logger = logging.getLogger(__name__)
 
 
@@ -108,3 +110,48 @@ class Alertmanager:
             return self.status()["versionInfo"]["version"]
         except KeyError as e:
             raise AlertmanagerBadResponse("Unexpected response") from e
+
+    def config(self) -> dict:
+        """Obtain config from the alertmanager server.
+
+        Typical output (here displayed in yaml format):
+        global:
+          resolve_timeout: 5m
+          http_config:
+            tls_config:
+              insecure_skip_verify: true
+          smtp_hello: localhost
+          smtp_require_tls: true
+          pagerduty_url: https://events.pagerduty.com/v2/enqueue
+          opsgenie_api_url: https://api.opsgenie.com/
+          wechat_api_url: https://qyapi.weixin.qq.com/cgi-bin/
+          victorops_api_url: https://alert.victorops.com/integrations/generic/20131114/alert/
+        route:
+          receiver: dummy
+          group_by:
+            - juju_application
+            - juju_model
+            - juju_model_uuid
+          group_wait: 30s
+          group_interval: 5m
+          repeat_interval: 1h
+        receivers:
+          - name: dummy
+            webhook_configs:
+              - send_resolved: true
+                http_config:
+                  tls_config:
+                    insecure_skip_verify: true
+                url: http://127.0.0.1:5001/
+                max_alerts: 0
+        templates: []
+        """
+        try:
+            config = self.status()["config"]["original"]
+        except KeyError as e:
+            raise AlertmanagerBadResponse("Unexpected response") from e
+
+        try:
+            return yaml.safe_load(config)
+        except yaml.YAMLError as e:
+            raise AlertmanagerBadResponse("Response is not a YAML string") from e

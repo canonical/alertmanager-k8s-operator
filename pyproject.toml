@@ -55,6 +55,10 @@ allow_redefinition = true
 module = ["ops.*", "lightkube.*", "git.*", "pytest_operator.*", "validators.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = ["charms.observability_libs.*"]
+warn_unused_ignores = false
+
 [tool.pytest.ini_options]
 minversion = "6.0"
 log_cli_level = "INFO"

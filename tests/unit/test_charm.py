@@ -19,7 +19,6 @@ class TestWithInitialHooks(unittest.TestCase):
 
     @patch_network_get(private_address="1.1.1.1")
     @patch.object(Alertmanager, "reload", tautology)
-    @patch("ops.testing._TestingPebbleClient.get_system_info")
     @patch("charm.KubernetesServicePatch", lambda x, y: None)
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
@@ -34,7 +33,6 @@ class TestWithInitialHooks(unittest.TestCase):
     def test_num_peers(self):
         self.assertEqual(0, len(self.harness.charm.peer_relation.units))
 
-    @patch("ops.testing._TestingPebbleClient.get_system_info")
     def test_pebble_layer_added(self, *unused):
         self.harness.container_pebble_ready(self.container_name)
         plan = self.harness.get_container_pebble_plan(self.container_name)
@@ -66,7 +64,6 @@ class TestWithInitialHooks(unittest.TestCase):
         expected_address = "1.1.1.1:{}".format(self.harness.charm.alertmanager_provider.api_port)
         self.assertEqual({"public_address": expected_address}, rel.data[self.harness.charm.unit])
 
-    @patch("ops.testing._TestingPebbleClient.get_system_info")
     def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
         self.harness.container_pebble_ready(self.container_name)
 
@@ -82,7 +79,6 @@ class TestWithInitialHooks(unittest.TestCase):
             sorted(["juju_model", "juju_application", "juju_model_uuid"]),
         )
 
-    @patch("ops.testing._TestingPebbleClient.get_system_info")
     def test_topology_added_if_user_provided_config_with_group_by(self, *unused):
         self.harness.container_pebble_ready(self.container_name)
 
@@ -97,7 +93,6 @@ class TestWithInitialHooks(unittest.TestCase):
             sorted(["alertname", "juju_model", "juju_application", "juju_model_uuid"]),
         )
 
-    @patch("ops.testing._TestingPebbleClient.get_system_info")
     def test_charm_blocks_if_user_provided_config_with_templates(self, *unused):
         self.harness.container_pebble_ready(self.container_name)
 
@@ -109,7 +104,6 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.update_config({"config_file": new_config})
         self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
 
-    @patch("ops.testing._TestingPebbleClient.get_system_info")
     def test_templates_section_added_if_user_provided_templates(self, *unused):
         self.harness.container_pebble_ready(self.container_name)
 
@@ -141,7 +135,6 @@ class TestWithoutInitialHooks(unittest.TestCase):
         self.harness.begin()
         self.harness.add_relation("replicas", "alertmanager")
 
-    @patch("ops.testing._TestingPebbleClient.get_system_info")
     def test_unit_status_around_pebble_ready(self, *unused):
         # before pebble_ready, status should be "maintenance"
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.MaintenanceStatus)
