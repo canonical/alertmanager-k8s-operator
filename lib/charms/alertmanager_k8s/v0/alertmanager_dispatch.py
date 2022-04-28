@@ -279,7 +279,12 @@ class AlertmanagerProvider(RelationManagerBase):
             # a single consumer charm's unit may be related to multiple providers
             if self.name in self.charm.model.relations:
                 for relation in self.charm.model.relations[self.name]:
+                    # Sometimes (e.g. when an app is removed with `--force`), there is a dangling
+                    # relation, for which we get the following error:
+                    # ops.model.ModelError: b'ERROR relation 17 not found (not found)\n'
+                    # when trying to `network-get alerting`.
                     relation.data[self.charm.unit].update(self._generate_relation_data(relation))
+
         else:
             # update relation data only for the newly joined relation
             event.relation.data[self.charm.unit].update(
