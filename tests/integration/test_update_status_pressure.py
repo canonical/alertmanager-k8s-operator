@@ -72,39 +72,3 @@ async def test_wait_through_a_few_update_status_cycles(ops_test: OpsTest):
     await ops_test.model.set_config({"update-status-hook-interval": "60m"})
 
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=300)
-
-
-@pytest.mark.abort_on_fail
-async def test_remove_related_app_forcefully(ops_test: OpsTest):
-    await ops_test.model.set_config({"update-status-hook-interval": "10s"})
-
-    await ops_test.model.deploy("ch:prometheus-k8s", application_name="prom", channel="edge")
-    await asyncio.gather(
-        ops_test.model.add_relation(app_name, "prom"),
-        ops_test.model.wait_for_idle(status="active", timeout=300),
-    )
-
-    cmd = [
-        "juju",
-        "remove-application",
-        "--destroy-storage",
-        "--force",
-        "--no-wait",
-        "prom",
-    ]
-    await ops_test.run(*cmd)
-
-    await ops_test.model.block_until(lambda: "prom" not in ops_test.model.applications)
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=300)
-    assert await is_alertmanager_up(ops_test, app_name)
-
-
-@pytest.mark.abort_on_fail
-async def test_wait_through_a_few_update_status_cycles_after_forceful_remove(ops_test: OpsTest):
-    await asyncio.sleep(60)  # should be longer than the update-status period
-
-    # "Disable" update-status so the charm gets a chance to become idle for long enough for
-    # wait_for_idle to succeed
-    await ops_test.model.set_config({"update-status-hook-interval": "60m"})
-
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=300)
