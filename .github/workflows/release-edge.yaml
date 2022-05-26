@@ -65,11 +65,9 @@ jobs:
         provider: microk8s
     - name: Run alertmanger tests
       run: tox -vve integration
-    - name: Run lma bundle tests
-      run: tox -vve integration-lma
   release-to-charmhub:
     name: Release to CharmHub
-    needs: 
+    needs:
       - static-analysis
       - lib-check
       - lint
