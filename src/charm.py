@@ -7,7 +7,7 @@
 import hashlib
 import logging
 import socket
-from typing import List, Optional, cast
+from typing import List, cast
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
@@ -127,28 +127,6 @@ class AlertmanagerCharm(CharmBase):
         (NOTE: would return None if called too early, e.g. during install).
         """
         return self.model.get_relation(self._peer_relation_name)
-
-    @property
-    def private_address(self) -> Optional[str]:
-        """Get the unit's ip address.
-
-        Technically, receiving a "joined" event guarantees an IP address is available. If this is
-        called beforehand, a None would be returned.
-        When operating a single unit, no "joined" events are visible so obtaining an address is a
-        matter of timing in that case.
-
-        This function is still needed in Juju 2.9.5 because the "private-address" field in the
-        data bag is being populated by the app IP instead of the unit IP.
-        Also in Juju 2.9.5, ip address may be None even after RelationJoinedEvent, for which
-        "ops.model.RelationDataError: relation data values must be strings" would be emitted.
-
-        Returns:
-          None if no IP is available (called before unit "joined"); unit's ip address otherwise
-        """
-        # if bind_address := check_output(["unit-get", "private-address"]).decode().strip()
-        if bind_address := self.model.get_binding(self._peer_relation_name).network.bind_address:
-            bind_address = str(bind_address)
-        return bind_address
 
     def _alertmanager_layer(self) -> Layer:
         """Returns Pebble configuration layer for alertmanager."""
@@ -360,7 +338,7 @@ class AlertmanagerCharm(CharmBase):
     @property
     def api_address(self):
         """Returns the API address (including scheme and port) of the alertmanager server."""
-        return f"http://{self.private_address}:{self.api_port}"
+        return f"http://{socket.getfqdn()}:{self.api_port}"
 
     def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""

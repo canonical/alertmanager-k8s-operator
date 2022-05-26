@@ -9,7 +9,7 @@ from unittest.mock import patch
 import hypothesis.strategies as st
 import validators
 import yaml
-from helpers import patch_network_get, tautology
+from helpers import tautology
 from hypothesis import given
 from ops.testing import Harness
 
@@ -24,7 +24,6 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
     Background: Charm starts up with initial hooks.
     """
 
-    @patch_network_get(private_address="1.1.1.1")
     @patch.object(Alertmanager, "reload", tautology)
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     def setUp(self, *_):
