@@ -60,30 +60,6 @@ async def cli_upgrade_from_path_and_wait(
     await ops_test.model.wait_for_idle(apps=[alias], status=wait_for_status, timeout=120)
 
 
-class IPAddressWorkaround:
-    """Context manager for deploying a charm that needs to have its IP address.
-
-    Due to a juju bug, occasionally some charms finish a startup sequence without
-    having an ip address returned by `bind_address`.
-    https://bugs.launchpad.net/juju/+bug/1929364
-    Issuing dummy update_status just to trigger an event, and then restore it.
-    """
-
-    def __init__(self, ops_test: OpsTest):
-        self.ops_test = ops_test
-
-    async def __aenter__(self):
-        """On entry, the update status interval is set to the minimum 10s."""
-        config = await self.ops_test.model.get_config()
-        self.revert_to = config["update-status-hook-interval"]
-        await self.ops_test.model.set_config({"update-status-hook-interval": "10s"})
-        return self
-
-    async def __aexit__(self, exc_type, exc_value, exc_traceback):
-        """On exit, the update status interval is reverted to its original value."""
-        await self.ops_test.model.set_config({"update-status-hook-interval": self.revert_to})
-
-
 async def get_leader_unit_num(ops_test: OpsTest, app_name: str):
     units = ops_test.model.applications[app_name].units
     is_leader = [await units[i].is_leader_from_status() for i in range(len(units))]

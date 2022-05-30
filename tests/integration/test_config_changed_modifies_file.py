@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import IPAddressWorkaround, get_unit_address, is_alertmanager_up
+from helpers import get_unit_address, is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 
 from alertmanager_client import Alertmanager
@@ -34,10 +34,7 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     """
     # deploy charm from local source folder
     await ops_test.model.deploy(charm_under_test, resources=resources, application_name=app_name)
-
-    async with IPAddressWorkaround(ops_test):
-        await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
-
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert ops_test.model.applications[app_name].units[0].workload_status == "active"
     assert await is_alertmanager_up(ops_test, app_name)
 

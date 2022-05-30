@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import ops
 import yaml
-from helpers import patch_network_get, tautology
+from helpers import tautology
 from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
@@ -17,9 +17,9 @@ from charm import Alertmanager, AlertmanagerCharm
 class TestWithInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
-    @patch_network_get(private_address="1.1.1.1")
     @patch.object(Alertmanager, "reload", tautology)
     @patch("charm.KubernetesServicePatch", lambda x, y: None)
+    @patch("socket.getfqdn", new=lambda *args: "fqdn")
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
@@ -61,7 +61,7 @@ class TestWithInitialHooks(unittest.TestCase):
         assert model is not None
 
         rel = model.get_relation("alerting", self.relation_id)
-        expected_address = "1.1.1.1:{}".format(self.harness.charm.alertmanager_provider.api_port)
+        expected_address = "fqdn:{}".format(self.harness.charm.alertmanager_provider.api_port)
         self.assertEqual({"public_address": expected_address}, rel.data[self.harness.charm.unit])
 
     def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
@@ -118,7 +118,6 @@ class TestWithInitialHooks(unittest.TestCase):
         self.assertEqual(updated_config["templates"], [f"'{self.harness.charm._templates_path}'"])
 
 
-@patch_network_get(private_address="1.1.1.1")
 class TestWithoutInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 

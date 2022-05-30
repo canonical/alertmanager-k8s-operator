@@ -25,6 +25,7 @@ class SomeApplication(CharmBase):
 ```
 """
 import logging
+import socket
 from typing import List
 
 import ops
@@ -40,7 +41,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 3
+LIBPATCH = 4
 
 # Set to match metadata.yaml
 INTERFACE_NAME = "alertmanager_dispatch"
@@ -258,9 +259,7 @@ class AlertmanagerProvider(RelationManagerBase):
 
     def _generate_relation_data(self, relation: Relation):
         """Helper function to generate relation data in the correct format."""
-        public_address = "{}:{}".format(
-            self.charm.model.get_binding(relation).network.bind_address, self.api_port
-        )
+        public_address = "{}:{}".format(socket.getfqdn(), self.api_port)
         return {"public_address": public_address}
 
     def update_relation_data(self, event: RelationEvent = None):

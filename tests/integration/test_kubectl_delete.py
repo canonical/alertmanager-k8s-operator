@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import IPAddressWorkaround, is_alertmanager_up
+from helpers import is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
@@ -23,12 +23,9 @@ async def test_deploy_from_local_path(ops_test: OpsTest, charm_under_test):
     """Deploy the charm-under-test."""
     logger.debug("deploy local charm")
 
-    async with IPAddressWorkaround(ops_test):
-        await ops_test.model.deploy(
-            charm_under_test, application_name=app_name, resources=resources
-        )
-        await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
-        await is_alertmanager_up(ops_test, app_name)
+    await ops_test.model.deploy(charm_under_test, application_name=app_name, resources=resources)
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    await is_alertmanager_up(ops_test, app_name)
 
 
 @pytest.mark.abort_on_fail
