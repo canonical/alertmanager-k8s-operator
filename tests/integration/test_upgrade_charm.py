@@ -50,7 +50,7 @@ async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_
 
     # Relate apps
     await asyncio.gather(
-        ops_test.model.add_relation(app_name, "prom"),
+        ops_test.model.add_relation(app_name, "prom:alertmanager"),
         ops_test.model.add_relation(app_name, "karma"),
     )
 
