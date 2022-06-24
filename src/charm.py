@@ -13,8 +13,8 @@ import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
-from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
