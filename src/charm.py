@@ -7,7 +7,7 @@
 import hashlib
 import logging
 import socket
-from typing import List, cast
+from typing import List, Optional, cast
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
@@ -130,7 +130,7 @@ class AlertmanagerCharm(CharmBase):
         return self._api_port
 
     @property
-    def peer_relation(self) -> Relation:
+    def peer_relation(self) -> Optional["Relation"]:
         """Helper function for obtaining the peer relation object.
 
         Returns: peer relation object
@@ -376,7 +376,10 @@ class AlertmanagerCharm(CharmBase):
             service := self.container.get_service(self._service_name)
         ) and service.is_running()
 
-        num_peers = len(self.peer_relation.units)
+        num_peers = 0
+
+        if self.peer_relation:
+            num_peers = len(self.peer_relation.units)
 
         if layer_changed and (
             not service_running or (num_peers > 0 and not self._stored.launched_with_peers)
