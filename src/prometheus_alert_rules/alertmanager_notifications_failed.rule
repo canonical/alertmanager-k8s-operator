@@ -1,0 +1,11 @@
+alert: AlertmanagerNotificationsFailed
+expr: alertmanager_notifications_failed_total{integration=~".*"} != 0
+for: 0m
+labels:
+  severity: warning
+annotations:
+  summary: Alertmanager notifications failure (instance {{ $labels.instance }})
+  description: |
+    Alertmanager notifications failure
+    VALUE = {{ $value }}
+    LABELS = {{ $labels }}

@@ -12,6 +12,7 @@ from typing import List, cast
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
@@ -79,6 +80,13 @@ class AlertmanagerCharm(CharmBase):
                 (f"{self.app.name}", self._api_port, self._api_port),
                 (f"{self.app.name}-ha", self._ha_port, self._ha_port),
             ],
+        )
+
+        # Self-monitoring
+        self._scraping = MetricsEndpointProvider(
+            self,
+            relation_name="self-metrics-endpoint",
+            jobs=[{"static_configs": [{"targets": [f"*:{self._api_port}"]}]}],
         )
 
         self.container = self.unit.get_container(self._container_name)

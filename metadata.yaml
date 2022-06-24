@@ -39,6 +39,8 @@ provides:
     # assumed network type: private
   karma-dashboard:
     interface: karma_dashboard
+  self-metrics-endpoint:
+    interface: prometheus_scrape
 
 peers:
   replicas:
