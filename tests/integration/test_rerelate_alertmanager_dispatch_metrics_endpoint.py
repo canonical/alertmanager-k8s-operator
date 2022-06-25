@@ -40,7 +40,7 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     )
 
     await ops_test.model.add_relation(app_name, f"{related_app}:alertmanager")
-    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)
+    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1500)
 
     assert await is_alertmanager_up(ops_test, app_name)
 
