@@ -47,7 +47,7 @@ async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
 
     await asyncio.gather(
         ops_test.model.add_relation(app_name, "prom:alertmanager"),
-        ops_test.model.wait_for_idle(status="active", timeout=1000),
+        ops_test.model.wait_for_idle(status="active", timeout=2500),
     )
 
     assert await is_alertmanager_up(ops_test, app_name)
