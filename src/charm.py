@@ -376,10 +376,7 @@ class AlertmanagerCharm(CharmBase):
             service := self.container.get_service(self._service_name)
         ) and service.is_running()
 
-        num_peers = 0
-
-        if self.peer_relation:
-            num_peers = len(self.peer_relation.units)
+        num_peers = len(rel.units) if (rel := self.peer_relation) else 0
 
         if layer_changed and (
             not service_running or (num_peers > 0 and not self._stored.launched_with_peers)
