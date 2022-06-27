@@ -85,7 +85,9 @@ async def test_remove_related_app(ops_test: OpsTest):
 
 @pytest.mark.abort_on_fail
 async def test_rerelate_app(ops_test: OpsTest):
-    await ops_test.model.deploy("ch:prometheus-k8s", application_name=related_app, channel="edge")
+    await ops_test.model.deploy(
+        "ch:prometheus-k8s", application_name=related_app, channel="edge", trust=True
+    )
     await ops_test.model.add_relation(app_name, f"{related_app}:alertmanager")
     await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)
