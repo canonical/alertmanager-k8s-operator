@@ -36,7 +36,9 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
         ops_test.model.deploy(
             charm_under_test, resources=resources, application_name=app_name, num_units=2
         ),
-        ops_test.model.deploy("ch:prometheus-k8s", application_name=related_app, channel="edge"),
+        ops_test.model.deploy(
+            "ch:prometheus-k8s", application_name=related_app, channel="edge", trust=True
+        ),
     )
 
     await ops_test.model.add_relation(app_name, f"{related_app}:alertmanager")
