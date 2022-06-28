@@ -43,6 +43,8 @@ provides:
     interface: prometheus_scrape
   grafana-dashboard:
     interface: grafana_dashboard
+  grafana-source:
+    interface: grafana_datasource
 
 peers:
   replicas:
