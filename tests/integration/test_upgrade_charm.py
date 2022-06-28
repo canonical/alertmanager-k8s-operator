@@ -44,20 +44,22 @@ async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_und
 async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_under_test):
     # Deploy related apps
     await asyncio.gather(
-        ops_test.model.deploy("ch:prometheus-k8s", application_name="prom", channel="edge"),
+        ops_test.model.deploy(
+            "ch:prometheus-k8s", application_name="prom", channel="edge", trust=True
+        ),
         ops_test.model.deploy("ch:karma-k8s", application_name="karma", channel="edge"),
     )
 
     # Relate apps
     await asyncio.gather(
-        ops_test.model.add_relation(app_name, "prom"),
+        ops_test.model.add_relation(app_name, "prom:alertmanager"),
         ops_test.model.add_relation(app_name, "karma"),
     )
 
     # Refresh from path
     await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
     await ops_test.model.wait_for_idle(
-        apps=[app_name, "prom", "karma"], status="active", timeout=1000
+        apps=[app_name, "prom", "karma"], status="active", timeout=2500
     )
     assert await is_alertmanager_up(ops_test, app_name)
 
@@ -73,6 +75,6 @@ async def test_upgrade_with_multiple_units(ops_test: OpsTest, charm_under_test):
     # Refresh from path
     await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
     await ops_test.model.wait_for_idle(
-        apps=[app_name, "prom", "karma"], status="active", timeout=1000
+        apps=[app_name, "prom", "karma"], status="active", timeout=2500
     )
     assert await is_alertmanager_up(ops_test, app_name)

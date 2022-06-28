@@ -42,12 +42,14 @@ async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
         ops_test.model.deploy(
             charm_under_test, application_name=app_name, resources=resources, num_units=2
         ),
-        ops_test.model.deploy("ch:prometheus-k8s", application_name="prom", channel="edge"),
+        ops_test.model.deploy(
+            "ch:prometheus-k8s", application_name="prom", channel="edge", trust=True
+        ),
     )
 
     await asyncio.gather(
-        ops_test.model.add_relation(app_name, "prom"),
-        ops_test.model.wait_for_idle(status="active", timeout=300),
+        ops_test.model.add_relation(f"{app_name}:alerting", "prom"),
+        ops_test.model.wait_for_idle(status="active", timeout=2500),
     )
 
     assert await is_alertmanager_up(ops_test, app_name)

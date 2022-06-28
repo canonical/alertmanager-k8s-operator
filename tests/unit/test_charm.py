@@ -31,7 +31,7 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.begin_with_initial_hooks()
 
     def test_num_peers(self):
-        self.assertEqual(0, len(self.harness.charm.peer_relation.units))
+        self.assertEqual(0, len(self.harness.charm.peer_relation.units))  # type: ignore
 
     def test_pebble_layer_added(self, *unused):
         self.harness.container_pebble_ready(self.container_name)
@@ -62,7 +62,7 @@ class TestWithInitialHooks(unittest.TestCase):
 
         rel = model.get_relation("alerting", self.relation_id)
         expected_address = "fqdn:{}".format(self.harness.charm.alertmanager_provider.api_port)
-        self.assertEqual({"public_address": expected_address}, rel.data[self.harness.charm.unit])
+        self.assertEqual({"public_address": expected_address}, rel.data[self.harness.charm.unit])  # type: ignore
 
     def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
         self.harness.container_pebble_ready(self.container_name)

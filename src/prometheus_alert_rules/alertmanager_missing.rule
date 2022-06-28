@@ -1,0 +1,12 @@
+# Based on https://awesome-prometheus-alerts.grep.to/rules.html#prometheus-self-monitoring-1
+alert: AlertmanagerJobMissing
+expr: absent(up{})
+for: 0m
+labels:
+  severity: warning
+annotations:
+  summary: Alertmanager job missing (instance {{ $labels.instance }})
+  description: |
+    A Alertmanager job has disappeared
+    VALUE = {{ $value }}
+    LABELS = {{ $labels }}

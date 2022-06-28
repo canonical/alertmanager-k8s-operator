@@ -7,12 +7,14 @@
 import hashlib
 import logging
 import socket
-from typing import List, cast
+from typing import List, Optional, cast
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -81,6 +83,14 @@ class AlertmanagerCharm(CharmBase):
             ],
         )
 
+        # Self-monitoring
+        self._scraping = MetricsEndpointProvider(
+            self,
+            relation_name="self-metrics-endpoint",
+            jobs=[{"static_configs": [{"targets": [f"*:{self._api_port}"]}]}],
+        )
+        self.grafana_dashboard_provider = GrafanaDashboardProvider(charm=self)
+
         self.container = self.unit.get_container(self._container_name)
 
         # Core lifecycle events
@@ -120,7 +130,7 @@ class AlertmanagerCharm(CharmBase):
         return self._api_port
 
     @property
-    def peer_relation(self) -> Relation:
+    def peer_relation(self) -> Optional["Relation"]:
         """Helper function for obtaining the peer relation object.
 
         Returns: peer relation object
@@ -366,7 +376,7 @@ class AlertmanagerCharm(CharmBase):
             service := self.container.get_service(self._service_name)
         ) and service.is_running()
 
-        num_peers = len(self.peer_relation.units)
+        num_peers = len(rel.units) if (rel := self.peer_relation) else 0
 
         if layer_changed and (
             not service_running or (num_peers > 0 and not self._stored.launched_with_peers)
