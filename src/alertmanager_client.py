@@ -155,3 +155,50 @@ class Alertmanager:
             return yaml.safe_load(config)
         except yaml.YAMLError as e:
             raise AlertmanagerBadResponse("Response is not a YAML string") from e
+
+    def _post(self, url, post_data, headers=None, timeout=None) -> bytes:
+        """Make a HTTP POST request to Alertmanager.
+
+        Args:
+            url: string URL where POST request is sent.
+            post_data: encoded string (bytes) of data to be posted.
+            headers: dictionary containing HTTP headers to be used for POST request.
+            timeout: numeric timeout value in seconds.
+
+        Returns:
+            urllib response object.
+        """
+        response = "".encode("utf-8")
+        timeout = timeout if timeout else self.timeout
+        request = urllib.request.Request(url, headers=headers or {}, data=post_data, method="POST")
+
+        try:
+            response = urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.HTTPError as error:
+            logger.debug(
+                "Failed posting to %s, reason: %s",
+                url,
+                error.reason,
+            )
+        except urllib.error.URLError as error:
+            logger.debug("Invalid URL %s : %s", url, error)
+        except TimeoutError:
+            logger.debug("Request timeout during posting to URL %s", url)
+        return response
+
+    def set_alerts(self, alerts) -> bytes:
+        """Send a set of new alerts to alertmanger.
+
+        Args:
+            alerts: a list of alerts to be set. Format of this list is
+               described here https://prometheus.io/docs/alerting/latest/clients/.
+
+        Returns:
+            urllib response object.
+        """
+        url = urllib.parse.urljoin(self.base_url, "/api/v1/alerts")
+        headers = {"Content-Type": "application/json"}
+        post_data = json.dumps(alerts).encode("utf-8")
+        response = self._post(url, post_data, headers=headers)
+
+        return response
