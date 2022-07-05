@@ -271,7 +271,7 @@ class AlertmanagerCharm(CharmBase):
 
         # add templates, if any
         if templates := self.config["templates_file"]:
-            config["templates"] = [f"'{self._templates_path}'"]
+            config["templates"] = [f"{self._templates_path}"]
             self.container.push(self._templates_path, templates, make_dirs=True)
 
         # add juju topology to "group_by"

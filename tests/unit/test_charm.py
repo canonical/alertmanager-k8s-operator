@@ -115,7 +115,7 @@ class TestWithInitialHooks(unittest.TestCase):
         updated_config = yaml.safe_load(
             self.harness.charm.container.pull(self.harness.charm._config_path)
         )
-        self.assertEqual(updated_config["templates"], [f"'{self.harness.charm._templates_path}'"])
+        self.assertEqual(updated_config["templates"], [f"{self.harness.charm._templates_path}"])
 
 
 class TestWithoutInitialHooks(unittest.TestCase):
