@@ -160,7 +160,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 10
+LIBPATCH = 11
 
 logger = logging.getLogger(__name__)
 
@@ -376,7 +376,7 @@ class GrafanaSourceProvider(Object):
         events = self._charm.on[relation_name]
 
         self._source_type = source_type
-        if "source_type" == "alertmanager":
+        if source_type == "alertmanager":
             if not extra_fields:
                 extra_fields = {"implementation": "prometheus"}
             elif not extra_fields.get("implementation", None):
