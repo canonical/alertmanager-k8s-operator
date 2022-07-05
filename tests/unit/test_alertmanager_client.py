@@ -4,6 +4,7 @@
 
 import json
 import unittest
+from datetime import datetime
 from unittest.mock import patch
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
@@ -59,3 +60,23 @@ class TestAlertmanagerAPIClient(unittest.TestCase):
         urlopen_mock.return_value.reason = "OK"
 
         self.assertEqual(self.api.version, "0.1.2")
+
+    @patch("alertmanager_client.urllib.request.urlopen")
+    def test_alerts_can_be_set(self, urlopen_mock):
+        msg = "HTTP 200 OK"
+        urlopen_mock.return_value = msg
+        alerts = [
+            {
+                "startsAt": datetime.now().isoformat("T"),
+                "status": "firing",
+                "annotations": {
+                    "summary": "A fake alert",
+                },
+                "labels": {
+                    "alertname": "fake alert",
+                },
+            }
+        ]
+        status = self.api.set_alerts(alerts)
+        urlopen_mock.assert_called()
+        self.assertEqual(status, msg)
