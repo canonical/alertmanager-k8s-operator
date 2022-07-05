@@ -10,6 +10,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from typing import Optional
 
 import yaml
@@ -198,9 +199,143 @@ class Alertmanager:
         Returns:
             urllib response object.
         """
-        url = urllib.parse.urljoin(self.base_url, "/api/v1/alerts")
+        url = urllib.parse.urljoin(self.base_url, "/api/v2/alerts")
         headers = {"Content-Type": "application/json"}
         post_data = json.dumps(alerts).encode("utf-8")
         response = self._post(url, post_data, headers=headers)
 
         return response
+
+    def get_alerts(self) -> list:
+        """Get the current list of alerts from alertmanger.
+
+        Returns:
+            list of alerts.
+        """
+        url = urllib.parse.urljoin(self.base_url, "/api/v2/alerts")
+        response = self._get(url) or "[]"
+        alerts = json.loads(response)
+
+        return alerts
+
+    def set_silences(self, matchers: list, start_time: datetime, end_time: datetime) -> bytes:
+        """Silence a one or more alerts in alertmanager.
+
+        Args:
+            matchers: list of matchers specifying alert(s) to be silenced.
+                The required JSON structure of matchers is specified by Alertmanager
+                API here https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml.
+                The passed in matchers argument must be a python object that transforms into the
+                required JSON structure using `json.dumps()`.
+            start_time: datetime.datetime time stamp for when
+                silencing must commence.
+            end_time: datetime.datetime time stamp for when
+                silencing must end.
+
+        Returns:
+            urllib response object.
+        """
+        url = urllib.parse.urljoin(self.base_url, "/api/v2/silences")
+        headers = {"Content-Type": "application/json"}
+        silences = {
+            "matchers": matchers,
+            "startsAt": start_time.isoformat("T"),
+            "endsAt": end_time.isoformat("T"),
+            "createdBy": "alertmanager_client",
+            "comment": "Alerts have been silenced by Alertmanger client",
+            "status": {"state": "active"},
+        }
+        post_data = json.dumps(silences).encode("utf-8")
+        response = self._post(url, post_data, headers=headers)
+
+        return response
+
+    def get_silences(self) -> list:
+        """Fetch current list of silences set in alertmanager.
+
+        Returns:
+            list of silences.
+        """
+        url = urllib.parse.urljoin(self.base_url, "/api/v2/silences")
+
+        response = self._get(url) or "[]"
+        silences = json.loads(response)
+
+        return silences
+
+    def delete_silence(self, silence_id: str) -> bytes:
+        """Delete a single silence set in alertmanager.
+
+        Args:
+            silence_id: string specifying ID of silence to
+                be deleted.
+
+        Returns:
+            urllib response object.
+        """
+        url = urllib.parse.urljoin(self.base_url, f"/api/v2/silence/{silence_id}")
+
+        response = self._delete(url)
+
+        return response
+
+    def _delete(self, url: str, headers: dict = None, timeout: int = None) -> bytes:
+        """Make a HTTP DELETE request to Alertmanager.
+
+        Args:
+            url: URL string of delete API.
+            headers: optional HTTP header dictionary for a urllib request.
+            timeout: optional timeout in integer seconds.
+
+        Returns:
+            urllib response object.
+        """
+        response = "".encode("utf-8")
+        timeout = timeout or self.timeout
+        request = urllib.request.Request(url, headers=headers or {}, method="DELETE")
+
+        try:
+            response = urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.HTTPError as error:
+            logger.debug(
+                "Delete failed %s, reason: %s",
+                url,
+                error.reason,
+            )
+        except urllib.error.URLError as error:
+            logger.debug("Invalid URL %s : %s", url, error)
+        except TimeoutError:
+            logger.debug("Request timeout deleting %s", url)
+
+        return response
+
+    def _get(self, url: str, headers: dict = None, timeout: int = None) -> str:
+        """Make a HTTP GET request to Alertmanager.
+
+        Args:
+            url: string URL for HTTP GET API.
+            headers: optional HTTP Header dictionary for a urllib request.
+            timeout: optional integer request timeout in seconds.
+
+        Returns:
+            Decoded HTTP response body as a string or empty string.
+        """
+        body = ""
+        request = urllib.request.Request(url, headers=headers or {}, method="GET")
+        timeout = timeout or self.timeout
+
+        try:
+            response = urllib.request.urlopen(request, timeout=timeout)
+            body = response.read()
+        except urllib.error.HTTPError as error:
+            logger.debug(
+                "Failed to fetch %s, reason: %s",
+                url,
+                error.reason,
+            )
+        except urllib.error.URLError as error:
+            logger.debug("Invalid URL %s : %s", url, error)
+        except TimeoutError:
+            logger.debug("Request timeout fetching URL %s", url)
+
+        return body
