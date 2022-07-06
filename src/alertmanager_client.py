@@ -171,7 +171,7 @@ class Alertmanager:
             urllib response object.
         """
         response = "".encode("utf-8")
-        timeout = timeout if timeout else self.timeout
+        timeout = timeout or self.timeout
         request = urllib.request.Request(url, headers=headers or {}, data=post_data, method="POST")
 
         try:
