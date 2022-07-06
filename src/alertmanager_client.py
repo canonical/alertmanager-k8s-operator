@@ -156,7 +156,9 @@ class Alertmanager:
         except yaml.YAMLError as e:
             raise AlertmanagerBadResponse("Response is not a YAML string") from e
 
-    def _post(self, url, post_data, headers=None, timeout=None) -> bytes:
+    def _post(
+        self, url: str, post_data: bytes, headers: dict = None, timeout: int = None
+    ) -> bytes:
         """Make a HTTP POST request to Alertmanager.
 
         Args:
@@ -186,7 +188,7 @@ class Alertmanager:
             logger.debug("Request timeout during posting to URL %s", url)
         return response
 
-    def set_alerts(self, alerts) -> bytes:
+    def set_alerts(self, alerts: list) -> bytes:
         """Send a set of new alerts to alertmanger.
 
         Args:
