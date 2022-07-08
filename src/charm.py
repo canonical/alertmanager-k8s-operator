@@ -83,7 +83,7 @@ class AlertmanagerCharm(CharmBase):
         self.grafana_source_provider = GrafanaSourceProvider(
             charm=self,
             source_type="alertmanager",
-            source_url=self.api_address,
+            source_url=self._external_url,
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
 
@@ -369,29 +369,17 @@ class AlertmanagerCharm(CharmBase):
         elif config_from_server_before == config_from_server_after:
             logger.warning("config remained the same after a reload")
 
-    @property
-    def api_address(self):
-        """Returns the API address (including scheme and port) of the alertmanager server."""
-        return f"http://{socket.getfqdn()}:{self.api_port}"
-
     def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self.container.can_connect():
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return
 
-        # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
-        # setting IP here.
-        # Store private address in unit's peer relation data bucket. This is still needed because
-        # the "private-address" field in the data bag is being populated incorrectly.
-        # Also, ip address may still be None even after RelationJoinedEvent, for which
-        # "ops.model.RelationDataError: relation data values must be strings" would be emitted.
         if self.peer_relation:
-            self.peer_relation.data[self.unit]["private_address"] = socket.getfqdn()
+            self.peer_relation.data[self.unit]["private_address"] = self._external_url
 
         self.alertmanager_provider.update_relation_data()
-        if karma_address := self.api_address:
-            self.karma_provider.target = karma_address
+        self.karma_provider.target = self._external_url
 
         # Update pebble layer
         self._update_layer()
@@ -489,14 +477,14 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _external_url(self) -> str:
-        """Return the external hostname to be passed to ingress via the relation."""
+        """Return the API address (including scheme and port) of the alertmanager server."""
         if web_external_url := self.model.config.get("web_external_url"):
             return web_external_url
 
         if ingress_url := self.ingress.url:
             return ingress_url
 
-        return f"http://{socket.getfqdn()}:{self.api_port}"
+        return f"http://{socket.getfqdn()}:{self._api_port}"
 
 
 if __name__ == "__main__":
