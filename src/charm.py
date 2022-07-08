@@ -16,11 +16,12 @@ from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Relation
-from ops.pebble import Layer, PathError, ProtocolError
+from ops.pebble import ChangeError, Layer, PathError, ProtocolError
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
@@ -71,6 +72,10 @@ class AlertmanagerCharm(CharmBase):
         self._stored.set_default(config_hash=None, launched_with_peers=False)
         self.api = Alertmanager(port=self._api_port)
 
+        self.ingress = IngressPerAppRequirer(self, port=self.api_port)
+        self.framework.observe(self.ingress.on.ready, self._handle_ingress)
+        self.framework.observe(self.ingress.on.revoked, self._handle_ingress)
+
         self.alertmanager_provider = AlertmanagerProvider(
             self, self._relation_name, self._api_port
         )
@@ -116,6 +121,10 @@ class AlertmanagerCharm(CharmBase):
 
         # Action events
         self.framework.observe(self.on.show_config_action, self._on_show_config_action)
+
+    def _handle_ingress(self, event):
+        logger.info("This app's ingress URL: '%s'", self.ingress.url)
+        self._common_exit_hook()
 
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
@@ -167,6 +176,7 @@ class AlertmanagerCharm(CharmBase):
                 f"--storage.path={self._storage_path} "
                 f"--web.listen-address=:{self._api_port} "
                 f"--cluster.listen-address={listen_address_arg} "
+                f"--web.external-url={self._external_url} "
                 f"{peer_cmd_args}"
             )
 
@@ -213,7 +223,7 @@ class AlertmanagerCharm(CharmBase):
 
         return True
 
-    def _update_layer(self, restart: bool) -> bool:
+    def _update_layer(self) -> bool:
         """Update service layer to reflect changes in peers (replicas).
 
         Args:
@@ -227,11 +237,19 @@ class AlertmanagerCharm(CharmBase):
 
         if self._service_name not in plan.services or overlay.services != plan.services:
             self.container.add_layer(self._layer_name, overlay, combine=True)
-
-            if restart:
-                self._restart_service()
-
-            return True
+            try:
+                # If a config is invalid then alertmanager would exit immediately.
+                # This would be caught by pebble (default timeout is 30 sec) and a ChangeError
+                # would be raised.
+                self.container.replan()
+                return True
+            except ChangeError as e:
+                logger.error(
+                    "Failed to replan; pebble plan: %s; %s",
+                    self.container.get_plan().to_dict(),
+                    str(e),
+                )
+                return False
 
         return False
 
@@ -376,18 +394,7 @@ class AlertmanagerCharm(CharmBase):
             self.karma_provider.target = karma_address
 
         # Update pebble layer
-        layer_changed = self._update_layer(restart=False)
-
-        service_running = (
-            service := self.container.get_service(self._service_name)
-        ) and service.is_running()
-
-        num_peers = len(rel.units) if (rel := self.peer_relation) else 0
-
-        if layer_changed and (
-            not service_running or (num_peers > 0 and not self._stored.launched_with_peers)
-        ):
-            self._restart_service()
+        self._update_layer()
 
         # Update config file
         try:
@@ -479,6 +486,17 @@ class AlertmanagerCharm(CharmBase):
             ]
 
         return addresses
+
+    @property
+    def _external_url(self) -> str:
+        """Return the external hostname to be passed to ingress via the relation."""
+        if web_external_url := self.model.config.get("web_external_url"):
+            return web_external_url
+
+        if ingress_url := self.ingress.url:
+            return ingress_url
+
+        return f"http://{socket.getfqdn()}:{self.api_port}"
 
 
 if __name__ == "__main__":

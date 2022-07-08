@@ -30,6 +30,7 @@ resources:
     type: oci-image
     description: OCI image for alertmanager
     upstream-source: ubuntu/prometheus-alertmanager:0.23-22.04_beta
+
 provides:
   alerting:
     # The provider (alertmanager) adds the following key-value pair to the relation data bag of
@@ -45,6 +46,11 @@ provides:
     interface: grafana_dashboard
   grafana-source:
     interface: grafana_datasource
+
+requires:
+  ingress:
+    interface: ingress
+    limit: 1
 
 peers:
   replicas:

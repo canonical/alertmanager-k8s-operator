@@ -56,7 +56,7 @@ module = ["ops.*", "lightkube.*", "git.*", "pytest_operator.*", "validators.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["charms.grafana_k8s.*", "charms.observability_libs.*"]
+module = ["charms.grafana_k8s.*", "charms.traefik_k8s.*", "charms.observability_libs.*"]
 follow_imports = "silent"
 warn_unused_ignores = false
 
