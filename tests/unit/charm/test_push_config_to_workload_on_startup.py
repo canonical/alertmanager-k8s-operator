@@ -35,7 +35,6 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
 
         # self.harness.charm.app.name does not exist before .begin()
         # https://github.com/canonical/operator/issues/675
-        # self.peer_rel_id = self.harness.add_relation("replicas", self.app_name)
         self.app_name = "alertmanager-k8s"
         self.peer_rel_id = self.harness.add_relation("replicas", self.app_name)
         self.harness.begin_with_initial_hooks()

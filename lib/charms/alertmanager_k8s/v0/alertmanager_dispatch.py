@@ -27,6 +27,7 @@ class SomeApplication(CharmBase):
 import logging
 import socket
 from typing import List
+from urllib.parse import urlparse
 
 import ops
 from ops.charm import CharmBase, RelationEvent, RelationJoinedEvent, RelationRole
@@ -41,7 +42,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 4
+LIBPATCH = 5
 
 # Set to match metadata.yaml
 INTERFACE_NAME = "alertmanager_dispatch"
@@ -233,16 +234,52 @@ class AlertmanagerProvider(RelationManagerBase):
             charm (CharmBase): the Alertmanager charm
     """
 
-    def __init__(self, charm, relation_name: str = "alerting", api_port: int = 9093):
+    def __init__(
+        self,
+        charm,
+        relation_name: str = "alerting",
+        api_port: int = 9093,
+        *,
+        external_url: str = None,
+    ):
+        # TODO: breaking change: force keyword-only args from relation_name onwards
         super().__init__(charm, relation_name, RelationRole.provides)
 
         self._api_port = api_port
+        self._external_url = external_url
 
         events = self.charm.on[self.name]
 
         # No need to observe `relation_departed` or `relation_broken`: data bags are auto-updated
         # so both events are address on the consumer side.
         self.framework.observe(events.relation_joined, self._on_relation_joined)
+
+    @property
+    def _web_route_prefix(self) -> str:
+        parsed_external = urlparse(self._external_url)
+
+        web_route_prefix = parsed_external.path
+        if web_route_prefix and not web_route_prefix.endswith("/"):
+            # urlparse("http://a.b/c").path returns 'c' without "/"
+            # urljoin will drop the part of the url that does not end with a '/'.
+            # Need to make sure it's in place.
+            web_route_prefix += "/"
+
+        return web_route_prefix
+
+    @property
+    def _private_address(self) -> str:
+        private_address = "{}:{}".format(socket.getfqdn(), self._api_port)
+        if self._external_url:
+            private_address += self._web_route_prefix
+        return private_address
+
+    @property
+    def _public_address(self) -> str:
+        if not self._external_url:
+            return self._private_address
+        else:
+            return urlparse(self._external_url).netloc + self._web_route_prefix
 
     @property
     def api_port(self):
@@ -258,11 +295,13 @@ class AlertmanagerProvider(RelationManagerBase):
         self.update_relation_data(event)
 
     def _generate_relation_data(self, relation: Relation):
-        """Helper function to generate relation data in the correct format."""
-        public_address = "{}:{}".format(socket.getfqdn(), self.api_port)
-        return {"public_address": public_address}
+        """Helper function to generate relation data in the correct format.
 
-    def update_relation_data(self, event: RelationEvent = None):
+        - Addresses without scheme.
+        """
+        return {"public_address": self._public_address, "private_address": self._private_address}
+
+    def update_relation_data(self, event: RelationEvent = None, *, external_url: str = None):
         """Helper function for updating relation data bags.
 
         This function can be used in two different ways:
@@ -271,8 +310,14 @@ class AlertmanagerProvider(RelationManagerBase):
 
         Args:
             event: The event whose data bag needs to be updated. If it is None, update data bags of
-            all relations.
+              all relations.
+            external_url: An updated web external url. Technically this arg should not be needed,
+              because on every event the charm is reinitialized with an updated external url, but
+              unit tests fail because harness doesn't reinitialize the charm between events.
         """
+        if external_url:
+            self._external_url = external_url
+
         if event is None:
             # update all existing relation data
             # a single consumer charm's unit may be related to multiple providers

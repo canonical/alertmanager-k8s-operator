@@ -8,6 +8,7 @@ import hashlib
 import logging
 import socket
 from typing import List, Optional, cast
+from urllib.parse import urlparse
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
@@ -77,7 +78,7 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(self.ingress.on.revoked, self._handle_ingress)
 
         self.alertmanager_provider = AlertmanagerProvider(
-            self, self._relation_name, self._api_port
+            self, self._relation_name, self._api_port, external_url=self._external_url
         )
         self.grafana_dashboard_provider = GrafanaDashboardProvider(charm=self)
         self.grafana_source_provider = GrafanaSourceProvider(
@@ -278,7 +279,9 @@ class AlertmanagerCharm(CharmBase):
           ConfigUpdateFailure, if failed to update configuration file.
         """
         # update amtool config file
-        amtool_config = yaml.safe_dump({"alertmanager.url": f"http://localhost:{self.api_port}"})
+        amtool_config = yaml.safe_dump(
+            {"alertmanager.url": f"http://localhost:{self.api_port}" + self._web_route_prefix}
+        )
         self.container.push(self._amtool_config_path, amtool_config, make_dirs=True)
 
         # if no config provided, use default config with a dummy receiver
@@ -376,9 +379,11 @@ class AlertmanagerCharm(CharmBase):
             return
 
         if self.peer_relation:
-            self.peer_relation.data[self.unit]["private_address"] = self._external_url
+            self.peer_relation.data[self.unit]["private_address"] = (
+                socket.getfqdn() + self._web_route_prefix
+            )
 
-        self.alertmanager_provider.update_relation_data()
+        self.alertmanager_provider.update_relation_data(external_url=self._external_url)
         self.karma_provider.target = self._external_url
 
         # Update pebble layer
@@ -478,13 +483,23 @@ class AlertmanagerCharm(CharmBase):
     @property
     def _external_url(self) -> str:
         """Return the API address (including scheme and port) of the alertmanager server."""
-        if web_external_url := self.model.config.get("web_external_url"):
-            return web_external_url
+        return (
+            self.model.config.get("web_external_url")
+            or self.ingress.url
+            or f"http://{socket.getfqdn()}:{self._api_port}"
+        )
 
-        if ingress_url := self.ingress.url:
-            return ingress_url
+    @property
+    def _web_route_prefix(self) -> str:
+        """Return the webroute prefix with both a leading and a trailing separator."""
+        web_route_prefix = urlparse(self._external_url).path
+        if web_route_prefix and not web_route_prefix.endswith("/"):
+            # urlparse("http://a.b/c").path returns 'c' without "/"
+            # urljoin will drop the part of the url that does not end with a '/'.
+            # Need to make sure it's in place.
+            web_route_prefix += "/"
 
-        return f"http://{socket.getfqdn()}:{self._api_port}"
+        return web_route_prefix
 
 
 if __name__ == "__main__":

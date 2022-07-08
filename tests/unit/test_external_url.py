@@ -26,6 +26,16 @@ class TestExternalUrl(unittest.TestCase):
         self.harness.set_model_name(self.__class__.__name__)
         self.addCleanup(self.harness.cleanup)
         self.harness.set_leader(True)
+
+        # Peer relation
+        self.app_name = "alertmanager-k8s"
+        self.peer_rel_id = self.harness.add_relation("replicas", self.app_name)
+        # self.harness.add_relation_unit(self.peer_rel_id, self.app_name + "/1")
+
+        # Regular relation
+        self.rel_id = self.harness.add_relation("alerting", "otherapp")
+        self.harness.add_relation_unit(self.rel_id, "otherapp/0")
+
         self.harness.begin_with_initial_hooks()
         self.harness.container_pebble_ready(CONTAINER_NAME)
         self.fqdn_url = f"http://fqdn:{self.harness.charm.api_port}"
@@ -54,7 +64,7 @@ class TestExternalUrl(unittest.TestCase):
         self.assertEqual(self.get_url_cli_arg(), external_url)
         self.assertTrue(self.is_service_running())
 
-        # AND WHEN the web_external_url config option is cleared
+        # WHEN the web_external_url config option is cleared
         self.harness.update_config(unset=["web_external_url"])
 
         # THEN the cli arg is reverted to the fqdn
@@ -99,3 +109,34 @@ class TestExternalUrl(unittest.TestCase):
         # THEN the cli arg is reverted to the ingress
         self.assertEqual(self.get_url_cli_arg(), external_url_ingress)
         self.assertTrue(self.is_service_running())
+
+    @patch("socket.getfqdn", new=lambda *args: "fqdn")
+    def test_web_route_prefix(self):
+        # GIVEN a charm with an external web route prefix
+        external_url = "http://foo.bar:8080/path/to/alertmanager"
+        self.harness.update_config({"web_external_url": external_url})
+        self.assertEqual(self.get_url_cli_arg(), external_url)
+        self.assertTrue(self.is_service_running())
+
+        # THEN peer relation data is updated with the web route prefix
+        peer_data = self.harness.get_relation_data(self.peer_rel_id, self.harness.charm.unit.name)
+        self.assertEqual(peer_data, {"private_address": "fqdn/path/to/alertmanager/"})
+
+        # AND the "alerting" relation data is updated with the external url's route prefix (path)
+        regular_data = self.harness.get_relation_data(self.rel_id, self.harness.charm.unit.name)
+        self.assertEqual(
+            regular_data,
+            {
+                "private_address": "fqdn:9093/path/to/alertmanager/",
+                "public_address": "foo.bar:8080/path/to/alertmanager/",
+            },
+        )
+
+        # AND amtool config file is updated with the web route prefix
+        am_config = yaml.safe_load(
+            self.harness.charm.container.pull(self.harness.charm._amtool_config_path)
+        )
+        self.assertEqual(
+            am_config["alertmanager.url"],
+            f"http://localhost:{self.harness.charm._api_port}/path/to/alertmanager/",
+        )
