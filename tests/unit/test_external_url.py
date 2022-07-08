@@ -5,14 +5,14 @@
 import unittest
 from unittest.mock import patch
 
-# import ops
+import ops
 import yaml
 from helpers import cli_arg, tautology
 from ops.testing import Harness
 
 from charm import Alertmanager, AlertmanagerCharm
 
-# ops.testing.SIMULATE_CAN_CONNECT = True
+ops.testing.SIMULATE_CAN_CONNECT = True
 CONTAINER_NAME = "alertmanager"
 SERVICE_NAME = AlertmanagerCharm._service_name
 

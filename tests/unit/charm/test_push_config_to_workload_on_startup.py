@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import hypothesis.strategies as st
+import ops
 import validators
 import yaml
 from helpers import tautology
@@ -16,6 +17,8 @@ from ops.testing import Harness
 from charm import Alertmanager, AlertmanagerCharm
 
 logger = logging.getLogger(__name__)
+ops.testing.SIMULATE_CAN_CONNECT = True
+CONTAINER_NAME = "alertmanager"
 
 
 class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
@@ -36,6 +39,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
         self.app_name = "alertmanager-k8s"
         self.peer_rel_id = self.harness.add_relation("replicas", self.app_name)
         self.harness.begin_with_initial_hooks()
+        self.harness.container_pebble_ready(CONTAINER_NAME)
 
     @given(st.booleans())
     def test_single_unit_cluster(self, is_leader):
