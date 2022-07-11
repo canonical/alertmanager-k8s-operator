@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 app_name = METADATA["name"]
 resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
+receiver_name = "fake-receiver"
 
 
 def request_handler(request: Request):
@@ -29,16 +30,17 @@ def request_handler(request: Request):
 
 
 @pytest.mark.abort_on_fail
-async def test_receiver_gets_alert(ops_test: OpsTest, charm_under_test, httpserver):
-
+async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     # deploy charm from local source folder
     await ops_test.model.deploy(charm_under_test, resources=resources, application_name=app_name)
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert ops_test.model.applications[app_name].units[0].workload_status == "active"
     assert await is_alertmanager_up(ops_test, app_name)
 
+
+@pytest.mark.abort_on_fail
+async def test_configure_alertmanager_with_templates(ops_test: OpsTest, httpserver):
     # define the alertmanager configuration
-    receiver_name = "fake-receiver"
     aconfig = {
         "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
         "route": {
@@ -70,6 +72,9 @@ async def test_receiver_gets_alert(ops_test: OpsTest, charm_under_test, httpserv
     )
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=60)
 
+
+@pytest.mark.abort_on_fail
+async def test_receiver_gets_alert(ops_test: OpsTest, httpserver):
     # create an alert
     start_time = datetime.now(timezone.utc)
     end_time = start_time + timedelta(minutes=5)
@@ -94,16 +99,17 @@ async def test_receiver_gets_alert(ops_test: OpsTest, charm_under_test, httpserv
     ]
 
     # define the expected slack notification for the alert
+    # link = f"http://{app_name}-0:9093/#/alerts?receiver={receiver_name}"
+    link = f"http://{app_name}-0.{app_name}-endpoints.{ops_test.model_name}.svc.cluster.local:9093/#/alerts?receiver={receiver_name}"
     expected_notification = {
         "channel": "test",
         "username": "Alertmanager",
         "attachments": [
             {
                 "title": f"[FIRING:1] {alert_name} {app_name} {ops_test.model_name} {model_uuid} ",
-                "title_link": f"http://{app_name}-0:9093/#/alerts?receiver={receiver_name}",
+                "title_link": link,
                 "text": f"https://localhost/alerts/{alert_name}",
-                "fallback": f"[FIRING:1] {alert_name} {app_name} {ops_test.model_name} {model_uuid}  | "
-                f"http://{app_name}-0:9093/#/alerts?receiver={receiver_name}",
+                "fallback": f"[FIRING:1] {alert_name} {app_name} {ops_test.model_name} {model_uuid}  | {link}",
                 "callback_id": "2",
                 "footer": "",
                 "color": "danger",
