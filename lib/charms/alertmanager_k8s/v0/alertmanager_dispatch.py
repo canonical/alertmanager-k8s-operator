@@ -26,8 +26,8 @@ class SomeApplication(CharmBase):
 """
 import logging
 import socket
-from typing import List
-from urllib.parse import urlparse
+from typing import cast, List
+from urllib.parse import urlparse, ParseResult
 
 import ops
 from ops.charm import CharmBase, RelationEvent, RelationJoinedEvent, RelationRole
@@ -240,13 +240,15 @@ class AlertmanagerProvider(RelationManagerBase):
         relation_name: str = "alerting",
         api_port: int = 9093,
         *,
-        external_url: str = None,
+        external_url: str = "",
     ):
         # TODO: breaking change: force keyword-only args from relation_name onwards
         super().__init__(charm, relation_name, RelationRole.provides)
 
         self._api_port = api_port
-        self._external_url = external_url
+
+        # urlparse(None) returns bytes, which the type checker rightfully picks up. Convert to "".
+        self._external_url = external_url or ""
 
         events = self.charm.on[self.name]
 
