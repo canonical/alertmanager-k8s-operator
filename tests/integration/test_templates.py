@@ -23,12 +23,6 @@ resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 receiver_name = "fake-receiver"
 
 
-def request_handler(request: Request):
-    response = Response("OK", status=200, content_type="text/plain")
-    logger.info("Got Request Data : %s", json.loads(request.data.decode("utf-8")))
-    return response
-
-
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     # deploy charm from local source folder
@@ -118,15 +112,41 @@ async def test_receiver_gets_alert(ops_test: OpsTest, httpserver):
         ],
     }
 
+    request_from_alertmanager = None
+
+    def request_handler(request: Request):
+        """A request handler.
+
+        Alertmanager's POST request looks like this:
+
+        {'attachments': [{'callback_id': '2',
+                  'color': 'danger',
+                  'fallback': '[FIRING:1] fake-alert alertmanager-k8s '
+                              'test-templates-klzm 1234  | '
+                              'http://alertmanager-k8s-0.fqdn:9093/#/alerts?receiver=name',
+                  'footer': '',
+                  'mrkdwn_in': ['fallback', 'pretext', 'text'],
+                  'text': 'https://localhost/alerts/fake-alert',
+                  'title': '[FIRING:1] fake-alert alertmanager-k8s '
+                           'test-templates-klzm 1234 ',
+                  'title_link': 'http://alertmanager-k8s-0.fqdn:9093/#/alerts?receiver=name'}],
+        'channel': 'test',
+        'username': 'Alertmanager'}
+        """
+        nonlocal request_from_alertmanager
+        response = Response("OK", status=200, content_type="text/plain")
+        request_from_alertmanager = json.loads(request.data.decode("utf-8"))
+        logger.info("Got Request Data : %s", request_from_alertmanager)
+        return response
+
     # set the alert
     with httpserver.wait(timeout=120) as waiting:
         # expect an alert to be forwarded to the receiver
-        httpserver.expect_oneshot_request(
-            "/", method="POST", json=expected_notification
-        ).respond_with_handler(request_handler)
+        httpserver.expect_oneshot_request("/", method="POST").respond_with_handler(request_handler)
         client_address = await get_unit_address(ops_test, app_name, 0)
         amanager = Alertmanager(address=client_address)
         amanager.set_alerts(alerts)
 
     # check receiver got an alert
     assert waiting.result
+    assert request_from_alertmanager == expected_notification
