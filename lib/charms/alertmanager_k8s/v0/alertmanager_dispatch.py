@@ -26,8 +26,8 @@ class SomeApplication(CharmBase):
 """
 import logging
 import socket
-from typing import cast, List
-from urllib.parse import urlparse, ParseResult
+from typing import List
+from urllib.parse import urlparse
 
 import ops
 from ops.charm import CharmBase, RelationEvent, RelationJoinedEvent, RelationRole
