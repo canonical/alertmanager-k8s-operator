@@ -31,12 +31,13 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.set_leader(True)
 
         self.harness.begin_with_initial_hooks()
+        self.harness.container_pebble_ready(self.container_name)
 
     def test_num_peers(self):
         self.assertEqual(0, len(self.harness.charm.peer_relation.units))  # type: ignore
 
+    @patch("socket.getfqdn", new=lambda *args: "fqdn")
     def test_pebble_layer_added(self, *unused):
-        self.harness.container_pebble_ready(self.container_name)
         plan = self.harness.get_container_pebble_plan(self.container_name)
 
         # Check we've got the plan as expected
@@ -57,6 +58,7 @@ class TestWithInitialHooks(unittest.TestCase):
         service = self.harness.model.unit.get_container("alertmanager").get_service("alertmanager")
         self.assertTrue(service.is_running())
 
+    @patch("socket.getfqdn", new=lambda *args: "fqdn")
     def test_relation_data_provides_public_address(self):
         # to suppress mypy error: Item "None" of "Optional[Any]" has no attribute "get_relation"
         model = self.harness.charm.framework.model
@@ -67,13 +69,10 @@ class TestWithInitialHooks(unittest.TestCase):
         expected_address = "fqdn:{}".format(self.harness.charm.alertmanager_provider.api_port)
         expected_rel_data = {
             "public_address": expected_address,
-            "private_address": expected_address,
         }
         self.assertEqual(expected_rel_data, rel.data[self.harness.charm.unit])
 
     def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
-        self.harness.container_pebble_ready(self.container_name)
-
         new_config = yaml.dump({"not a real config": "but good enough for testing"})
         self.harness.update_config({"config_file": new_config})
         updated_config = yaml.safe_load(
@@ -87,8 +86,6 @@ class TestWithInitialHooks(unittest.TestCase):
         )
 
     def test_topology_added_if_user_provided_config_with_group_by(self, *unused):
-        self.harness.container_pebble_ready(self.container_name)
-
         new_config = yaml.dump({"route": {"group_by": ["alertname", "juju_model"]}})
         self.harness.update_config({"config_file": new_config})
         updated_config = yaml.safe_load(
@@ -101,8 +98,6 @@ class TestWithInitialHooks(unittest.TestCase):
         )
 
     def test_charm_blocks_if_user_provided_config_with_templates(self, *unused):
-        self.harness.container_pebble_ready(self.container_name)
-
         new_config = yaml.dump({"templates": ["/what/ever/*.tmpl"]})
         self.harness.update_config({"config_file": new_config})
         self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
@@ -112,8 +107,6 @@ class TestWithInitialHooks(unittest.TestCase):
         self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
 
     def test_templates_section_added_if_user_provided_templates(self, *unused):
-        self.harness.container_pebble_ready(self.container_name)
-
         templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
         self.harness.update_config({"templates_file": templates})
         updated_templates = self.harness.charm.container.pull(self.harness.charm._templates_path)

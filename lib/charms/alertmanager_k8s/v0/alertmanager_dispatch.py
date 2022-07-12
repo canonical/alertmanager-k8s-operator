@@ -25,8 +25,7 @@ class SomeApplication(CharmBase):
 ```
 """
 import logging
-import socket
-from typing import List
+from typing import Callable, List
 from urllib.parse import urlparse
 
 import ops
@@ -240,15 +239,13 @@ class AlertmanagerProvider(RelationManagerBase):
         relation_name: str = "alerting",
         api_port: int = 9093,
         *,
-        external_url: str = "",
+        external_url: Callable = None,
     ):
         # TODO: breaking change: force keyword-only args from relation_name onwards
         super().__init__(charm, relation_name, RelationRole.provides)
 
         self._api_port = api_port
-
-        # urlparse(None) returns bytes, which the type checker rightfully picks up. Convert to "".
-        self._external_url = external_url or ""
+        self._external_url = external_url
 
         events = self.charm.on[self.name]
 
@@ -257,35 +254,9 @@ class AlertmanagerProvider(RelationManagerBase):
         self.framework.observe(events.relation_joined, self._on_relation_joined)
 
     @property
-    def _web_route_prefix(self) -> str:
-        parsed_external = urlparse(self._external_url)
-
-        web_route_prefix = parsed_external.path
-        if web_route_prefix and not web_route_prefix.endswith("/"):
-            # urlparse("http://a.b/c").path returns 'c' without "/"
-            # urljoin will drop the part of the url that does not end with a '/'.
-            # Need to make sure it's in place.
-            web_route_prefix += "/"
-
-        return web_route_prefix
-
-    @property
-    def _private_address(self) -> str:
-        private_address = "{}:{}".format(socket.getfqdn(), self._api_port)
-        if self._external_url:
-            private_address += self._web_route_prefix
-        return private_address
-
-    @property
-    def _public_address(self) -> str:
-        if not self._external_url:
-            return self._private_address
-        else:
-            return urlparse(self._external_url).netloc + self._web_route_prefix
-
-    @property
     def api_port(self):
         """Get the API port number to use for alertmanager."""
+        # TODO remove this?
         return self._api_port
 
     def _on_relation_joined(self, event: RelationJoinedEvent):
@@ -299,11 +270,13 @@ class AlertmanagerProvider(RelationManagerBase):
     def _generate_relation_data(self, relation: Relation):
         """Helper function to generate relation data in the correct format.
 
-        - Addresses without scheme.
+        Addresses are without scheme.
         """
-        return {"public_address": self._public_address, "private_address": self._private_address}
+        # Drop the scheme
+        parsed = urlparse(self._external_url())
+        return {"public_address": "{}:{}{}".format(parsed.hostname, parsed.port, parsed.path)}
 
-    def update_relation_data(self, event: RelationEvent = None, *, external_url: str = None):
+    def update_relation_data(self, event: RelationEvent = None):
         """Helper function for updating relation data bags.
 
         This function can be used in two different ways:
@@ -313,13 +286,7 @@ class AlertmanagerProvider(RelationManagerBase):
         Args:
             event: The event whose data bag needs to be updated. If it is None, update data bags of
               all relations.
-            external_url: An updated web external url. Technically this arg should not be needed,
-              because on every event the charm is reinitialized with an updated external url, but
-              unit tests fail because harness doesn't reinitialize the charm between events.
         """
-        if external_url:
-            self._external_url = external_url
-
         if event is None:
             # update all existing relation data
             # a single consumer charm's unit may be related to multiple providers

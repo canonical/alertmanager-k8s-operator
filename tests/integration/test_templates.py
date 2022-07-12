@@ -4,6 +4,7 @@
 
 import json
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -21,6 +22,10 @@ METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 app_name = METADATA["name"]
 resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
 receiver_name = "fake-receiver"
+
+# Define the template to use for testing the charm correctly passes it to the workload.
+callback_id = str(int(time.time()))  # The slack callback id
+template = r'{{ define "slack.default.callbackid" }}' + callback_id + "{{ end }}"
 
 
 @pytest.mark.abort_on_fail
@@ -58,11 +63,9 @@ async def test_configure_alertmanager_with_templates(ops_test: OpsTest, httpserv
         ],
     }
 
-    # use a template to define the slack callback id
-    atemplate = r'{{ define "slack.default.callbackid" }}2{{ end }}'
     # set alertmanager configuration and template file
     await ops_test.model.applications[app_name].set_config(
-        {"config_file": yaml.safe_dump(aconfig), "templates_file": atemplate}
+        {"config_file": yaml.safe_dump(aconfig), "templates_file": template}
     )
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=60)
 
@@ -92,32 +95,12 @@ async def test_receiver_gets_alert(ops_test: OpsTest, httpserver):
         }
     ]
 
-    # define the expected slack notification for the alert
-    # link = f"http://{app_name}-0:9093/#/alerts?receiver={receiver_name}"
-    link = f"http://{app_name}-0.{app_name}-endpoints.{ops_test.model_name}.svc.cluster.local:9093/#/alerts?receiver={receiver_name}"
-    expected_notification = {
-        "channel": "test",
-        "username": "Alertmanager",
-        "attachments": [
-            {
-                "title": f"[FIRING:1] {alert_name} {app_name} {ops_test.model_name} {model_uuid} ",
-                "title_link": link,
-                "text": f"https://localhost/alerts/{alert_name}",
-                "fallback": f"[FIRING:1] {alert_name} {app_name} {ops_test.model_name} {model_uuid}  | {link}",
-                "callback_id": "2",
-                "footer": "",
-                "color": "danger",
-                "mrkdwn_in": ["fallback", "pretext", "text"],
-            }
-        ],
-    }
-
     request_from_alertmanager = None
 
     def request_handler(request: Request):
         """A request handler.
 
-        Alertmanager's POST request looks like this:
+        Alertmanager's POST request to a slack server looks like this:
 
         {'attachments': [{'callback_id': '2',
                   'color': 'danger',
@@ -149,4 +132,4 @@ async def test_receiver_gets_alert(ops_test: OpsTest, httpserver):
 
     # check receiver got an alert
     assert waiting.result
-    assert request_from_alertmanager == expected_notification
+    assert request_from_alertmanager["attachments"][0]["callback_id"] == callback_id

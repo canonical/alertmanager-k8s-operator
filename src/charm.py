@@ -71,15 +71,25 @@ class AlertmanagerCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         self._stored.set_default(config_hash=None, launched_with_peers=False)
-        self.api = Alertmanager(port=self._api_port)
 
         self.ingress = IngressPerAppRequirer(self, port=self.api_port)
         self.framework.observe(self.ingress.on.ready, self._handle_ingress)
         self.framework.observe(self.ingress.on.revoked, self._handle_ingress)
 
+        # The `_external_url` property is passed as a callable so that the charm library code
+        # always uses up-to-date context.
+        # This arg is needed because in case of a custom event (e.g. ingress ready) or a re-emit,
+        # the charm won't be re-initialized with an updated external url.
+        # Also, coincidentally, unit tests would otherwise fail because harness doesn't
+        # reinitialize the charm between core events.
         self.alertmanager_provider = AlertmanagerProvider(
-            self, self._relation_name, self._api_port, external_url=self._external_url
+            self,
+            self._relation_name,
+            self._api_port,
+            external_url=lambda: AlertmanagerCharm._external_url.fget(self),
         )
+        self.api = Alertmanager(port=self._api_port, web_route_prefix=self.web_route_prefix)
+
         self.grafana_dashboard_provider = GrafanaDashboardProvider(charm=self)
         self.grafana_source_provider = GrafanaSourceProvider(
             charm=self,
@@ -124,7 +134,10 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(self.on.show_config_action, self._on_show_config_action)
 
     def _handle_ingress(self, event):
-        logger.info("This app's ingress URL: '%s'", self.ingress.url)
+        if url := self.ingress.url:
+            logger.info("Ingress is ready: '%s'.", url)
+        else:
+            logger.info("Ingress revoked.")
         self._common_exit_hook()
 
     def _on_show_config_action(self, event: ActionEvent):
@@ -280,7 +293,7 @@ class AlertmanagerCharm(CharmBase):
         """
         # update amtool config file
         amtool_config = yaml.safe_dump(
-            {"alertmanager.url": f"http://localhost:{self.api_port}" + self._web_route_prefix}
+            {"alertmanager.url": f"http://localhost:{self.api_port}" + self.web_route_prefix}
         )
         self.container.push(self._amtool_config_path, amtool_config, make_dirs=True)
 
@@ -378,13 +391,15 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return
 
-        if self.peer_relation:
-            self.peer_relation.data[self.unit]["private_address"] = (
-                socket.getfqdn() + self._web_route_prefix
-            )
+        self.alertmanager_provider.update_relation_data()
 
-        self.alertmanager_provider.update_relation_data(external_url=self._external_url)
-        self.karma_provider.target = self._external_url
+        if self.peer_relation:
+            # Could have simply used `socket.getfqdn()` here and add the path when reading this
+            # relation data, but this way it is more future-proof in case we change from ingress
+            # per app to ingress per unit.
+            self.peer_relation.data[self.unit]["private_address"] = self._internal_url
+
+        self.karma_provider.target = self._external_url  # TODO: check if this included scheme
 
         # Update pebble layer
         self._update_layer()
@@ -404,6 +419,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent."""
+        # TODO: what to do if "web_external_url" is invalid
         self._common_exit_hook()
 
     def _on_start(self, _):
@@ -467,39 +483,57 @@ class AlertmanagerCharm(CharmBase):
     def _get_peer_addresses(self) -> List[str]:
         """Create a list of HA addresses of all peer units (all units excluding current).
 
-        The returned addresses include the HA port number but do not include scheme (http).
-        If a unit does not have an address, it will be omitted from the list.
+        The returned addresses include the hostname, HA port number and path, but do not include
+        scheme (http).
         """
         addresses = []
         if pr := self.peer_relation:
-            addresses = [
-                f"{address}:{self._ha_port}"
-                for unit in pr.units  # pr.units only holds peers (self.unit is not included)
-                if (address := pr.data[unit].get("private_address"))
-            ]
+            for unit in pr.units:  # pr.units only holds peers (self.unit is not included)
+                if api_url := pr.data[unit].get("private_address"):
+                    parsed = urlparse(api_url)
+                    if not (parsed.scheme and parsed.hostname):
+                        # This shouldn't happen
+                        logger.warning(
+                            "Invalid peer address in relation data: '%s'; skipping. "
+                            "Address must include scheme and hostname.",
+                            api_url,
+                        )
+                        continue
+                    # Drop scheme and replace API port with HA port
+                    addresses.append(f"{parsed.hostname}:{self._ha_port}{parsed.path}")
 
         return addresses
 
     @property
-    def _external_url(self) -> str:
-        """Return the API address (including scheme and port) of the alertmanager server."""
-        return (
-            self.model.config.get("web_external_url")
-            or self.ingress.url
-            or f"http://{socket.getfqdn()}:{self._api_port}"
-        )
+    def web_route_prefix(self) -> str:
+        """Return the web route prefix with both a leading and a trailing separator.
 
-    @property
-    def _web_route_prefix(self) -> str:
-        """Return the webroute prefix with both a leading and a trailing separator."""
-        web_route_prefix = urlparse(self._external_url).path
-        if web_route_prefix and not web_route_prefix.endswith("/"):
+        The prefix is determined from the external (public) URL, with the config option
+        "web_external_url" taking precedence over the ingress one.
+        """
+        url = self.model.config.get("web_external_url") or self.ingress.url or ""
+        path = urlparse(url).path
+        if path and not path.endswith("/"):
             # urlparse("http://a.b/c").path returns 'c' without "/"
             # urljoin will drop the part of the url that does not end with a '/'.
             # Need to make sure it's in place.
-            web_route_prefix += "/"
+            path += "/"
 
-        return web_route_prefix
+        return path
+
+    @property
+    def _internal_url(self) -> str:
+        """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server.
+
+        If an external (public) url is set, add in its path.
+        """
+        return f"http://{socket.getfqdn()}:{self._api_port}{self.web_route_prefix}"
+
+    @property
+    def _external_url(self) -> str:
+        """Return the externally-reachable (public) address of the alertmanager api server."""
+        # TODO what to do if "web_external_url" is invalid
+        return self.model.config.get("web_external_url") or self.ingress.url or self._internal_url
 
 
 if __name__ == "__main__":

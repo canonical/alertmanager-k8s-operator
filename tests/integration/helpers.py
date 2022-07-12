@@ -95,3 +95,17 @@ async def is_alertmanager_up(ops_test: OpsTest, app_name: str):
             for unit_num in range(len(ops_test.model.applications[app_name].units))
         ]
     )
+
+
+# async def get_pebble_service(ops_test: OpsTest, app_name: str, unit_num: int = 0) -> dict:
+#     workload_container_name = "alertmanager"  # must match metadata.yaml
+#     pebble_service_name = "alertmanager"
+#
+#     rc, stdout, stderr = await ops_test.juju(
+#         "exec", f"--unit={app_name}/{unit_num}", "--",
+#         f"PEBBLE_SOCKET=/charm/containers/{workload_container_name}/pebble.socket",
+#         "pebble", "plan",
+#     )
+#
+#     pebble_plan = yaml.safe_load(stdout)
+#     return pebble_plan["services"][pebble_service_name]

@@ -12,10 +12,11 @@ from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
 class TestAlertmanagerAPIClient(unittest.TestCase):
     def setUp(self):
-        self.api = Alertmanager("address", 12345)
+        self.path = "custom/path"
+        self.api = Alertmanager("address", 12345, web_route_prefix=self.path)
 
     def test_base_url(self):
-        self.assertEqual("http://address:12345/", self.api.base_url)
+        self.assertEqual(f"http://address:12345/{self.path}/", self.api.base_url)
 
     @patch("alertmanager_client.urllib.request.urlopen")
     def test_reload_succeed(self, urlopen_mock):

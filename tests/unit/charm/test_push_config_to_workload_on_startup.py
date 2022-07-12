@@ -84,7 +84,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
                 self.harness.update_relation_data(
                     self.peer_rel_id,
                     f"{self.app_name}/{i}",
-                    {"private_address": f"{2*i}.{2*i}.{2*i}.{2*i}"},
+                    {"private_address": f"http://fqdn-{i}"},
                 )
 
             self.assertEqual(self.harness.model.app.planned_units(), num_units)

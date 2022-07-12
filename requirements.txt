@@ -1,8 +1,27 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+# Operator Framework
+# Code: https://github.com/canonical/operator/
+# Docs: https://ops.rtfd.io/
+# Deps: traefik_k8s
 jsonschema
+
+# Operator Framework
+# Code: https://github.com/canonical/operator/
+# Docs: https://ops.rtfd.io/
+# Deps: charm
 ops
+
+# YAML processing framework
+# Code: https://github.com/yaml/pyyaml
+# Docs: https://pyyaml.org/wiki/PyYAMLDocumentation
+# Deps: charm
 PyYAML
+
+# Lightweight k8s module
+# Code: https://github.com/gtsystem/lightkube
+# Docs: https://lightkube.readthedocs.io/
+# Deps: observability_libs
 lightkube
 lightkube-models
