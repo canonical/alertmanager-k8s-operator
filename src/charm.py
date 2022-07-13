@@ -86,7 +86,7 @@ class AlertmanagerCharm(CharmBase):
             self,
             self._relation_name,
             self._api_port,
-            external_url=lambda: AlertmanagerCharm._external_url.fget(self),
+            external_url=lambda: AlertmanagerCharm._external_url.fget(self),  # type: ignore
         )
         self.api = Alertmanager(port=self._api_port, web_route_prefix=self.web_route_prefix)
 

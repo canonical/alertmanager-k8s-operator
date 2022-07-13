@@ -25,6 +25,7 @@ class SomeApplication(CharmBase):
 ```
 """
 import logging
+import socket
 from typing import Callable, List
 from urllib.parse import urlparse
 
@@ -244,20 +245,15 @@ class AlertmanagerProvider(RelationManagerBase):
         # TODO: breaking change: force keyword-only args from relation_name onwards
         super().__init__(charm, relation_name, RelationRole.provides)
 
-        self._api_port = api_port
-        self._external_url = external_url
+        self._external_url = external_url or (
+            lambda: "http://{}:{}".format(socket.getfqdn(), api_port)
+        )
 
         events = self.charm.on[self.name]
 
         # No need to observe `relation_departed` or `relation_broken`: data bags are auto-updated
         # so both events are address on the consumer side.
         self.framework.observe(events.relation_joined, self._on_relation_joined)
-
-    @property
-    def api_port(self):
-        """Get the API port number to use for alertmanager."""
-        # TODO remove this?
-        return self._api_port
 
     def _on_relation_joined(self, event: RelationJoinedEvent):
         """This hook stores the public address of the newly-joined "alerting" relation.

@@ -66,7 +66,7 @@ class TestWithInitialHooks(unittest.TestCase):
 
         rel = model.get_relation("alerting", self.relation_id)
         assert rel is not None  # for static checker
-        expected_address = "fqdn:{}".format(self.harness.charm.alertmanager_provider.api_port)
+        expected_address = "fqdn:{}".format(self.harness.charm.api_port)
         expected_rel_data = {
             "public_address": expected_address,
         }

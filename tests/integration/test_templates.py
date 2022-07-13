@@ -132,4 +132,4 @@ async def test_receiver_gets_alert(ops_test: OpsTest, httpserver):
 
     # check receiver got an alert
     assert waiting.result
-    assert request_from_alertmanager["attachments"][0]["callback_id"] == callback_id
+    assert request_from_alertmanager["attachments"][0]["callback_id"] == callback_id  # type: ignore
