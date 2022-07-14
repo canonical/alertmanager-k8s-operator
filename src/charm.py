@@ -118,7 +118,6 @@ class AlertmanagerCharm(CharmBase):
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
-        self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
@@ -391,6 +390,19 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return
 
+        # Make sure the external url is valid
+        if external_url := self._external_url:
+            parsed = urlparse(external_url)
+            if not (parsed.scheme in ["http", "https"] and parsed.hostname):
+                # This shouldn't happen
+                logger.error(
+                    "Invalid external url: '%s'; must include scheme and hostname.", external_url,
+                )
+                self.unit.status = BlockedStatus(
+                    f"Invalid external url: '{external_url}'; must include scheme and hostname."
+                )
+                return
+
         self.alertmanager_provider.update_relation_data()
 
         if self.peer_relation:
@@ -419,16 +431,6 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent."""
-        # TODO: what to do if "web_external_url" is invalid
-        self._common_exit_hook()
-
-    def _on_start(self, _):
-        """Event handler for StartEvent.
-
-        With Juju 2.9.5 encountered a scenario in which pebble_ready and config_changed fired,
-        but IP address was not available and the status was stuck on "Waiting for IP address".
-        Adding this hook reduce the likelihood of that scenario.
-        """
         self._common_exit_hook()
 
     def _on_peer_relation_joined(self, _):
@@ -491,11 +493,11 @@ class AlertmanagerCharm(CharmBase):
             for unit in pr.units:  # pr.units only holds peers (self.unit is not included)
                 if api_url := pr.data[unit].get("private_address"):
                     parsed = urlparse(api_url)
-                    if not (parsed.scheme and parsed.hostname):
+                    if not (parsed.scheme in ["http", "https"] and parsed.hostname):
                         # This shouldn't happen
-                        logger.warning(
+                        logger.error(
                             "Invalid peer address in relation data: '%s'; skipping. "
-                            "Address must include scheme and hostname.",
+                            "Address must include scheme (http or https) and hostname.",
                             api_url,
                         )
                         continue
@@ -532,7 +534,6 @@ class AlertmanagerCharm(CharmBase):
     @property
     def _external_url(self) -> str:
         """Return the externally-reachable (public) address of the alertmanager api server."""
-        # TODO what to do if "web_external_url" is invalid
         return self.model.config.get("web_external_url") or self.ingress.url or self._internal_url
 
 

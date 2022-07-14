@@ -5,7 +5,7 @@
 import logging
 import unittest
 from unittest.mock import patch
-
+from ops.model import ActiveStatus, BlockedStatus
 import ops
 import yaml
 from helpers import cli_arg, tautology
@@ -189,3 +189,22 @@ class TestExternalUrl(unittest.TestCase):
         self.assertEqual(
             cluster_args, ["fqdn-1:9094/path/to/alertmanager", "fqdn-2:9094/path/to/alertmanager"]
         )
+
+    @patch("socket.getfqdn", new=lambda *args: "fqdn")
+    def test_invalid_web_route_prefix(self):
+        for invalid_url in ["htp://foo.bar", "foo.bar"]:
+            with self.subTest(url=invalid_url):
+                # WHEN the external url config option is invalid
+                self.harness.update_config({"web_external_url": invalid_url})
+
+                # THEN the unit is blocked
+                self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
+
+                # AND the pebble command arg is unchanged
+                self.assertEqual(self.get_url_cli_arg(), "http://fqdn:9093")
+
+                # WHEN the invalid option in cleared
+                self.harness.update_config(unset=["web_external_url"])
+
+                # THEN the unit is active
+                self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
