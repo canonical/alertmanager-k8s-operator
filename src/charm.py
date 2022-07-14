@@ -396,7 +396,8 @@ class AlertmanagerCharm(CharmBase):
             if not (parsed.scheme in ["http", "https"] and parsed.hostname):
                 # This shouldn't happen
                 logger.error(
-                    "Invalid external url: '%s'; must include scheme and hostname.", external_url,
+                    "Invalid external url: '%s'; must include scheme and hostname.",
+                    external_url,
                 )
                 self.unit.status = BlockedStatus(
                     f"Invalid external url: '{external_url}'; must include scheme and hostname."
