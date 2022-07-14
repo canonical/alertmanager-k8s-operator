@@ -1,9 +1,9 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-# Operator Framework
-# Code: https://github.com/canonical/operator/
-# Docs: https://ops.rtfd.io/
+# An implementation of the JSON Schema specification
+# Code: https://github.com/python-jsonschema/jsonschema
+# Docs: https://python-jsonschema.readthedocs.io/
 # Deps: traefik_k8s
 jsonschema
 

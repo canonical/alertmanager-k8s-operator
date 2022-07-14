@@ -28,6 +28,13 @@ resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 
 
 @pytest.mark.abort_on_fail
+async def test_setup_env(ops_test: OpsTest):
+    await ops_test.model.set_config(
+        {"update-status-hook-interval": "60m", "logging-config": "<root>=WARNING; unit=DEBUG"}
+    )
+
+
+@pytest.mark.abort_on_fail
 async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_under_test):
     """Build the charm-under-test, deploy the charm from charmhub, and upgrade from path."""
     logger.info("deploy charm from charmhub")
