@@ -399,7 +399,7 @@ class AlertmanagerCharm(CharmBase):
             # per app to ingress per unit.
             self.peer_relation.data[self.unit]["private_address"] = self._internal_url
 
-        self.karma_provider.target = self._external_url  # TODO: check if this included scheme
+        self.karma_provider.target = self._external_url
 
         # Update pebble layer
         self._update_layer()
