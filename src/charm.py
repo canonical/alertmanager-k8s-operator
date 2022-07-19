@@ -338,7 +338,7 @@ class AlertmanagerCharm(CharmBase):
         self._push_config_and_reload(pending)
         self._stored.config_hash = config_hash
 
-    def _push_config_and_reload(self, pending_config: List[Tuple[str, str]]):  # noqa: C901rg
+    def _push_config_and_reload(self, pending_config: List[Tuple[str, str]]):  # noqa: C901
         """Push config into workload container, and trigger a hot-reload (or service restart).
 
         Args:

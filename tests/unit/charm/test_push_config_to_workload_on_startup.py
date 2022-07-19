@@ -12,8 +12,8 @@ import validators
 import yaml
 from helpers import tautology
 from hypothesis import given
+from ops.model import ActiveStatus
 from ops.testing import Harness
-from ops.model import ActiveStatus, BlockedStatus
 
 from charm import Alertmanager, AlertmanagerCharm
 
@@ -109,5 +109,3 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
         self.harness.set_can_connect(CONTAINER_NAME, False)
         self.harness.update_config({"templates_file": "doesn't matter"})
         self.assertNotIsInstance(self.harness.charm.unit.status, ActiveStatus)
-
-
