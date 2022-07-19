@@ -8,6 +8,7 @@ import hashlib
 import logging
 import socket
 from typing import List, Optional, cast
+from urllib.parse import urlparse
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
@@ -16,11 +17,12 @@ from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Relation
-from ops.pebble import Layer, PathError, ProtocolError
+from ops.pebble import ChangeError, Layer, PathError, ProtocolError
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
@@ -69,16 +71,30 @@ class AlertmanagerCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         self._stored.set_default(config_hash=None, launched_with_peers=False)
-        self.api = Alertmanager(port=self._api_port)
 
+        self.ingress = IngressPerAppRequirer(self, port=self.api_port)
+        self.framework.observe(self.ingress.on.ready, self._handle_ingress)
+        self.framework.observe(self.ingress.on.revoked, self._handle_ingress)
+
+        # The `_external_url` property is passed as a callable so that the charm library code
+        # always uses up-to-date context.
+        # This arg is needed because in case of a custom event (e.g. ingress ready) or a re-emit,
+        # the charm won't be re-initialized with an updated external url.
+        # Also, coincidentally, unit tests would otherwise fail because harness doesn't
+        # reinitialize the charm between core events.
         self.alertmanager_provider = AlertmanagerProvider(
-            self, self._relation_name, self._api_port
+            self,
+            self._relation_name,
+            self._api_port,
+            external_url=lambda: AlertmanagerCharm._external_url.fget(self),  # type: ignore
         )
+        self.api = Alertmanager(port=self._api_port, web_route_prefix=self.web_route_prefix)
+
         self.grafana_dashboard_provider = GrafanaDashboardProvider(charm=self)
         self.grafana_source_provider = GrafanaSourceProvider(
             charm=self,
             source_type="alertmanager",
-            source_url=self.api_address,
+            source_url=self._external_url,
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
 
@@ -102,7 +118,6 @@ class AlertmanagerCharm(CharmBase):
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
-        self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
@@ -116,6 +131,13 @@ class AlertmanagerCharm(CharmBase):
 
         # Action events
         self.framework.observe(self.on.show_config_action, self._on_show_config_action)
+
+    def _handle_ingress(self, event):
+        if url := self.ingress.url:
+            logger.info("Ingress is ready: '%s'.", url)
+        else:
+            logger.info("Ingress revoked.")
+        self._common_exit_hook()
 
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
@@ -167,6 +189,7 @@ class AlertmanagerCharm(CharmBase):
                 f"--storage.path={self._storage_path} "
                 f"--web.listen-address=:{self._api_port} "
                 f"--cluster.listen-address={listen_address_arg} "
+                f"--web.external-url={self._external_url} "
                 f"{peer_cmd_args}"
             )
 
@@ -213,7 +236,7 @@ class AlertmanagerCharm(CharmBase):
 
         return True
 
-    def _update_layer(self, restart: bool) -> bool:
+    def _update_layer(self) -> bool:
         """Update service layer to reflect changes in peers (replicas).
 
         Args:
@@ -227,11 +250,19 @@ class AlertmanagerCharm(CharmBase):
 
         if self._service_name not in plan.services or overlay.services != plan.services:
             self.container.add_layer(self._layer_name, overlay, combine=True)
-
-            if restart:
-                self._restart_service()
-
-            return True
+            try:
+                # If a config is invalid then alertmanager would exit immediately.
+                # This would be caught by pebble (default timeout is 30 sec) and a ChangeError
+                # would be raised.
+                self.container.replan()
+                return True
+            except ChangeError as e:
+                logger.error(
+                    "Failed to replan; pebble plan: %s; %s",
+                    self.container.get_plan().to_dict(),
+                    str(e),
+                )
+                return False
 
         return False
 
@@ -260,7 +291,9 @@ class AlertmanagerCharm(CharmBase):
           ConfigUpdateFailure, if failed to update configuration file.
         """
         # update amtool config file
-        amtool_config = yaml.safe_dump({"alertmanager.url": f"http://localhost:{self.api_port}"})
+        amtool_config = yaml.safe_dump(
+            {"alertmanager.url": f"http://localhost:{self.api_port}" + self.web_route_prefix}
+        )
         self.container.push(self._amtool_config_path, amtool_config, make_dirs=True)
 
         # if no config provided, use default config with a dummy receiver
@@ -351,43 +384,38 @@ class AlertmanagerCharm(CharmBase):
         elif config_from_server_before == config_from_server_after:
             logger.warning("config remained the same after a reload")
 
-    @property
-    def api_address(self):
-        """Returns the API address (including scheme and port) of the alertmanager server."""
-        return f"http://{socket.getfqdn()}:{self.api_port}"
-
     def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self.container.can_connect():
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return
 
-        # In the case of a single unit deployment, no 'RelationJoined' event is emitted, so
-        # setting IP here.
-        # Store private address in unit's peer relation data bucket. This is still needed because
-        # the "private-address" field in the data bag is being populated incorrectly.
-        # Also, ip address may still be None even after RelationJoinedEvent, for which
-        # "ops.model.RelationDataError: relation data values must be strings" would be emitted.
-        if self.peer_relation:
-            self.peer_relation.data[self.unit]["private_address"] = socket.getfqdn()
+        # Make sure the external url is valid
+        if external_url := self._external_url:
+            parsed = urlparse(external_url)
+            if not (parsed.scheme in ["http", "https"] and parsed.hostname):
+                # This shouldn't happen
+                logger.error(
+                    "Invalid external url: '%s'; must include scheme and hostname.",
+                    external_url,
+                )
+                self.unit.status = BlockedStatus(
+                    f"Invalid external url: '{external_url}'; must include scheme and hostname."
+                )
+                return
 
         self.alertmanager_provider.update_relation_data()
-        if karma_address := self.api_address:
-            self.karma_provider.target = karma_address
+
+        if self.peer_relation:
+            # Could have simply used `socket.getfqdn()` here and add the path when reading this
+            # relation data, but this way it is more future-proof in case we change from ingress
+            # per app to ingress per unit.
+            self.peer_relation.data[self.unit]["private_address"] = self._internal_url
+
+        self.karma_provider.target = self._external_url
 
         # Update pebble layer
-        layer_changed = self._update_layer(restart=False)
-
-        service_running = (
-            service := self.container.get_service(self._service_name)
-        ) and service.is_running()
-
-        num_peers = len(rel.units) if (rel := self.peer_relation) else 0
-
-        if layer_changed and (
-            not service_running or (num_peers > 0 and not self._stored.launched_with_peers)
-        ):
-            self._restart_service()
+        self._update_layer()
 
         # Update config file
         try:
@@ -404,15 +432,6 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent."""
-        self._common_exit_hook()
-
-    def _on_start(self, _):
-        """Event handler for StartEvent.
-
-        With Juju 2.9.5 encountered a scenario in which pebble_ready and config_changed fired,
-        but IP address was not available and the status was stuck on "Waiting for IP address".
-        Adding this hook reduce the likelihood of that scenario.
-        """
         self._common_exit_hook()
 
     def _on_peer_relation_joined(self, _):
@@ -467,18 +486,56 @@ class AlertmanagerCharm(CharmBase):
     def _get_peer_addresses(self) -> List[str]:
         """Create a list of HA addresses of all peer units (all units excluding current).
 
-        The returned addresses include the HA port number but do not include scheme (http).
-        If a unit does not have an address, it will be omitted from the list.
+        The returned addresses include the hostname, HA port number and path, but do not include
+        scheme (http).
         """
         addresses = []
         if pr := self.peer_relation:
-            addresses = [
-                f"{address}:{self._ha_port}"
-                for unit in pr.units  # pr.units only holds peers (self.unit is not included)
-                if (address := pr.data[unit].get("private_address"))
-            ]
+            for unit in pr.units:  # pr.units only holds peers (self.unit is not included)
+                if api_url := pr.data[unit].get("private_address"):
+                    parsed = urlparse(api_url)
+                    if not (parsed.scheme in ["http", "https"] and parsed.hostname):
+                        # This shouldn't happen
+                        logger.error(
+                            "Invalid peer address in relation data: '%s'; skipping. "
+                            "Address must include scheme (http or https) and hostname.",
+                            api_url,
+                        )
+                        continue
+                    # Drop scheme and replace API port with HA port
+                    addresses.append(f"{parsed.hostname}:{self._ha_port}{parsed.path}")
 
         return addresses
+
+    @property
+    def web_route_prefix(self) -> str:
+        """Return the web route prefix with both a leading and a trailing separator.
+
+        The prefix is determined from the external (public) URL, with the config option
+        "web_external_url" taking precedence over the ingress one.
+        """
+        url = self.model.config.get("web_external_url") or self.ingress.url or ""
+        path = urlparse(url).path
+        if path and not path.endswith("/"):
+            # urlparse("http://a.b/c").path returns 'c' without "/"
+            # urljoin will drop the part of the url that does not end with a '/'.
+            # Need to make sure it's in place.
+            path += "/"
+
+        return path
+
+    @property
+    def _internal_url(self) -> str:
+        """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server.
+
+        If an external (public) url is set, add in its path.
+        """
+        return f"http://{socket.getfqdn()}:{self._api_port}{self.web_route_prefix}"
+
+    @property
+    def _external_url(self) -> str:
+        """Return the externally-reachable (public) address of the alertmanager api server."""
+        return self.model.config.get("web_external_url") or self.ingress.url or self._internal_url
 
 
 if __name__ == "__main__":

@@ -25,8 +25,17 @@ class AlertmanagerBadResponse(RuntimeError):
 class Alertmanager:
     """Alertmanager HTTP API client."""
 
-    def __init__(self, address: str = "localhost", port: int = 9093, timeout=2.0):
-        self.base_url = f"http://{address}:{port}/"
+    def __init__(
+        self,
+        address: str = "localhost",
+        port: int = 9093,
+        *,
+        web_route_prefix: str = "",
+        timeout=2.0,
+    ):
+        if web_route_prefix and not web_route_prefix.endswith("/"):
+            web_route_prefix += "/"
+        self.base_url = urllib.parse.urljoin(f"http://{address}:{port}/", web_route_prefix)
         self.timeout = timeout
 
     def reload(self) -> bool:
@@ -37,7 +46,7 @@ class Alertmanager:
         Returns:
           True if reload succeeded (returned 200 OK); False otherwise.
         """
-        url = urllib.parse.urljoin(self.base_url, "/-/reload")
+        url = urllib.parse.urljoin(self.base_url, "-/reload")
         # for an empty POST request, the `data` arg must be b"" to tell urlopen it's a POST
         if resp := self._open(url, data=b"", timeout=self.timeout):
             logger.warning("reload: POST returned a non-empty response: %s", resp)
@@ -97,7 +106,7 @@ class Alertmanager:
           }
         }
         """
-        url = urllib.parse.urljoin(self.base_url, "/api/v2/status")
+        url = urllib.parse.urljoin(self.base_url, "api/v2/status")
         try:
             # the `data` arg must be None to tell urlopen it's a GET
             return json.loads(self._open(url, data=None, timeout=self.timeout))
@@ -199,7 +208,7 @@ class Alertmanager:
         Returns:
             urllib response object.
         """
-        url = urllib.parse.urljoin(self.base_url, "/api/v2/alerts")
+        url = urllib.parse.urljoin(self.base_url, "/api/v1/alerts")
         headers = {"Content-Type": "application/json"}
         post_data = json.dumps(alerts).encode("utf-8")
         response = self._post(url, post_data, headers=headers)
