@@ -7,7 +7,7 @@
 import hashlib
 import logging
 import socket
-from typing import List, Optional, cast
+from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
@@ -290,11 +290,13 @@ class AlertmanagerCharm(CharmBase):
         Raises:
           ConfigUpdateFailure, if failed to update configuration file.
         """
+        pending: List[Tuple[str, str]] = []  # list of (path, contents) tuples to push
+
         # update amtool config file
         amtool_config = yaml.safe_dump(
             {"alertmanager.url": f"http://localhost:{self.api_port}" + self.web_route_prefix}
         )
-        self.container.push(self._amtool_config_path, amtool_config, make_dirs=True)
+        pending.append((self._amtool_config_path, amtool_config))
 
         # if no config provided, use default config with a dummy receiver
         config = yaml.safe_load(self.config["config_file"]) or self._default_config
@@ -311,7 +313,7 @@ class AlertmanagerCharm(CharmBase):
         # add templates, if any
         if templates := self.config["templates_file"]:
             config["templates"] = [f"{self._templates_path}"]
-            self.container.push(self._templates_path, templates, make_dirs=True)
+            pending.append((self._templates_path, templates))
 
         # add juju topology to "group_by"
         route = cast(dict, config.get("route", {}))
@@ -323,26 +325,35 @@ class AlertmanagerCharm(CharmBase):
         config["route"] = route
 
         config_yaml = yaml.safe_dump(config)
-        config_hash = sha256(config_yaml)
+        pending.append((self._config_path, config_yaml))
+
+        # Calculate hash of all the contents of the pending files.
+        config_hash = sha256("".join(config[1] for config in pending))
 
         if config_hash == self._stored.config_hash:
             logger.debug("no change in config")
             return
 
         logger.debug("config changed")
-        self._push_config_and_reload(config_yaml)
+        self._push_config_and_reload(pending)
         self._stored.config_hash = config_hash
 
-    def _push_config_and_reload(self, config_yaml):
+    def _push_config_and_reload(self, pending_config: List[Tuple[str, str]]):  # noqa: C901
         """Push config into workload container, and trigger a hot-reload (or service restart).
 
         Args:
-            config_yaml: contents of the new config file.
+            pending_config: a list of (path, contents) tuples to push into the workload container.
 
         Raises:
             ConfigUpdateFailure, if config update fails.
         """
-        self.container.push(self._config_path, config_yaml, make_dirs=True)
+        for (path, contents) in pending_config:
+            try:
+                self.container.push(path, contents, make_dirs=True)
+            except ConnectionError as e:
+                raise ConfigUpdateFailure(
+                    "Failed to push config file '%s' into container: %s", path, e
+                )
 
         # Obtain a "before" snapshot of the config from the server.
         # This is different from `config` above because alertmanager adds in a bunch of details

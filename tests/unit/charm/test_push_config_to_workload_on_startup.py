@@ -12,6 +12,7 @@ import validators
 import yaml
 from helpers import tautology
 from hypothesis import given
+from ops.model import ActiveStatus
 from ops.testing import Harness
 
 from charm import Alertmanager, AlertmanagerCharm
@@ -102,3 +103,9 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
             # cleanup added units to prep for reentry by hypothesis' strategy
             for i in reversed(range(1, num_units)):
                 self.harness.remove_relation_unit(self.peer_rel_id, f"{self.app_name}/{i}")
+
+    def test_charm_blocks_on_connection_error(self):
+        self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
+        self.harness.set_can_connect(CONTAINER_NAME, False)
+        self.harness.update_config({"templates_file": "doesn't matter"})
+        self.assertNotIsInstance(self.harness.charm.unit.status, ActiveStatus)
