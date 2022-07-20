@@ -118,6 +118,7 @@ class TestInvalidConfig(unittest.TestCase):
     Background: alertmanager exits when config is invalid, so this must be guarded against,
     otherwise pebble will keep trying to restart it, resulting in an idle crash-loop.
     """
+
     def setUp(self, *_):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
