@@ -25,3 +25,6 @@ PyYAML
 # Deps: observability_libs
 lightkube
 lightkube-models
+
+# Deps: compound_status
+typing_extensions

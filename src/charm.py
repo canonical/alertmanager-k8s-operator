@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
+from charms.compound_status.v0.compound_status import Status, StatusPool
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
@@ -38,6 +39,14 @@ def sha256(hashable) -> str:
 
 class ConfigUpdateFailure(RuntimeError):
     """Custom exception for failed config updates."""
+
+
+class AlertmanagerStatusPool(StatusPool):
+    """Compound status for the alertmanager charm."""
+
+    workload = Status()
+    config = Status()
+    alertmanager_yml = Status()
 
 
 class AlertmanagerCharm(CharmBase):
@@ -71,6 +80,7 @@ class AlertmanagerCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         self._stored.set_default(config_hash=None, launched_with_peers=False)
+        self.status = AlertmanagerStatusPool(self)
 
         self.ingress = IngressPerAppRequirer(self, port=self.api_port)
         self.framework.observe(self.ingress.on.ready, self._handle_ingress)
@@ -438,8 +448,13 @@ class AlertmanagerCharm(CharmBase):
     def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self.container.can_connect():
-            self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
+            # self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
+            self.status.workload = MaintenanceStatus("Waiting for pod startup to complete")
+            self.status.commit()
             return
+        else:
+            self.status.workload.unset()
+            self.status.commit()
 
         # Make sure the external url is valid
         if external_url := self._external_url:
@@ -450,10 +465,17 @@ class AlertmanagerCharm(CharmBase):
                     "Invalid external url: '%s'; must include scheme and hostname.",
                     external_url,
                 )
-                self.unit.status = BlockedStatus(
+                # self.unit.status = BlockedStatus(
+                #     f"Invalid external url: '{external_url}'; must include scheme and hostname."
+                # )
+                self.status.config = BlockedStatus(
                     f"Invalid external url: '{external_url}'; must include scheme and hostname."
                 )
+                self.status.commit()
                 return
+            else:
+                self.status.config.unset()
+                self.status.commit()
 
         self.alertmanager_provider.update_relation_data()
 
@@ -472,10 +494,16 @@ class AlertmanagerCharm(CharmBase):
         try:
             self._update_config()
         except ConfigUpdateFailure as e:
-            self.unit.status = BlockedStatus(str(e))
+            # self.unit.status = BlockedStatus(str(e))
+            self.status.alertmanager_yml = BlockedStatus(str(e))
+            self.status.commit()
             return
 
-        self.unit.status = ActiveStatus()
+        # self.unit.status = ActiveStatus()
+        self.status.alertmanager_yml = ActiveStatus()
+        self.status.workload = ActiveStatus()
+        self.status.config = ActiveStatus()
+        self.status.commit()
 
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
