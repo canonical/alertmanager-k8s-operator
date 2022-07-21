@@ -12,7 +12,7 @@ import validators
 import yaml
 from helpers import tautology
 from hypothesis import given
-from ops.model import ActiveStatus
+from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
 from charm import Alertmanager, AlertmanagerCharm
@@ -29,6 +29,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
     """
 
     @patch.object(Alertmanager, "reload", tautology)
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     def setUp(self, *_):
         self.harness = Harness(AlertmanagerCharm)
@@ -109,3 +110,46 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
         self.harness.set_can_connect(CONTAINER_NAME, False)
         self.harness.update_config({"templates_file": "doesn't matter"})
         self.assertNotIsInstance(self.harness.charm.unit.status, ActiveStatus)
+
+
+class TestInvalidConfig(unittest.TestCase):
+    """Feature: Charm must block when invalid config is provided.
+
+    Background: alertmanager exits when config is invalid, so this must be guarded against,
+    otherwise pebble will keep trying to restart it, resulting in an idle crash-loop.
+    """
+
+    def setUp(self, *_):
+        self.harness = Harness(AlertmanagerCharm)
+        self.addCleanup(self.harness.cleanup)
+
+    @patch.object(Alertmanager, "reload", tautology)
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("", "some error"))
+    @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
+    def test_charm_blocks_on_invalid_config_on_startup(self):
+        # GIVEN an invalid config file (mocked above)
+        # WHEN the charm starts
+        self.harness.begin_with_initial_hooks()
+        self.harness.container_pebble_ready(CONTAINER_NAME)
+
+        # THEN the charm goes into blocked status
+        self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
+
+    @patch.object(Alertmanager, "reload", tautology)
+    @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
+    def test_charm_blocks_on_invalid_config_changed(self):
+        # GIVEN a valid configuration (mocked below)
+        with patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", "")):
+            # WHEN the charm starts
+            self.harness.begin_with_initial_hooks()
+            self.harness.container_pebble_ready(CONTAINER_NAME)
+
+            # THEN the charm goes into active status
+            self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
+
+        # AND WHEN the config is updated and invalid (mocked below)
+        with patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("", "some error")):
+            self.harness.update_config({"config_file": "foo: bar"})
+
+            # THEN the charm goes into blocked status
+            self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)

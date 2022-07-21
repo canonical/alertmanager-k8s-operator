@@ -22,7 +22,7 @@ from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Relation
-from ops.pebble import ChangeError, Layer, PathError, ProtocolError
+from ops.pebble import ChangeError, ExecError, Layer, PathError, ProtocolError
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
@@ -131,6 +131,7 @@ class AlertmanagerCharm(CharmBase):
 
         # Action events
         self.framework.observe(self.on.show_config_action, self._on_show_config_action)
+        self.framework.observe(self.on.check_config_action, self._on_check_config)
 
     def _handle_ingress(self, event):
         if url := self.ingress.url:
@@ -138,6 +139,32 @@ class AlertmanagerCharm(CharmBase):
         else:
             logger.info("Ingress revoked.")
         self._common_exit_hook()
+
+    def _check_config(self) -> Tuple[str, str]:
+        container = self.unit.get_container(self._container_name)
+
+        if not container.can_connect():
+            return "", "Error: cannot check config: alertmanager workload container not ready"
+        proc = container.exec(["/usr/bin/amtool", "check-config", self._config_path])
+        try:
+            output, err = proc.wait_output()
+        except ChangeError as e:
+            output, err = "", e.err
+        except ExecError as e:
+            output, err = e.stdout, e.stderr
+
+        return output, err
+
+    def _on_check_config(self, event: ActionEvent) -> None:
+        """Runs `amtool check-config` inside the workload."""
+        output, err = self._check_config()
+        if not output:
+            event.fail(err)
+            return
+
+        event.set_results(
+            {"result": output, "error-message": err, "valid": False if err else True}
+        )
 
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
@@ -301,6 +328,13 @@ class AlertmanagerCharm(CharmBase):
         # if no config provided, use default config with a dummy receiver
         config = yaml.safe_load(self.config["config_file"]) or self._default_config
 
+        # `yaml.safe_load`'s return type changes based on input. For example, it returns `str`
+        # for "foo" but `dict` for "foo: bar". Error out if type is not dict.
+        # This preliminary and rudimentary validity check is needed here to before any `.get()`
+        # methods are called.
+        if not isinstance(config, dict):
+            raise ConfigUpdateFailure(f"Invalid config: '{config}'; a dict is expected")
+
         if config.get("templates", []):
             logger.error(
                 "alertmanager config file must not have a 'templates' section; "
@@ -352,8 +386,14 @@ class AlertmanagerCharm(CharmBase):
                 self.container.push(path, contents, make_dirs=True)
             except ConnectionError as e:
                 raise ConfigUpdateFailure(
-                    "Failed to push config file '%s' into container: %s", path, e
+                    f"Failed to push config file '{path}' into container: {e}"
                 )
+
+        output, err = self._check_config()
+        if err:
+            raise ConfigUpdateFailure(
+                f"Failed to validate config (run check-config action): {err}"
+            )
 
         # Obtain a "before" snapshot of the config from the server.
         # This is different from `config` above because alertmanager adds in a bunch of details

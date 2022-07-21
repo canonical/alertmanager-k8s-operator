@@ -20,6 +20,7 @@ class TestWithInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
     @patch.object(Alertmanager, "reload", tautology)
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("charm.KubernetesServicePatch", lambda x, y: None)
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     def setUp(self, *unused):
@@ -72,6 +73,7 @@ class TestWithInitialHooks(unittest.TestCase):
         }
         self.assertEqual(expected_rel_data, rel.data[self.harness.charm.unit])
 
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
         new_config = yaml.dump({"not a real config": "but good enough for testing"})
         self.harness.update_config({"config_file": new_config})
@@ -85,6 +87,7 @@ class TestWithInitialHooks(unittest.TestCase):
             sorted(["juju_model", "juju_application", "juju_model_uuid"]),
         )
 
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     def test_topology_added_if_user_provided_config_with_group_by(self, *unused):
         new_config = yaml.dump({"route": {"group_by": ["alertname", "juju_model"]}})
         self.harness.update_config({"config_file": new_config})
@@ -97,6 +100,7 @@ class TestWithInitialHooks(unittest.TestCase):
             sorted(["alertname", "juju_model", "juju_application", "juju_model_uuid"]),
         )
 
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     def test_charm_blocks_if_user_provided_config_with_templates(self, *unused):
         new_config = yaml.dump({"templates": ["/what/ever/*.tmpl"]})
         self.harness.update_config({"config_file": new_config})
@@ -106,6 +110,7 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.update_config({"config_file": new_config})
         self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
 
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     def test_templates_section_added_if_user_provided_templates(self, *unused):
         templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
         self.harness.update_config({"templates_file": templates})
@@ -122,6 +127,7 @@ class TestWithoutInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
     @patch.object(Alertmanager, "reload", tautology)
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("charm.KubernetesServicePatch", lambda x, y: None)
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
@@ -134,6 +140,7 @@ class TestWithoutInitialHooks(unittest.TestCase):
         self.harness.begin()
         self.harness.add_relation("replicas", "alertmanager")
 
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     def test_unit_status_around_pebble_ready(self, *unused):
         # before pebble_ready, status should be "maintenance"
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.MaintenanceStatus)

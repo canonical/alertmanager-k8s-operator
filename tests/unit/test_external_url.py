@@ -23,6 +23,7 @@ SERVICE_NAME = AlertmanagerCharm._service_name
 
 class TestExternalUrl(unittest.TestCase):
     @patch.object(Alertmanager, "reload", tautology)
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("charm.KubernetesServicePatch", lambda x, y: None)
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     def setUp(self, *unused):
@@ -59,6 +60,7 @@ class TestExternalUrl(unittest.TestCase):
         service = self.harness.model.unit.get_container(CONTAINER_NAME).get_service(SERVICE_NAME)
         return service.is_running()
 
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     def test_config_option_overrides_fqdn(self):
         """The config option for external url must override all other external urls."""
@@ -81,6 +83,7 @@ class TestExternalUrl(unittest.TestCase):
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
         self.assertTrue(self.is_service_running())
 
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     def test_config_option_overrides_traefik(self):
         """The config option for external url must override all other external urls."""
@@ -120,6 +123,7 @@ class TestExternalUrl(unittest.TestCase):
         self.assertEqual(self.get_url_cli_arg(), external_url_ingress)
         self.assertTrue(self.is_service_running())
 
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     def test_web_route_prefix(self):
         # GIVEN a charm with an external web route prefix
@@ -152,6 +156,7 @@ class TestExternalUrl(unittest.TestCase):
             f"http://localhost:{self.harness.charm._api_port}/path/to/alertmanager/",
         )
 
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn-0")
     def test_cluster_addresses(self):
         # GIVEN an alertmanager charm with 3 units in total
@@ -191,6 +196,7 @@ class TestExternalUrl(unittest.TestCase):
             cluster_args, ["fqdn-1:9094/path/to/alertmanager", "fqdn-2:9094/path/to/alertmanager"]
         )
 
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     def test_invalid_web_route_prefix(self):
         for invalid_url in ["htp://foo.bar", "foo.bar"]:
