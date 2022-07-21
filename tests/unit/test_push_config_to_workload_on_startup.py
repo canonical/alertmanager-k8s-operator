@@ -151,5 +151,5 @@ class TestInvalidConfig(unittest.TestCase):
         with patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("", "some error")):
             self.harness.update_config({"config_file": "foo: bar"})
 
-            # THEN the charm goes into active status
+            # THEN the charm goes into blocked status
             self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
