@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import ops
 import yaml
-from helpers import tautology
+from helpers import k8s_resource_multipatch, tautology
 from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
@@ -23,6 +23,8 @@ class TestWithInitialHooks(unittest.TestCase):
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("charm.KubernetesServicePatch", lambda x, y: None)
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
+    @k8s_resource_multipatch
+    @patch("lightkube.core.client.GenericSyncClient")
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
@@ -74,6 +76,7 @@ class TestWithInitialHooks(unittest.TestCase):
         self.assertEqual(expected_rel_data, rel.data[self.harness.charm.unit])
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @k8s_resource_multipatch
     def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
         new_config = yaml.dump({"not a real config": "but good enough for testing"})
         self.harness.update_config({"config_file": new_config})
@@ -88,6 +91,7 @@ class TestWithInitialHooks(unittest.TestCase):
         )
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @k8s_resource_multipatch
     def test_topology_added_if_user_provided_config_with_group_by(self, *unused):
         new_config = yaml.dump({"route": {"group_by": ["alertname", "juju_model"]}})
         self.harness.update_config({"config_file": new_config})
@@ -101,6 +105,7 @@ class TestWithInitialHooks(unittest.TestCase):
         )
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @k8s_resource_multipatch
     def test_charm_blocks_if_user_provided_config_with_templates(self, *unused):
         new_config = yaml.dump({"templates": ["/what/ever/*.tmpl"]})
         self.harness.update_config({"config_file": new_config})
@@ -111,6 +116,7 @@ class TestWithInitialHooks(unittest.TestCase):
         self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @k8s_resource_multipatch
     def test_templates_section_added_if_user_provided_templates(self, *unused):
         templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
         self.harness.update_config({"templates_file": templates})
@@ -129,6 +135,8 @@ class TestWithoutInitialHooks(unittest.TestCase):
     @patch.object(Alertmanager, "reload", tautology)
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("charm.KubernetesServicePatch", lambda x, y: None)
+    @k8s_resource_multipatch
+    @patch("lightkube.core.client.GenericSyncClient")
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
@@ -141,6 +149,7 @@ class TestWithoutInitialHooks(unittest.TestCase):
         self.harness.add_relation("replicas", "alertmanager")
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @k8s_resource_multipatch
     def test_unit_status_around_pebble_ready(self, *unused):
         # before pebble_ready, status should be "maintenance"
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.MaintenanceStatus)
