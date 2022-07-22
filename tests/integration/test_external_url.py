@@ -32,7 +32,9 @@ async def test_setup_env(ops_test: OpsTest):
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     # deploy charm from local source folder
-    await ops_test.model.deploy(charm_under_test, resources=resources, application_name=app_name)
+    await ops_test.model.deploy(
+        charm_under_test, resources=resources, application_name=app_name, trust=True
+    )
     await ops_test.model.wait_for_idle(status="active", timeout=deploy_timeout)
     assert await is_alertmanager_up(ops_test, app_name)
 

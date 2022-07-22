@@ -31,7 +31,9 @@ template = r'{{ define "slack.default.callbackid" }}' + callback_id + "{{ end }}
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     # deploy charm from local source folder
-    await ops_test.model.deploy(charm_under_test, resources=resources, application_name=app_name)
+    await ops_test.model.deploy(
+        charm_under_test, resources=resources, application_name=app_name, trust=True
+    )
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert ops_test.model.applications[app_name].units[0].workload_status == "active"
     assert await is_alertmanager_up(ops_test, app_name)

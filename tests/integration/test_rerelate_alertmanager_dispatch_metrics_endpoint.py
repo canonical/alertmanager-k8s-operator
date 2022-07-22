@@ -34,7 +34,11 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     """Build the charm-under-test and deploy it together with related charms."""
     await asyncio.gather(
         ops_test.model.deploy(
-            charm_under_test, resources=resources, application_name=app_name, num_units=2
+            charm_under_test,
+            resources=resources,
+            application_name=app_name,
+            num_units=2,
+            trust=True,
         ),
         ops_test.model.deploy(
             "ch:prometheus-k8s", application_name=related_app, channel="edge", trust=True

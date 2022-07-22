@@ -38,7 +38,9 @@ async def test_setup_env(ops_test: OpsTest):
 async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_under_test):
     """Build the charm-under-test, deploy the charm from charmhub, and upgrade from path."""
     logger.info("deploy charm from charmhub")
-    await ops_test.model.deploy("ch:alertmanager-k8s", application_name=app_name, channel="edge")
+    await ops_test.model.deploy(
+        "ch:alertmanager-k8s", application_name=app_name, channel="edge", trust=True
+    )
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
 
     logger.info("upgrade deployed charm with local charm %s", charm_under_test)
