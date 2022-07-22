@@ -62,7 +62,9 @@ jobs:
     - name: Setup operator environment
       uses: charmed-kubernetes/actions-operator@main
       with:
+        juju-channel: latest/stable
         provider: microk8s
+        bootstrap-options: "--agent-version 2.9.29"
     - name: Run alertmanger tests
       run: tox -vve integration
   release-to-charmhub:
