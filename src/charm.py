@@ -18,12 +18,12 @@ from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     K8sResourcePatchFailedEvent,
     KubernetesComputeResourcesPatch,
-    ResourceSpecDict,
-    limits_to_requests_scaled,
+    adjust_resource_requirements,
 )
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
+from lightkube.models.core_v1 import ResourceRequirements
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -120,12 +120,7 @@ class AlertmanagerCharm(CharmBase):
         self.resources_patch = KubernetesComputeResourcesPatch(
             self,
             self._container_name,
-            limits_func=lambda: self._resource_limit_from_config(),
-            requests_func=lambda: limits_to_requests_scaled(
-                self._resource_limit_from_config(),
-                ResourceSpecDict(cpu="0.25", memory="200Mi"),
-                0.8,
-            ),
+            resource_reqs_func=lambda: self._resource_reqs_from_config(),
         )
         self.framework.observe(self.resources_patch.on.patch_failed, self._on_k8s_patch_failed)
 
@@ -156,12 +151,13 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(self.on.show_config_action, self._on_show_config_action)
         self.framework.observe(self.on.check_config_action, self._on_check_config)
 
-    def _resource_limit_from_config(self):
-        resource_limit = ResourceSpecDict(
-            cpu=self.model.config.get("cpu"),
-            memory=self.model.config.get("memory"),
-        )
-        return resource_limit
+    def _resource_reqs_from_config(self) -> ResourceRequirements:
+        limits = {
+            "cpu": self.model.config.get("cpu"),
+            "memory": self.model.config.get("memory"),
+        }
+        requests = {"cpu": "0.25", "memory": "200Mi"}
+        return adjust_resource_requirements(limits, requests, adhere_to_requests=True)
 
     def _on_k8s_patch_failed(self, event: K8sResourcePatchFailedEvent):
         self.unit.status = BlockedStatus(event.message)
