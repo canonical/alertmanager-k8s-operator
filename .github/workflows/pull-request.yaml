@@ -64,6 +64,7 @@ jobs:
       with:
         juju-channel: latest/stable
         provider: microk8s
+        channel: edge
         bootstrap-options: "--agent-version 2.9.29"
     - name: Run alertmanger tests
       run: tox -vve integration
