@@ -9,14 +9,11 @@ jobs:
     steps:
       - name: Dump Github Context
         run: |
-          echo '${{ toJSON(github) }}'
-          echo "update=false" >> $GITHUB_ENV
-          
+          echo "update=false" >> $GITHUB_ENV          
           if [ ${{ github.event_name }} != "issues" ]; then
             echo "This action only operates on issues"
             exit 0
           fi
-          
           echo "update=true" >> $GITHUB_ENV
       - name: Determine action
         run: |
@@ -36,11 +33,18 @@ jobs:
           else
             echo "type=story" >> $GITHUB_ENV
           fi
+      - name: Sanitize title
+        id: sanitize-title
+        uses: actions/github-script@v6
+        if: ${{ env.update == 'true' }}
+        with:
+          script: |
+            return github.event.issue.title.replace(/'/g, "\"")
       - name: Update
         if: ${{ env.update == 'true' }}
         run: |
           id="${{ github.event.issue.html_url }}"
-          title='${{ github.event.issue.title }}'
+          title='${{ steps.sanitize-title.outputs.result }}'
           component="alertmanager"
           
           description='Opened by ${{ github.event.issue.user.login }}.'
