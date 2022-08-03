@@ -40,10 +40,10 @@ jobs:
         if: ${{ env.update == 'true' }}
         run: |
           id="${{ github.event.issue.html_url }}"
-          title="${{ github.event.issue.title }}"
+          title='${{ github.event.issue.title }}'
           component="alertmanager"
           
-          description="Opened by ${{ github.event.issue.user.login }}."
+          description='Opened by ${{ github.event.issue.user.login }}.'
           
           data=$(jq -n \
             --arg id "$id" \
