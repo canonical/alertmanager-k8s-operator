@@ -16,7 +16,7 @@ jobs:
       - name: Setup operator environment
         uses: charmed-kubernetes/actions-operator@main
         with:
-          juju-channel: 2.9/edge
+          juju-channel: latest/stable
           provider: microk8s
           bootstrap-options: "--agent-version 2.9.29"
       - name: Patch hostpath-provisioner
