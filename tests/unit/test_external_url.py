@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import ops
 import yaml
-from helpers import cli_arg, tautology
+from helpers import cli_arg, k8s_resource_multipatch, tautology
 from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
@@ -26,6 +26,8 @@ class TestExternalUrl(unittest.TestCase):
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("charm.KubernetesServicePatch", lambda x, y: None)
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
+    @k8s_resource_multipatch
+    @patch("lightkube.core.client.GenericSyncClient")
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.harness.set_model_name(self.__class__.__name__)
@@ -62,6 +64,7 @@ class TestExternalUrl(unittest.TestCase):
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
+    @k8s_resource_multipatch
     def test_config_option_overrides_fqdn(self):
         """The config option for external url must override all other external urls."""
         # GIVEN a charm with the fqdn as its external URL
@@ -85,6 +88,7 @@ class TestExternalUrl(unittest.TestCase):
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
+    @k8s_resource_multipatch
     def test_config_option_overrides_traefik(self):
         """The config option for external url must override all other external urls."""
         # GIVEN a charm with the fqdn as its external URL
@@ -125,6 +129,7 @@ class TestExternalUrl(unittest.TestCase):
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
+    @k8s_resource_multipatch
     def test_web_route_prefix(self):
         # GIVEN a charm with an external web route prefix
         external_url = "http://foo.bar:8080/path/to/alertmanager/"
@@ -158,7 +163,8 @@ class TestExternalUrl(unittest.TestCase):
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn-0")
-    def test_cluster_addresses(self):
+    @k8s_resource_multipatch
+    def test_cluster_addresses(self, *_):
         # GIVEN an alertmanager charm with 3 units in total
         for u in [1, 2]:
             unit_name = self.app_name + f"/{u}"
@@ -198,6 +204,7 @@ class TestExternalUrl(unittest.TestCase):
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
+    @k8s_resource_multipatch
     def test_invalid_web_route_prefix(self):
         for invalid_url in ["htp://foo.bar", "foo.bar"]:
             with self.subTest(url=invalid_url):

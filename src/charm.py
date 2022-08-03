@@ -15,13 +15,25 @@ from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvide
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
+from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
+    K8sResourcePatchFailedEvent,
+    KubernetesComputeResourcesPatch,
+    adjust_resource_requirements,
+)
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
+from lightkube.models.core_v1 import ResourceRequirements
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, Relation
+from ops.model import (
+    ActiveStatus,
+    BlockedStatus,
+    MaintenanceStatus,
+    Relation,
+    WaitingStatus,
+)
 from ops.pebble import ChangeError, ExecError, Layer, PathError, ProtocolError
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
@@ -105,6 +117,12 @@ class AlertmanagerCharm(CharmBase):
                 (f"{self.app.name}-ha", self._ha_port, self._ha_port),
             ],
         )
+        self.resources_patch = KubernetesComputeResourcesPatch(
+            self,
+            self._container_name,
+            resource_reqs_func=lambda: self._resource_reqs_from_config(),
+        )
+        self.framework.observe(self.resources_patch.on.patch_failed, self._on_k8s_patch_failed)
 
         # Self-monitoring
         self._scraping = MetricsEndpointProvider(
@@ -132,6 +150,17 @@ class AlertmanagerCharm(CharmBase):
         # Action events
         self.framework.observe(self.on.show_config_action, self._on_show_config_action)
         self.framework.observe(self.on.check_config_action, self._on_check_config)
+
+    def _resource_reqs_from_config(self) -> ResourceRequirements:
+        limits = {
+            "cpu": self.model.config.get("cpu"),
+            "memory": self.model.config.get("memory"),
+        }
+        requests = {"cpu": "0.25", "memory": "200Mi"}
+        return adjust_resource_requirements(limits, requests, adhere_to_requests=True)
+
+    def _on_k8s_patch_failed(self, event: K8sResourcePatchFailedEvent):
+        self.unit.status = BlockedStatus(event.message)
 
     def _handle_ingress(self, event):
         if url := self.ingress.url:
@@ -437,6 +466,11 @@ class AlertmanagerCharm(CharmBase):
 
     def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
+        if not self.resources_patch.is_ready():
+            if isinstance(self.unit.status, ActiveStatus) or self.unit.status.message == "":
+                self.unit.status = WaitingStatus("Waiting for resource limit patch to apply")
+            return
+
         if not self.container.can_connect():
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return

@@ -4,12 +4,14 @@
 
 """Helper functions for writing tests."""
 
+from unittest.mock import patch
 
-def no_op(*args, **kwargs) -> None:
+
+def no_op(*_, **__) -> None:
     pass
 
 
-def tautology(*args, **kwargs) -> bool:
+def tautology(*_, **__) -> bool:
     return True
 
 
@@ -23,3 +25,11 @@ def cli_arg(plan, cli_opt):
         if len(opt_list) == 1 and opt_list[0] == cli_opt:
             return opt_list[0]
     return None
+
+
+k8s_resource_multipatch = patch.multiple(
+    "charm.KubernetesComputeResourcesPatch",
+    _namespace="test-namespace",
+    _patch=tautology,
+    is_ready=tautology,
+)

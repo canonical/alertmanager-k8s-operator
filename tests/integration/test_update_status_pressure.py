@@ -40,7 +40,11 @@ async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
     logger.info("deploy charms")
     await asyncio.gather(
         ops_test.model.deploy(
-            charm_under_test, application_name=app_name, resources=resources, num_units=2
+            charm_under_test,
+            application_name=app_name,
+            resources=resources,
+            num_units=2,
+            trust=True,
         ),
         ops_test.model.deploy(
             "ch:prometheus-k8s", application_name="prom", channel="edge", trust=True

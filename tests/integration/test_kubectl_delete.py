@@ -23,7 +23,9 @@ async def test_deploy_from_local_path(ops_test: OpsTest, charm_under_test):
     """Deploy the charm-under-test."""
     logger.debug("deploy local charm")
 
-    await ops_test.model.deploy(charm_under_test, application_name=app_name, resources=resources)
+    await ops_test.model.deploy(
+        charm_under_test, application_name=app_name, resources=resources, trust=True
+    )
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     await is_alertmanager_up(ops_test, app_name)
 

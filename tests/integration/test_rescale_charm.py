@@ -34,7 +34,7 @@ async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
 
     logger.info("deploy charm")
     await ops_test.model.deploy(
-        charm_under_test, application_name=app_name, resources=resources, num_units=10
+        charm_under_test, application_name=app_name, resources=resources, num_units=10, trust=True
     )
     await block_until_leader_elected(ops_test, app_name)
 

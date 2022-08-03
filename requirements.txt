@@ -23,5 +23,5 @@ PyYAML
 # Code: https://github.com/gtsystem/lightkube
 # Docs: https://lightkube.readthedocs.io/
 # Deps: observability_libs
-lightkube
+lightkube >= 0.11
 lightkube-models
