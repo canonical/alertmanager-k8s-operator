@@ -2,7 +2,8 @@
 # See LICENSE file for licensing details.
 
 name: alertmanager-k8s
-assumes: k8s-api
+assumes:
+  - k8s-api
 
 summary: |
   Kubernetes charm for Alertmanager.
