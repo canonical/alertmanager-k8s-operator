@@ -120,7 +120,7 @@ class AlertmanagerCharm(CharmBase):
         self.resources_patch = KubernetesComputeResourcesPatch(
             self,
             self._container_name,
-            resource_reqs_func=lambda: self._resource_reqs_from_config(),
+            resource_reqs_func=self._resource_reqs_from_config,
         )
         self.framework.observe(self.resources_patch.on.patch_failed, self._on_k8s_patch_failed)
 
