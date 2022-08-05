@@ -5,10 +5,13 @@
 import textwrap
 import unittest
 
+import ops
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerConsumer
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.testing import Harness
+
+ops.testing.SIMULATE_CAN_CONNECT = True
 
 
 class DummyConsumerCharm(CharmBase):

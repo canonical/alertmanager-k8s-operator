@@ -2,6 +2,8 @@
 # See LICENSE file for licensing details.
 
 name: alertmanager-k8s
+assumes:
+  - k8s-api
 
 summary: |
   Kubernetes charm for Alertmanager.
@@ -11,6 +13,9 @@ description: |
   It takes care of deduplicating, grouping, and routing them to the correct receiver integrations
   such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
+website: https://charmhub.io/alertmanager-k8s
+source: https://github.com/canonical/alertmanager-k8s-operator
+issues: https://github.com/canonical/alertmanager-k8s-operator/issues
 docs: https://discourse.charmhub.io/t/alertmanager-k8s-docs-index/5788
 
 # workload containers

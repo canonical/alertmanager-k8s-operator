@@ -18,12 +18,12 @@ from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     K8sResourcePatchFailedEvent,
     KubernetesComputeResourcesPatch,
+    ResourceRequirements,
     adjust_resource_requirements,
 )
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
-from lightkube.models.core_v1 import ResourceRequirements
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -120,7 +120,7 @@ class AlertmanagerCharm(CharmBase):
         self.resources_patch = KubernetesComputeResourcesPatch(
             self,
             self._container_name,
-            resource_reqs_func=lambda: self._resource_reqs_from_config(),
+            resource_reqs_func=self._resource_reqs_from_config,
         )
         self.framework.observe(self.resources_patch.on.patch_failed, self._on_k8s_patch_failed)
 
