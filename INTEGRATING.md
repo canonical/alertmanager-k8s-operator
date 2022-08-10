@@ -11,7 +11,7 @@ Alermanager can handle different types of relations in the `provides` side and i
     interface: alertmanager_dispatch
 ```
 
-Over the the
+Over the
 [`alertmanager_dispatch`](https://charmhub.io/alertmanager-k8s/libraries/alertmanager_dispatch)
 relation interface Alermanager can be related to charms that can forward alerts to it,
 for example: [Prometheus][Prometheus operator], [Loki][Loki operator].
