@@ -92,7 +92,7 @@ juju relate alertmanager-k8s:grafana-source grafana-k8s:grafana-source
 
 Interactions with the Alertmanager charm can not be assumed to originate within the same Juju model, let alone the same Kubernetes cluster, or even the same Juju cloud. Hence the charm also supports an Ingress relation.
 
-Alertmanager typically needs a "per app" Ingress.  The ingress relation is available in the [traefik-k8s](https://charmhub.io/traefik-k8s) charm and this Alertmanager charm does support that relation over [`ingress`](https://charmhub.io/traefik-k8s/libraries/ingress) interface.
+Since Alertmanager units automatically form a cluster, the charm only needs a "per app" Ingress. The ingress relation is available in the [traefik-k8s](https://charmhub.io/traefik-k8s) charm and this Alertmanager charm does support that relation over [`ingress`](https://charmhub.io/traefik-k8s/libraries/ingress) interface.
 
 
 ```
