@@ -121,7 +121,7 @@ juju status alertmanager-k8s --format=json \
 
 ## Clustering
 
-## Forming a cluster
+### Forming a cluster
 
 Alertmanager [supports clustering](https://www.prometheus.io/docs/alerting/latest/alertmanager/#high-availability)
 and all you need to do to create/update a cluster is to rescale the application. This can be done in two ways.
@@ -145,11 +145,11 @@ Regardless of which of the two options you use, `juju status --relations --color
 
 Internally, HA is achieved by providing each Alertmanager instance at least one IP address of another instance. The cluster would then auto-update with subsequent changes to the units present.
 
-## Verification
+### Verification
 
 
 
-### Pebble plan
+#### Pebble plan
 Cluster information is passed to Alertmanager via [`--cluster.peer` command line arguments](https://github.com/prometheus/alertmanager#high-availability). This can be verified by looking at the current pebble plan:
 
 ```shell
@@ -164,7 +164,7 @@ services:
         override: replace
         command: alertmanager --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager --web.listen-address=:9093 --cluster.listen-address=0.0.0.0:9094 --cluster.peer=10.1.179.220:9094 --cluster.peer=10.1.179.221:9094
 ```
-### HTTP API
+#### HTTP API
 To manually verify a cluster is indeed formed, you can query the alertmanager HTTP API directly:
 
 ```shell
