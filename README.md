@@ -153,7 +153,7 @@ Internally, HA is achieved by providing each Alertmanager instance at least one 
 Cluster information is passed to Alertmanager via [`--cluster.peer` command line arguments](https://github.com/prometheus/alertmanager#high-availability). This can be verified by looking at the current pebble plan:
 
 ```shell
-> $ juju exec --unit alertmanager-k8s/0 -- \
+> juju exec --unit alertmanager-k8s/0 -- \
   PEBBLE_SOCKET=/charm/containers/alertmanager/pebble.socket \
   pebble plan
 
