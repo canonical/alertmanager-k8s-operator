@@ -66,7 +66,7 @@ In order to add these dashboards to Grafana all that is required is to relate th
 juju relate alertmanager-k8s:grafana-dashboard grafana-k8s:grafana-dashboard
 ```
 
-### Grafana Source
+### Grafana source
 
 ```yaml
   grafana-source:
