@@ -127,6 +127,14 @@ class TestExternalUrl(unittest.TestCase):
         self.assertEqual(self.get_url_cli_arg(), external_url_ingress)
         self.assertTrue(self.is_service_running())
 
+        # AND WHEN the traefik relation is removed
+        app_data = {"ingress": ""}
+        self.harness.update_relation_data(rel_id, "traefik-app", app_data)
+        self.harness.remove_relation(rel_id)
+
+        # THEN the fqdn is used as external url
+        self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
+
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
