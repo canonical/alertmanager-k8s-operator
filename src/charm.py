@@ -514,6 +514,11 @@ class AlertmanagerCharm(CharmBase):
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
         self._common_exit_hook()
+        try:
+            version = self.api.version
+            self.unit.set_workload_version(version)
+        except AlertmanagerBadResponse:
+            logger.debug("Could not get Alertmanager version")
 
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent."""
