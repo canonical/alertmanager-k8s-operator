@@ -1526,7 +1526,7 @@ def load_config_file(path: str) -> dict:
             config = yaml.safe_load(config_yaml)
         return config
     else:
-        error_msg = "Given Alertmanager config file %s doesn't exist!", path
+        error_msg = "Given Alertmanager config file {} doesn't exist!".format(path)
         logger.error(error_msg)
         raise FileNotFoundError(error_msg)
 
@@ -1545,7 +1545,9 @@ def load_templates_file(path: str) -> str:
             templates = template_file.read()
         return templates
     else:
-        logger.warning("Given Alertmanager templates file %s doesn't exist. Skipping...", path)
+        logger.warning(
+            "Given Alertmanager templates file {} doesn't exist. Skipping...".format(path)
+        )
         raise FileNotFoundError
 
 
