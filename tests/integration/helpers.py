@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 async def get_unit_address(ops_test: OpsTest, app_name: str, unit_num: int) -> str:
     """Get private address of a unit."""
-    status = await ops_test.model.get_status()  # noqa: F821
+    status = await ops_test.model.get_status()  # type: ignore[union-attr]  # noqa: F821
     return status["applications"][app_name]["units"][f"{app_name}/{unit_num}"]["address"]
 
 
@@ -58,18 +58,18 @@ async def cli_upgrade_from_path_and_wait(
     retcode, stdout, stderr = await ops_test.run(*cmd)
     assert retcode == 0, f"Upgrade failed: {(stderr or stdout).strip()}"
     logger.info(stdout)
-    await ops_test.model.wait_for_idle(apps=[alias], status=wait_for_status, timeout=120)
+    await ops_test.model.wait_for_idle(apps=[alias], status=wait_for_status, timeout=120)  # type: ignore[union-attr]  # noqa: E501
 
 
 async def get_leader_unit_num(ops_test: OpsTest, app_name: str):
-    units = ops_test.model.applications[app_name].units
+    units = ops_test.model.applications[app_name].units  # type: ignore[union-attr]
     is_leader = [await units[i].is_leader_from_status() for i in range(len(units))]
     logger.info("Leaders: %s", is_leader)
     return is_leader.index(True)
 
 
 async def is_leader_elected(ops_test: OpsTest, app_name: str):
-    units = ops_test.model.applications[app_name].units
+    units = ops_test.model.applications[app_name].units  # type: ignore[union-attr]
     return any([await units[i].is_leader_from_status() for i in range(len(units))])
 
 
@@ -93,7 +93,7 @@ async def is_alertmanager_up(ops_test: OpsTest, app_name: str):
     return all(
         [
             await is_alertmanage_unit_up(ops_test, app_name, unit_num)
-            for unit_num in range(len(ops_test.model.applications[app_name].units))
+            for unit_num in range(len(ops_test.model.applications[app_name].units))  # type: ignore[union-attr]  # noqa: E501
         ]
     )
 

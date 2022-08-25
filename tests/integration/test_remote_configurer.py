@@ -10,7 +10,7 @@ import helpers
 import juju.errors
 import pytest
 import yaml
-from deepdiff import DeepDiff
+from deepdiff import DeepDiff  # type: ignore[import]
 from pytest_operator.plugin import OpsTest
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
@@ -40,15 +40,14 @@ class TestAlertmanagerRemoteConfigurer:
     @pytest.mark.abort_on_fail
     async def setup(self, ops_test: OpsTest):
         charm = await ops_test.build_charm(".")
-        await ops_test.model.deploy(
+        await ops_test.model.deploy(  # type: ignore[union-attr]
             charm,
             resources=RESOURCES,
             application_name=APP_NAME,
-            # config={"config_file": ALERTMANAGER_TEST_INITIAL_CONFIG},
             trust=True,
         )
         await self._build_and_deploy_remote_configurer_tester_charm(ops_test)
-        await ops_test.model.wait_for_idle(
+        await ops_test.model.wait_for_idle(  # type: ignore[union-attr]
             apps=[APP_NAME, TESTER_APP_NAME], status="active", timeout=1000
         )
 
@@ -83,7 +82,7 @@ receivers:
 - name: test_receiver
 templates: []
         """
-        await ops_test.model.add_relation(
+        await ops_test.model.add_relation(  # type: ignore[union-attr]
             relation1=f"{APP_NAME}:remote-configurer", relation2=TESTER_APP_NAME
         )
         time.sleep(5)  # 5 seconds for the Alertmanager to apply new config
@@ -104,7 +103,7 @@ templates: []
         test_app_name = "another-configurer"
         await self._build_and_deploy_remote_configurer_tester_charm(ops_test, test_app_name)
         try:
-            await ops_test.model.add_relation(
+            await ops_test.model.add_relation(  # type: ignore[union-attr]
                 relation1=f"{APP_NAME}:remote-configurer", relation2=test_app_name
             )
             assert False
@@ -121,10 +120,10 @@ templates: []
         ops_test: OpsTest, app_name: str = TESTER_APP_NAME
     ):
         tester_charm = await ops_test.build_charm(TESTER_CHARM_PATH)
-        await ops_test.model.deploy(
+        await ops_test.model.deploy(  # type: ignore[union-attr]
             tester_charm,
             resources=TESTER_APP_RESOURCES,
             application_name=app_name,
             trust=True,
         )
-        await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+        await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501

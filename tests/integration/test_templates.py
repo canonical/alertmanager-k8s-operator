@@ -31,11 +31,11 @@ template = r'{{ define "slack.default.callbackid" }}' + callback_id + "{{ end }}
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     # deploy charm from local source folder
-    await ops_test.model.deploy(
+    await ops_test.model.deploy(  # type: ignore[union-attr]
         charm_under_test, resources=resources, application_name=app_name, trust=True
     )
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
-    assert ops_test.model.applications[app_name].units[0].workload_status == "active"
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+    assert ops_test.model.applications[app_name].units[0].workload_status == "active"  # type: ignore[union-attr]  # noqa: E501
     assert await is_alertmanager_up(ops_test, app_name)
 
 
@@ -66,10 +66,10 @@ async def test_configure_alertmanager_with_templates(ops_test: OpsTest, httpserv
     }
 
     # set alertmanager configuration and template file
-    await ops_test.model.applications[app_name].set_config(
+    await ops_test.model.applications[app_name].set_config(  # type: ignore[union-attr]
         {"config_file": yaml.safe_dump(aconfig), "templates_file": template}
     )
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=60)
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=60)  # type: ignore[union-attr]  # noqa: E501
 
 
 @pytest.mark.abort_on_fail

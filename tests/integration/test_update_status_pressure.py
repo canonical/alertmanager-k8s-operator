@@ -27,7 +27,7 @@ resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 
 @pytest.mark.abort_on_fail
 async def test_setup_env(ops_test: OpsTest):
-    await ops_test.model.set_config(
+    await ops_test.model.set_config(  # type: ignore[union-attr]
         {"update-status-hook-interval": "10s", "logging-config": "<root>=WARNING; unit=DEBUG"}
     )
 
@@ -39,21 +39,21 @@ async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
 
     logger.info("deploy charms")
     await asyncio.gather(
-        ops_test.model.deploy(
+        ops_test.model.deploy(  # type: ignore[union-attr]
             charm_under_test,
             application_name=app_name,
             resources=resources,
             num_units=2,
             trust=True,
         ),
-        ops_test.model.deploy(
+        ops_test.model.deploy(  # type: ignore[union-attr]
             "ch:prometheus-k8s", application_name="prom", channel="edge", trust=True
         ),
     )
 
     await asyncio.gather(
-        ops_test.model.add_relation(f"{app_name}:alerting", "prom"),
-        ops_test.model.wait_for_idle(status="active", timeout=2500),
+        ops_test.model.add_relation(f"{app_name}:alerting", "prom"),  # type: ignore[union-attr]
+        ops_test.model.wait_for_idle(status="active", timeout=2500),  # type: ignore[union-attr]
     )
 
     assert await is_alertmanager_up(ops_test, app_name)
@@ -61,11 +61,11 @@ async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
 
 @pytest.mark.abort_on_fail
 async def test_remove_related_app(ops_test: OpsTest):
-    await ops_test.model.applications["prom"].remove()
+    await ops_test.model.applications["prom"].remove()  # type: ignore[union-attr]
     # Block until it is really gone. Added after an itest failed when tried to redeploy:
     # juju.errors.JujuError: ['cannot add application "related-app": application already exists']
-    await ops_test.model.block_until(lambda: "prom" not in ops_test.model.applications)
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=300)
+    await ops_test.model.block_until(lambda: "prom" not in ops_test.model.applications)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=300)  # type: ignore[union-attr]  # noqa: E501
     assert await is_alertmanager_up(ops_test, app_name)
 
 
@@ -75,6 +75,6 @@ async def test_wait_through_a_few_update_status_cycles(ops_test: OpsTest):
 
     # "Disable" update-status so the charm gets a chance to become idle for long enough for
     # wait_for_idle to succeed
-    await ops_test.model.set_config({"update-status-hook-interval": "60m"})
+    await ops_test.model.set_config({"update-status-hook-interval": "60m"})  # type: ignore[union-attr]  # noqa: E501
 
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=300)
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=300)  # type: ignore[union-attr]  # noqa: E501

@@ -24,10 +24,10 @@ resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_test, httpserver):
     # deploy alertmanager charm from charmhub
     logger.info("deploy charm from charmhub")
-    await ops_test.model.deploy(
+    await ops_test.model.deploy(  # type: ignore[union-attr]
         "ch:alertmanager-k8s", application_name=app_name, channel="edge", trust=True
     )
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
 
     # set a silencer for an alert and check it is set
     alertmanager = Alertmanager(address=await get_unit_address(ops_test, app_name, 0))
@@ -68,24 +68,24 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     ]
     # find pid of alertmanager
     pid_cmd = ["pidof", "alertmanager"]
-    cmd = sg_cmd + [" ".join(kubectl_cmd + pid_cmd)]
+    cmd = sg_cmd + [" ".join(kubectl_cmd + pid_cmd)]  # type: ignore[arg-type, operator]
     retcode, alertmanager_pid, stderr = await ops_test.run(*cmd)
     assert retcode == 0, f"kubectl failed: {(stderr or alertmanager_pid).strip()}"
     # use pid of alertmanager to send it a SIGTERM signal using kubectl
     term_cmd = ["kill", "-s", "TERM", alertmanager_pid]
-    cmd = sg_cmd + [" ".join(kubectl_cmd + term_cmd)]
+    cmd = sg_cmd + [" ".join(kubectl_cmd + term_cmd)]  # type: ignore[arg-type, operator]
     logger.debug("Sending SIGTERM to Alertmanager")
     retcode, stdout, stderr = await ops_test.run(*cmd)
     assert retcode == 0, f"kubectl failed: {(stderr or stdout).strip()}"
     logger.debug(stdout)
-    await ops_test.model.block_until(lambda: len(ops_test.model.applications[app_name].units) > 0)
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    await ops_test.model.block_until(lambda: len(ops_test.model.applications[app_name].units) > 0)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
     assert await is_alertmanager_up(ops_test, app_name)
 
     # upgrade alertmanger using charm built locally
     logger.info("upgrade deployed charm with local charm %s", charm_under_test)
-    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
     assert await is_alertmanager_up(ops_test, app_name)
 
     # check silencer is still set

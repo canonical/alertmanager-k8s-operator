@@ -23,10 +23,10 @@ async def test_deploy_from_local_path(ops_test: OpsTest, charm_under_test):
     """Deploy the charm-under-test."""
     logger.debug("deploy local charm")
 
-    await ops_test.model.deploy(
+    await ops_test.model.deploy(  # type: ignore[union-attr]
         charm_under_test, application_name=app_name, resources=resources, trust=True
     )
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
     await is_alertmanager_up(ops_test, app_name)
 
 
@@ -38,7 +38,7 @@ async def test_kubectl_delete_pod(ops_test: OpsTest):
         "sg",
         "microk8s",
         "-c",
-        " ".join(["microk8s.kubectl", "delete", "pod", "-n", ops_test.model_name, pod_name]),
+        " ".join(["microk8s.kubectl", "delete", "pod", "-n", ops_test.model_name, pod_name]),  # type: ignore[list-item]  # noqa: E501
     ]
 
     logger.debug(
@@ -48,6 +48,6 @@ async def test_kubectl_delete_pod(ops_test: OpsTest):
     retcode, stdout, stderr = await ops_test.run(*cmd)
     assert retcode == 0, f"kubectl failed: {(stderr or stdout).strip()}"
     logger.debug(stdout)
-    await ops_test.model.block_until(lambda: len(ops_test.model.applications[app_name].units) > 0)
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    await ops_test.model.block_until(lambda: len(ops_test.model.applications[app_name].units) > 0)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
     assert await is_alertmanager_up(ops_test, app_name)
