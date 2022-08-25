@@ -423,7 +423,7 @@ class AlertmanagerCharm(CharmBase):
             return yaml.safe_load(local_config)
         if remote_config:
             logger.info("using configuration from relation")
-            return yaml.safe_load(remote_config)
+            return yaml.safe_load(remote_config)  # type: ignore[arg-type]
         return None
 
     def _get_templates(self) -> Union[str, None]:

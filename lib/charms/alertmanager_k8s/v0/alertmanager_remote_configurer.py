@@ -1527,7 +1527,7 @@ def load_config_file(path: str) -> dict:
             config = yaml.safe_load(config_yaml)
         return config
     else:
-        error_msg = f"Given Alertmanager config file {path} doesn't exist!"
+        error_msg = "Given Alertmanager config file %s doesn't exist!", path
         logger.error(error_msg)
         raise FileNotFoundError(error_msg)
 
@@ -1547,7 +1547,7 @@ def load_templates_file(path: str) -> str:
             templates = template_file.read()
         return templates
     else:
-        logger.warning(f"Given Alertmanager templates file {path} doesn't exist. Skipping...")
+        logger.warning("Given Alertmanager templates file %s doesn't exist. Skipping...", path)
         raise FileNotFoundError
 
 
@@ -1694,7 +1694,7 @@ class AlertmanagerRemoteConfigurerProvider(Object):
         remote_configurer_relation = self._charm.model.get_relation(self._relation_name)
         if remote_configurer_relation:
             try:
-                raw_config = remote_configurer_relation.data[remote_configurer_relation.app][
+                raw_config = remote_configurer_relation.data[remote_configurer_relation.app][  # type: ignore[index]  # noqa: E501
                     "alertmanager_config"
                 ]
                 if self._config_is_valid(json.loads(raw_config)):
@@ -1720,7 +1720,7 @@ class AlertmanagerRemoteConfigurerProvider(Object):
         remote_configurer_relation = self._charm.model.get_relation(self._relation_name)
         if remote_configurer_relation:
             try:
-                templates_raw = remote_configurer_relation.data[remote_configurer_relation.app][
+                templates_raw = remote_configurer_relation.data[remote_configurer_relation.app][  # type: ignore[index]  # noqa: E501
                     "alertmanager_templates"
                 ]
                 templates = json.loads(templates_raw)
@@ -1758,7 +1758,7 @@ class AlertmanagerRemoteConfigurerProvider(Object):
             str: Alertmanager configuration
         """
         config_endpoint = "api/v2/status"
-        url = f"{self.api_address}/{config_endpoint}"
+        url = "{}/{}".format(self.api_address, config_endpoint)
         response = requests.get(url)
         return response.json()["config"]["original"] if response.status_code == 200 else ""
 
@@ -1853,7 +1853,7 @@ class AlertmanagerRemoteConfigurerConsumer(Object):
         if not self._charm.unit.is_leader():
             return
         relation = self.model.get_relation(self._relation_name)
-        self._update_relation_databag(relation)
+        self._update_relation_databag(relation)  # type: ignore[arg-type]
 
     def _update_relation_databag(self, relation: Relation) -> None:
         try:
