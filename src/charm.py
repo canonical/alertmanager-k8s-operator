@@ -12,8 +12,8 @@ from urllib.parse import urlparse
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
-from charms.alertmanager_k8s.v0.alertmanager_remote_configurer import (
-    AlertmanagerRemoteConfigurerProvider,
+from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
+    AlertmanagerRemoteConfigurationProvider,
 )
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
@@ -69,7 +69,7 @@ class AlertmanagerCharm(CharmBase):
     _container_name = _layer_name = _service_name = "alertmanager"
     _relation_name = "alerting"
     _peer_relation_name = "replicas"  # must match metadata.yaml peer role name
-    _remote_configurer_relation_name = "remote_configurer"
+    _remote_configuration_relation_name = "remote_configuration"
     _api_port = 9093  # port to listen on for the web interface and API
     _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
 
@@ -113,7 +113,7 @@ class AlertmanagerCharm(CharmBase):
             source_url=self._external_url,
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
-        self.remote_configurer_provider = AlertmanagerRemoteConfigurerProvider(self)
+        self.remote_configuration_provider = AlertmanagerRemoteConfigurationProvider(self)
 
         self.service_patcher = KubernetesServicePatch(
             self,
@@ -144,10 +144,10 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
-        # Remote configurer events
+        # Remote configuration events
         self.framework.observe(
-            self.on[self._remote_configurer_relation_name].relation_changed,
-            self._on_remote_configurer_relation_changed,
+            self.on[self._remote_configuration_relation_name].relation_changed,
+            self._on_remote_configuration_relation_changed,
         )
 
         # Peer relation events
@@ -414,7 +414,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _get_config(self) -> Union[dict, None]:
         local_config = self.config["config_file"]
-        remote_config = self.remote_configurer_provider.config()
+        remote_config = self.remote_configuration_provider.config()
         if local_config and remote_config:
             logger.error("unable to use config from config_file and relation at the same time")
             raise ConfigUpdateFailure("Multiple configs detected")
@@ -428,7 +428,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _get_templates(self) -> Union[str, None]:
         local_templates = self.config["templates_file"]
-        remote_templates = self.remote_configurer_provider.templates()
+        remote_templates = self.remote_configuration_provider.templates()
         if local_templates and remote_templates:
             logger.error(
                 "unable to use templates from templates_file and relation at the same time"
@@ -574,8 +574,8 @@ class AlertmanagerCharm(CharmBase):
         """
         self._common_exit_hook()
 
-    def _on_remote_configurer_relation_changed(self, _):
-        """Event handler for remote configurer's RelationChangedEvent."""
+    def _on_remote_configuration_relation_changed(self, _):
+        """Event handler for remote configuration's RelationChangedEvent."""
         self._common_exit_hook()
 
     def _on_update_status(self, _):

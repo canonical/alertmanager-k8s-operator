@@ -29,5 +29,5 @@ lightkube-models
 # Requests is an elegant and simple HTTP library for Python, built for human beings.
 # Code: https://github.com/psf/requests
 # Docs: https://requests.readthedocs.io/en/latest/
-# Deps: alertmanager_remote_configurer
+# Deps: alertmanager_remote_configuration
 requests

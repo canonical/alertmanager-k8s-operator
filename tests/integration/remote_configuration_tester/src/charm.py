@@ -7,8 +7,8 @@
 import logging
 
 import yaml
-from charms.alertmanager_k8s.v0.alertmanager_remote_configurer import (
-    AlertmanagerRemoteConfigurerConsumer,
+from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
+    AlertmanagerRemoteConfigurationConsumer,
 )
 from ops.charm import CharmBase, PebbleReadyEvent
 from ops.main import main
@@ -24,10 +24,10 @@ class AlertmanagerTesterCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self.container = self.unit.get_container("remote-configurer-tester")
-        self.remote_configurer_consumer = AlertmanagerRemoteConfigurerConsumer(self)
+        self.container = self.unit.get_container("remote-configuration-tester")
+        self.remote_configuration_consumer = AlertmanagerRemoteConfigurationConsumer(self)
 
-        self.framework.observe(self.on.remote_configurer_tester_pebble_ready, self._on_ready)
+        self.framework.observe(self.on.remote_configuration_tester_pebble_ready, self._on_ready)
 
     def _on_ready(self, event: PebbleReadyEvent) -> None:
         if not self.container.can_connect():

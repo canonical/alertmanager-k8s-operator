@@ -6,11 +6,11 @@ import unittest
 from unittest.mock import Mock, PropertyMock, call, patch
 
 import yaml
-from charms.alertmanager_k8s.v0.alertmanager_remote_configurer import (
+from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     DEFAULT_RELATION_NAME as RELATION_NAME,
 )
-from charms.alertmanager_k8s.v0.alertmanager_remote_configurer import (
-    AlertmanagerRemoteConfigurerConsumer,
+from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
+    AlertmanagerRemoteConfigurationConsumer,
 )
 from deepdiff import DeepDiff  # type: ignore[import]
 from helpers import k8s_resource_multipatch
@@ -27,7 +27,7 @@ METADATA = f"""
 name: {TEST_APP_NAME}
 requires:
   {RELATION_NAME}:
-    interface: alertmanager_remote_configurer
+    interface: alertmanager_remote_configuration
     limit: 1
 """
 TEST_ALERTMANAGER_CONFIG_FILE = "/test/rules/dir/config_file.yml"
@@ -48,27 +48,27 @@ route:
 """
 
 
-class RemoteConfigurerConsumerCharm(CharmBase):
+class RemoteConfigurationConsumerCharm(CharmBase):
     ALERTMANAGER_CONFIG_FILE = "./tests/unit/test_config/alertmanager.yml"
 
     def __init__(self, *args):
         super().__init__(*args)
-        self.remote_configurer_consumer = AlertmanagerRemoteConfigurerConsumer(
+        self.remote_configuration_consumer = AlertmanagerRemoteConfigurationConsumer(
             charm=self,
             relation_name=RELATION_NAME,
             config_file_path=self.ALERTMANAGER_CONFIG_FILE,
         )
 
 
-class TestAlertmanagerRemoteConfigurerConsumer(unittest.TestCase):
+class TestAlertmanagerRemoteConfigurationConsumer(unittest.TestCase):
     def setUp(self) -> None:
-        self.harness = testing.Harness(RemoteConfigurerConsumerCharm, meta=METADATA)
+        self.harness = testing.Harness(RemoteConfigurationConsumerCharm, meta=METADATA)
         self.addCleanup(self.harness.cleanup)
         testing.SIMULATE_CAN_CONNECT = True
         self.harness.set_leader(True)
         self.harness.begin()
 
-    def test_given_remote_configurer_consumer_charm_providing_config_without_templates_when_relation_joined_then_alertmanager_config_is_updated_in_the_relation_data_bag(  # noqa: E501
+    def test_given_remote_configuration_consumer_charm_providing_config_without_templates_when_relation_joined_then_alertmanager_config_is_updated_in_the_relation_data_bag(  # noqa: E501
         self,
     ):
         test_config_file = "./tests/unit/test_config/alertmanager.yml"
@@ -84,16 +84,16 @@ class TestAlertmanagerRemoteConfigurerConsumer(unittest.TestCase):
         )
 
     @patch(
-        "test_remote_configurer.RemoteConfigurerConsumerCharm.ALERTMANAGER_CONFIG_FILE",
+        "test_remote_configuration.RemoteConfigurationConsumerCharm.ALERTMANAGER_CONFIG_FILE",
         new_callable=PropertyMock,
     )
-    def test_given_remote_configurer_consumer_charm_providing_config_with_templates_when_relation_joined_then_alertmanager_config_and_alertmanager_templates_are_updated_in_the_relation_data_bag(  # noqa: E501
+    def test_given_remote_configuration_consumer_charm_providing_config_with_templates_when_relation_joined_then_alertmanager_config_and_alertmanager_templates_are_updated_in_the_relation_data_bag(  # noqa: E501
         self, patched_alertmanager_config_file
     ):
         test_config_file = "./tests/unit/test_config/alertmanager_with_templates.yml"
         test_templates_file = "./tests/unit/test_config/test_templates.tmpl"
         patched_alertmanager_config_file.return_value = test_config_file
-        harness = testing.Harness(RemoteConfigurerConsumerCharm, meta=METADATA)
+        harness = testing.Harness(RemoteConfigurationConsumerCharm, meta=METADATA)
         self.addCleanup(harness.cleanup)
         harness.set_leader(True)
         harness.begin()
@@ -116,7 +116,7 @@ class TestAlertmanagerRemoteConfigurerConsumer(unittest.TestCase):
             json.dumps(expected_templates),
         )
 
-    def test_given_remote_configurer_consumer_charm_providing_config_without_templates_when_upgrade_charm_then_alertmanager_config_is_updated_in_the_relation_data_bag(  # noqa: E501
+    def test_given_remote_configuration_consumer_charm_providing_config_without_templates_when_upgrade_charm_then_alertmanager_config_is_updated_in_the_relation_data_bag(  # noqa: E501
         self,
     ):
         self.harness.disable_hooks()
@@ -133,7 +133,7 @@ class TestAlertmanagerRemoteConfigurerConsumer(unittest.TestCase):
             json.dumps(expected_config),
         )
 
-    def test_given_remote_configurer_consumer_charm_providing_config_without_templates_when_relation_changed_then_alertmanager_config_is_updated_in_the_relation_data_bag(  # noqa: E501
+    def test_given_remote_configuration_consumer_charm_providing_config_without_templates_when_relation_changed_then_alertmanager_config_is_updated_in_the_relation_data_bag(  # noqa: E501
         self,
     ):
         self.harness.disable_hooks()
@@ -146,7 +146,7 @@ class TestAlertmanagerRemoteConfigurerConsumer(unittest.TestCase):
         )
         self.harness.add_relation_unit(relation_id, "provider/0")
 
-        self.harness.charm.on.remote_configurer_relation_changed.emit(relation)
+        self.harness.charm.on.remote_configuration_relation_changed.emit(relation)
 
         self.assertEqual(
             self.harness.get_relation_data(relation_id, TEST_APP_NAME)["alertmanager_config"],
@@ -154,15 +154,15 @@ class TestAlertmanagerRemoteConfigurerConsumer(unittest.TestCase):
         )
 
     @patch(
-        "test_remote_configurer.RemoteConfigurerConsumerCharm.ALERTMANAGER_CONFIG_FILE",
+        "test_remote_configuration.RemoteConfigurationConsumerCharm.ALERTMANAGER_CONFIG_FILE",
         new_callable=PropertyMock,
     )
-    def test_given_remote_configurer_consumer_charm_providing_non_existent_config_file_when_relation_joined_then_charm_goes_to_blocked_state(  # noqa: E501
+    def test_given_remote_configuration_consumer_charm_providing_non_existent_config_file_when_relation_joined_then_charm_goes_to_blocked_state(  # noqa: E501
         self, patched_alertmanager_config_file
     ):
         test_config_file = "/i/do/not/exist.yml"
         patched_alertmanager_config_file.return_value = test_config_file
-        harness = testing.Harness(RemoteConfigurerConsumerCharm, meta=METADATA)
+        harness = testing.Harness(RemoteConfigurationConsumerCharm, meta=METADATA)
         self.addCleanup(harness.cleanup)
         harness.set_leader(True)
         harness.begin()
@@ -175,7 +175,7 @@ class TestAlertmanagerRemoteConfigurerConsumer(unittest.TestCase):
         )
 
 
-class TestAlertmanagerRemoteConfigurerProvider(unittest.TestCase):
+class TestAlertmanagerRemoteConfigurationProvider(unittest.TestCase):
     @patch("requests.get")
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
@@ -195,7 +195,7 @@ class TestAlertmanagerRemoteConfigurerProvider(unittest.TestCase):
         self.relation_id = self.harness.add_relation(RELATION_NAME, "remote-config-consumer")
         self.harness.add_relation_unit(self.relation_id, "remote-config-consumer")
 
-    def test_given_alertmanager_remote_configurer_relation_not_present_when_remote_configurer_relation_joined_then_current_alertmanager_config_is_pushed_to_the_relation_data_bag(  # noqa: E501
+    def test_given_alertmanager_remote_configuration_relation_not_present_when_remote_configuration_relation_joined_then_current_alertmanager_config_is_pushed_to_the_relation_data_bag(  # noqa: E501
         self,
     ):
         self.assertEqual(
@@ -207,7 +207,7 @@ class TestAlertmanagerRemoteConfigurerProvider(unittest.TestCase):
 
     @patch("ops.model.Container.push")
     @patch("charm.AlertmanagerCharm._config_path", new_callable=PropertyMock)
-    def test_given_alertmanager_remote_configurer_provides_alertmanager_configuration_in_the_relation_data_bag_when_remote_configurer_relation_changed_then_config_from_the_relation_data_bag_is_saved_to_alertmanager_config_file(  # noqa: E501
+    def test_given_alertmanager_remote_configurer_provides_alertmanager_configuration_in_the_relation_data_bag_when_remote_configuration_relation_changed_then_config_from_the_relation_data_bag_is_saved_to_alertmanager_config_file(  # noqa: E501
         self, patched_config_path, patched_push
     ):
         patched_config_path.return_value = TEST_ALERTMANAGER_CONFIG_FILE
@@ -247,7 +247,7 @@ route:
 
     @k8s_resource_multipatch
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
-    def test_given_alertmanager_config_provided_by_both_the_relation_and_the_charm_config_when_remote_configurer_relation_changed_then_charm_goes_to_blocked_status(  # noqa: E501
+    def test_given_alertmanager_config_provided_by_both_the_relation_and_the_charm_config_when_remote_configuration_relation_changed_then_charm_goes_to_blocked_status(  # noqa: E501
         self,
     ):
         dummy_charm_config = yaml.safe_load(TEST_ALERTMANAGER_DEFAULT_CONFIG)

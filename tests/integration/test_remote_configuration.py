@@ -17,7 +17,7 @@ METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = METADATA["name"]
 RESOURCES = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
 
-TESTER_CHARM_PATH = "./tests/integration/remote_configurer_tester"
+TESTER_CHARM_PATH = "./tests/integration/remote_configuration_tester"
 TESTER_APP_METADATA = yaml.safe_load(
     Path(os.path.join(TESTER_CHARM_PATH, "metadata.yaml")).read_text()
 )
@@ -35,7 +35,7 @@ receivers:
 """
 
 
-class TestAlertmanagerRemoteConfigurer:
+class TestAlertmanagerRemoteConfiguration:
     @pytest.fixture(scope="module")
     @pytest.mark.abort_on_fail
     async def setup(self, ops_test: OpsTest):
@@ -46,7 +46,7 @@ class TestAlertmanagerRemoteConfigurer:
             application_name=APP_NAME,
             trust=True,
         )
-        await self._build_and_deploy_remote_configurer_tester_charm(ops_test)
+        await self._build_and_deploy_remote_configuration_tester_charm(ops_test)
         await ops_test.model.wait_for_idle(  # type: ignore[union-attr]
             apps=[APP_NAME, TESTER_APP_NAME], status="active", timeout=1000
         )
@@ -55,8 +55,8 @@ class TestAlertmanagerRemoteConfigurer:
     async def test_given_alertmanager_not_related_to_remote_configurer_when_relation_created_then_alertmanager_configuration_is_updated_with_the_configuration_provided_by_the_remote_configurer(  # noqa: E501
         self, ops_test: OpsTest, setup
     ):
-        # This is the config set in the remote-configurer-tester charm augmented with the defaults
-        # coming directly from the Alertmanager.
+        # This is the config set in the remote-configuration-tester charm augmented
+        # with the defaults coming directly from the Alertmanager.
         expected_config = """global:
   resolve_timeout: 5m
   http_config:
@@ -83,7 +83,7 @@ receivers:
 templates: []
         """
         await ops_test.model.add_relation(  # type: ignore[union-attr]
-            relation1=f"{APP_NAME}:remote-configurer", relation2=TESTER_APP_NAME
+            relation1=f"{APP_NAME}:remote-configuration", relation2=TESTER_APP_NAME
         )
         time.sleep(5)  # 5 seconds for the Alertmanager to apply new config
         actual_config = await helpers.get_alertmanager_config(ops_test, APP_NAME, 0)
@@ -101,22 +101,23 @@ templates: []
         self, ops_test: OpsTest, setup
     ):
         test_app_name = "another-configurer"
-        await self._build_and_deploy_remote_configurer_tester_charm(ops_test, test_app_name)
+        await self._build_and_deploy_remote_configuration_tester_charm(ops_test, test_app_name)
         try:
             await ops_test.model.add_relation(  # type: ignore[union-attr]
-                relation1=f"{APP_NAME}:remote-configurer", relation2=test_app_name
+                relation1=f"{APP_NAME}:remote-configuration", relation2=test_app_name
             )
             assert False
         except juju.errors.JujuError as e:
             assert True
             assert (
-                e.message == f'cannot add relation "{test_app_name}:remote-configurer '
-                'alertmanager-k8s:remote-configurer": establishing a new relation for '
-                "alertmanager-k8s:remote-configurer would exceed its maximum relation limit of 1"
+                e.message == f'cannot add relation "{test_app_name}:remote-configuration '
+                'alertmanager-k8s:remote-configuration": establishing a new relation for '
+                "alertmanager-k8s:remote-configuration would exceed its maximum relation "
+                "limit of 1"
             )
 
     @staticmethod
-    async def _build_and_deploy_remote_configurer_tester_charm(
+    async def _build_and_deploy_remote_configuration_tester_charm(
         ops_test: OpsTest, app_name: str = TESTER_APP_NAME
     ):
         tester_charm = await ops_test.build_charm(TESTER_CHARM_PATH)

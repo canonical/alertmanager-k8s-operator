@@ -51,8 +51,8 @@ provides:
     interface: grafana_dashboard
   grafana-source:
     interface: grafana_datasource
-  remote-configurer:
-    interface: alertmanager_remote_configurer
+  remote-configuration:
+    interface: alertmanager_remote_configuration
     limit: 1
 
 requires:
