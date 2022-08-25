@@ -22,7 +22,7 @@ data bag.
 import json
 import logging
 import os
-from typing import Union
+from typing import Optional, Union
 
 import requests
 import yaml
@@ -1692,9 +1692,9 @@ class AlertmanagerRemoteConfigurerProvider(Object):
         """
         config = {}
         remote_configurer_relation = self._charm.model.get_relation(self._relation_name)
-        if remote_configurer_relation:
+        if remote_configurer_relation and remote_configurer_relation.app:
             try:
-                raw_config = remote_configurer_relation.data[remote_configurer_relation.app][  # type: ignore[index]  # noqa: E501
+                raw_config = remote_configurer_relation.data[remote_configurer_relation.app][
                     "alertmanager_config"
                 ]
                 if self._config_is_valid(json.loads(raw_config)):
@@ -1718,9 +1718,9 @@ class AlertmanagerRemoteConfigurerProvider(Object):
         """
         templates = []
         remote_configurer_relation = self._charm.model.get_relation(self._relation_name)
-        if remote_configurer_relation:
+        if remote_configurer_relation and remote_configurer_relation.app:
             try:
-                templates_raw = remote_configurer_relation.data[remote_configurer_relation.app][  # type: ignore[index]  # noqa: E501
+                templates_raw = remote_configurer_relation.data[remote_configurer_relation.app][
                     "alertmanager_templates"
                 ]
                 templates = json.loads(templates_raw)
@@ -1853,14 +1853,14 @@ class AlertmanagerRemoteConfigurerConsumer(Object):
         if not self._charm.unit.is_leader():
             return
         relation = self.model.get_relation(self._relation_name)
-        self._update_relation_databag(relation)  # type: ignore[arg-type]
+        self._update_relation_databag(relation)
 
-    def _update_relation_databag(self, relation: Relation) -> None:
+    def _update_relation_databag(self, relation: Optional[Relation]) -> None:
         try:
             self._config = load_config_file(self._config_file_path)
             self._templates = self._get_templates(self._config)
-            relation.data[self._charm.app]["alertmanager_config"] = json.dumps(self._config)
-            relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(self._templates)
+            relation.data[self._charm.app]["alertmanager_config"] = json.dumps(self._config)  # type: ignore[union-attr]  # noqa: E501
+            relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(self._templates)  # type: ignore[union-attr]  # noqa: E501
         except FileNotFoundError as e:
             self._charm.unit.status = BlockedStatus(str(e))
 

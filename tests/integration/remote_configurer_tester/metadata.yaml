@@ -2,8 +2,7 @@
 # See LICENSE file for licensing details.
 name: remote-configurer-tester
 description: |
-  This charm generates test data which is ingested by the
-  Prometheus operator
+  A charm to test the Alertmanager Remote Configurer library
 summary: |
   A charm to test the Alertmanager Remote Configurer library
 
