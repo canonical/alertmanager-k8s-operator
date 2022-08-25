@@ -12,7 +12,7 @@ from charms.alertmanager_k8s.v0.alertmanager_remote_configurer import (
 from charms.alertmanager_k8s.v0.alertmanager_remote_configurer import (
     AlertmanagerRemoteConfigurerConsumer,
 )
-from deepdiff import DeepDiff
+from deepdiff import DeepDiff  # type: ignore[import]
 from helpers import k8s_resource_multipatch
 from ops import testing
 from ops.charm import CharmBase

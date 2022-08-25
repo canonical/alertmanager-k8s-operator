@@ -21,7 +21,7 @@ data bag.
 
 import json
 import logging
-from pathlib import Path
+import os
 from typing import Union
 
 import requests
@@ -1521,8 +1521,7 @@ def load_config_file(path: str) -> dict:
     Returns:
         dict: Alertmanager configuration file in a form of a dictionary
     """
-    path = Path(path)
-    if path.is_file():
+    if os.path.exists(path):
         with open(path, "r") as config_yaml:
             config = yaml.safe_load(config_yaml)
         return config
@@ -1541,8 +1540,7 @@ def load_templates_file(path: str) -> str:
     Returns:
         str: Alertmanager templates
     """
-    path = Path(path)
-    if path.is_file():
+    if os.path.exists(path):
         with open(path, "r") as template_file:
             templates = template_file.read()
         return templates
