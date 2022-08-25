@@ -51,6 +51,9 @@ provides:
     interface: grafana_dashboard
   grafana-source:
     interface: grafana_datasource
+  remote-configurer:
+    interface: alertmanager_remote_configurer
+    limit: 1
 
 requires:
   ingress:

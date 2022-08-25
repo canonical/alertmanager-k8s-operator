@@ -7,11 +7,14 @@
 import hashlib
 import logging
 import socket
-from typing import List, Optional, Tuple, cast
+from typing import List, Optional, Tuple, Union, cast
 from urllib.parse import urlparse
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
+from charms.alertmanager_k8s.v0.alertmanager_remote_configurer import (
+    AlertmanagerRemoteConfigurerProvider,
+)
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
@@ -66,6 +69,7 @@ class AlertmanagerCharm(CharmBase):
     _container_name = _layer_name = _service_name = "alertmanager"
     _relation_name = "alerting"
     _peer_relation_name = "replicas"  # must match metadata.yaml peer role name
+    _remote_configurer_relation_name = "remote_configurer"
     _api_port = 9093  # port to listen on for the web interface and API
     _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
 
@@ -109,6 +113,7 @@ class AlertmanagerCharm(CharmBase):
             source_url=self._external_url,
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
+        self.remote_configurer_provider = AlertmanagerRemoteConfigurerProvider(self)
 
         self.service_patcher = KubernetesServicePatch(
             self,
@@ -138,6 +143,12 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
+
+        # Remote configurer events
+        self.framework.observe(
+            self.on[self._remote_configurer_relation_name].relation_changed,
+            self._on_remote_configurer_relation_changed,
+        )
 
         # Peer relation events
         self.framework.observe(
@@ -355,7 +366,7 @@ class AlertmanagerCharm(CharmBase):
         pending.append((self._amtool_config_path, amtool_config))
 
         # if no config provided, use default config with a dummy receiver
-        config = yaml.safe_load(self.config["config_file"]) or self._default_config
+        config = self._get_config() or self._default_config
 
         # `yaml.safe_load`'s return type changes based on input. For example, it returns `str`
         # for "foo" but `dict` for "foo: bar". Error out if type is not dict.
@@ -374,7 +385,7 @@ class AlertmanagerCharm(CharmBase):
             )
 
         # add templates, if any
-        if templates := self.config["templates_file"]:
+        if templates := self._get_templates():
             config["templates"] = [f"{self._templates_path}"]
             pending.append((self._templates_path, templates))
 
@@ -400,6 +411,36 @@ class AlertmanagerCharm(CharmBase):
         logger.debug("config changed")
         self._push_config_and_reload(pending)
         self._stored.config_hash = config_hash
+
+    def _get_config(self) -> Union[dict, None]:
+        local_config = self.config["config_file"]
+        remote_config = self.remote_configurer_provider.config()
+        if local_config and remote_config:
+            logger.error("unable to use config from config_file and relation at the same time")
+            raise ConfigUpdateFailure("Multiple configs detected")
+        if local_config:
+            logger.info("using configuration from config_file")
+            return yaml.safe_load(local_config)
+        if remote_config:
+            logger.info("using configuration from relation")
+            return yaml.safe_load(remote_config)
+        return None
+
+    def _get_templates(self) -> Union[str, None]:
+        local_templates = self.config["templates_file"]
+        remote_templates = self.remote_configurer_provider.templates()
+        if local_templates and remote_templates:
+            logger.error(
+                "unable to use templates from templates_file and relation at the same time"
+            )
+            raise ConfigUpdateFailure("Multiple templates configs detected")
+        if local_templates:
+            logger.info("using templates from templates_file")
+            return local_templates
+        if remote_templates:
+            logger.info("using templates from relation")
+            return "\n".join(remote_templates)
+        return None
 
     def _push_config_and_reload(self, pending_config: List[Tuple[str, str]]):  # noqa: C901
         """Push config into workload container, and trigger a hot-reload (or service restart).
@@ -531,6 +572,10 @@ class AlertmanagerCharm(CharmBase):
         when the first unit sees "joined", it is not guaranteed that the second unit already has
         an IP address.
         """
+        self._common_exit_hook()
+
+    def _on_remote_configurer_relation_changed(self, _):
+        """Event handler for remote configurer's RelationChangedEvent."""
         self._common_exit_hook()
 
     def _on_update_status(self, _):

@@ -1,0 +1,30 @@
+# Copyright 2022 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: remote-configurer-tester
+description: |
+  This charm generates test data which is ingested by the
+  Prometheus operator
+summary: |
+  A charm to test the Alertmanager Remote Configurer library
+
+requires:
+  remote-configurer:
+    interface: alertmanager_remote_configurer
+
+containers:
+  remote-configurer-tester:
+    resource: remote-configurer-tester-image
+    mounts:
+      - storage: config
+        location: /etc/alertmanager
+
+storage:
+  config:
+    type: filesystem
+    location: /etc/alertmanager
+
+resources:
+  remote-configurer-tester-image:
+    type: oci-image
+    description: upstream docker image for remote-configurer-tester
+    upstream-source: python:slim

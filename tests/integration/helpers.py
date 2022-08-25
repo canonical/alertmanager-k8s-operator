@@ -9,6 +9,7 @@ import logging
 import urllib.request
 from typing import Dict
 
+import yaml
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
@@ -95,3 +96,10 @@ async def is_alertmanager_up(ops_test: OpsTest, app_name: str):
             for unit_num in range(len(ops_test.model.applications[app_name].units))
         ]
     )
+
+
+async def get_alertmanager_config(ops_test: OpsTest, app_name: str, unit_num: int) -> str:
+    address = await get_unit_address(ops_test, app_name, unit_num)
+    status_url = f"http://{address}:9093/api/v2/status"
+    response = urllib.request.urlopen(status_url, data=None, timeout=2.0)
+    return yaml.safe_load(response.read())["config"]["original"]
