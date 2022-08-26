@@ -10,7 +10,9 @@ from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     DEFAULT_RELATION_NAME as RELATION_NAME,
 )
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
+    ConfigReadError,
     RemoteConfigurationConsumer,
+    load_config_file,
 )
 from deepdiff import DeepDiff  # type: ignore[import]
 from helpers import k8s_resource_multipatch
@@ -53,10 +55,16 @@ class RemoteConfigurationConsumerCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+
+        alertmanager_config = {}
+        try:
+            alertmanager_config = load_config_file(self.ALERTMANAGER_CONFIG_FILE)
+        except ConfigReadError:
+            pass
         self.remote_configuration_consumer = RemoteConfigurationConsumer(
             charm=self,
+            alertmanager_config=alertmanager_config,
             relation_name=RELATION_NAME,
-            config_file_path=self.ALERTMANAGER_CONFIG_FILE,
         )
 
 
@@ -157,7 +165,7 @@ class TestAlertmanagerRemoteConfigurationConsumer(unittest.TestCase):
         "test_remote_configuration.RemoteConfigurationConsumerCharm.ALERTMANAGER_CONFIG_FILE",
         new_callable=PropertyMock,
     )
-    def test_given_remote_configuration_consumer_charm_providing_non_existent_config_file_when_relation_joined_then_charm_goes_to_blocked_state(  # noqa: E501
+    def test_given_remote_configuration_consumer_charm_providing_non_existent_config_file_when_relation_joined_then_relation_data_is_not_set(  # noqa: E501
         self, patched_alertmanager_config_file
     ):
         test_config_file = "/i/do/not/exist.yml"
@@ -170,7 +178,7 @@ class TestAlertmanagerRemoteConfigurationConsumer(unittest.TestCase):
         relation_id = harness.add_relation(RELATION_NAME, "provider")
         harness.add_relation_unit(relation_id, "provider/0")
 
-        assert harness.charm.unit.status == BlockedStatus(f"Failed to read {test_config_file}")
+        self.assertEqual(harness.get_relation_data(relation_id, TEST_APP_NAME), {})
 
 
 class TestAlertmanagerRemoteConfigurationProvider(unittest.TestCase):

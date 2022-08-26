@@ -8,10 +8,9 @@ import logging
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
-    load_config_file,
     ConfigReadError,
     RemoteConfigurationConsumer,
-
+    load_config_file,
 )
 from ops.charm import CharmBase, PebbleReadyEvent
 from ops.main import main
