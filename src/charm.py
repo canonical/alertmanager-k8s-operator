@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
-    AlertmanagerRemoteConfigurationProvider,
+    RemoteConfigurationProvider,
 )
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
@@ -113,7 +113,7 @@ class AlertmanagerCharm(CharmBase):
             source_url=self._external_url,
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
-        self.remote_configuration_provider = AlertmanagerRemoteConfigurationProvider(self)
+        self.remote_configuration_provider = RemoteConfigurationProvider(self)
 
         self.service_patcher = KubernetesServicePatch(
             self,

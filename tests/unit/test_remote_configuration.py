@@ -10,7 +10,7 @@ from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     DEFAULT_RELATION_NAME as RELATION_NAME,
 )
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
-    AlertmanagerRemoteConfigurationConsumer,
+    RemoteConfigurationConsumer,
 )
 from deepdiff import DeepDiff  # type: ignore[import]
 from helpers import k8s_resource_multipatch
@@ -53,7 +53,7 @@ class RemoteConfigurationConsumerCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self.remote_configuration_consumer = AlertmanagerRemoteConfigurationConsumer(
+        self.remote_configuration_consumer = RemoteConfigurationConsumer(
             charm=self,
             relation_name=RELATION_NAME,
             config_file_path=self.ALERTMANAGER_CONFIG_FILE,
@@ -170,9 +170,7 @@ class TestAlertmanagerRemoteConfigurationConsumer(unittest.TestCase):
         relation_id = harness.add_relation(RELATION_NAME, "provider")
         harness.add_relation_unit(relation_id, "provider/0")
 
-        assert harness.charm.unit.status == BlockedStatus(
-            f"Given Alertmanager config file {test_config_file} doesn't exist!"
-        )
+        assert harness.charm.unit.status == BlockedStatus(f"Failed to read {test_config_file}")
 
 
 class TestAlertmanagerRemoteConfigurationProvider(unittest.TestCase):

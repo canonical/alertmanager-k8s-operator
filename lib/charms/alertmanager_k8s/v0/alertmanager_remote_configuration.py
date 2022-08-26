@@ -3,16 +3,15 @@
 
 """Alertmanager Remote Configuration library.
 
-This library provides possibility of configuring the Alertmanager through another Juju charm.
+This library offers the option of configuring Alertmanager via relation data.
 It has been created with the `alertmanager-k8s` and the `alertmanager-k8s-configurer` charms in
 mind, but can be used by any charms which require functionalities implemented by this library.
 
 Charms that need to push Alertmanager configuration to a charm exposing relation using
-the `alertmanager_remote_configuration` interface, should use
-the `AlertmanagerRemoteConfigurationConsumer`.
+the `alertmanager_remote_configuration` interface, should use the `RemoteConfigurationConsumer`.
 Charms that need to can utilize the Alertmanager configuration provided from the external source
 through a relation using the `alertmanager_remote_configuration` interface, should use
-the `AlertmanagerRemoteConfigurationProvider`.
+the `RemoteConfigurationProvider`.
 
 For custom consumer implementations, two additional methods are available - `load_config_file` and
 `load_templates_file`. They can be used to prepare the relevant data to be pushed to the relation
@@ -21,7 +20,6 @@ data bag.
 
 import json
 import logging
-import os
 from typing import Optional, Union
 
 import requests
@@ -1512,6 +1510,15 @@ DEFAULT_RELATION_NAME = "remote-configuration"
 DEFAULT_ALERTMANAGER_CONFIG_FILE_PATH = "/etc/alertmanager/alertmanager.yml"
 
 
+class ConfigReadError(Exception):
+    """Raised if Alertmanager configuration can't be read."""
+
+    def __init__(self, config_file: str):
+        self.message = "Failed to read {}".format(config_file)
+
+        super().__init__(self.message)
+
+
 def load_config_file(path: str) -> dict:
     """Reads given Alertmanager configuration file and turns it into a dictionary.
 
@@ -1520,15 +1527,16 @@ def load_config_file(path: str) -> dict:
 
     Returns:
         dict: Alertmanager configuration file in a form of a dictionary
+
+    Raises:
+        ConfigReadError: if a problem with reading given config file happens
     """
-    if os.path.exists(path):
+    try:
         with open(path, "r") as config_yaml:
             config = yaml.safe_load(config_yaml)
         return config
-    else:
-        error_msg = "Given Alertmanager config file {} doesn't exist!".format(path)
-        logger.error(error_msg)
-        raise FileNotFoundError(error_msg)
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        raise ConfigReadError(path) from e
 
 
 def load_templates_file(path: str) -> str:
@@ -1539,41 +1547,36 @@ def load_templates_file(path: str) -> str:
 
     Returns:
         str: Alertmanager templates
+
+    Raises:
+        ConfigReadError: if a problem with reading given config file happens
     """
-    if os.path.exists(path):
+    try:
         with open(path, "r") as template_file:
             templates = template_file.read()
         return templates
-    else:
-        logger.warning(
-            "Given Alertmanager templates file {} doesn't exist. Skipping...".format(path)
-        )
-        raise FileNotFoundError
+    except (FileNotFoundError, OSError, ValueError) as e:
+        raise ConfigReadError(path) from e
 
 
-class AlertmanagerRemoteConfigurationProvider(Object):
+class RemoteConfigurationProvider(Object):
     """API that manages a provided `alertmanager_remote_configuration` relation.
 
-    The `AlertmanagerRemoteConfigurationProvider` is intended to be used by charms whose workloads
-    need to receive data from other charms' workloads over the `alertmanager_remote_configuration`
-    interface.
-
-    The `AlertmanagerRemoteConfigurationProvider` object can be instantiated as follows
-    in your charm:
+    The `RemoteConfigurationProvider` object can be instantiated as follows in your charm:
 
     ```
     from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
-        AlertmanagerRemoteConfigurationProvider,
+        RemoteConfigurationProvider,
     )
 
     def __init__(self, *args):
         ...
-        self.remote_configuration_provider = AlertmanagerRemoteConfigurationProvider(self)
+        self.remote_configuration_provider = RemoteConfigurationProvider(self)
         ...
     ```
 
-    The `AlertmanagerRemoteConfigurationProvider` assumes that, in the `metadata.yaml`
-    of your charm, you declare a provided relation as follows:
+    The `RemoteConfigurationProvider` assumes that, in the `metadata.yaml` of your charm,
+    you declare a provided relation as follows:
 
     ```
     provides:
@@ -1582,11 +1585,11 @@ class AlertmanagerRemoteConfigurationProvider(Object):
             limit: 1
     ```
 
-    When `remote-configuration` is created, `AlertmanagerRemoteConfigurationProvider` reads
-    the current configuration of the Alertmanager from the specified configuration file and pushes
+    When `remote-configuration` is created, `RemoteConfigurationProvider` reads the current
+    configuration of the Alertmanager from the specified configuration file and pushes
     the content to the relation data bag. This initial configuration can then be used
     by the consumer of the relation.
-    The `AlertmanagerRemoteConfigurationProvider` provides 2 public methods for accessing the data
+    The `RemoteConfigurationProvider` provides two public methods for accessing the data
     from the relation data bag - `config` and `templates`. Typical usage of these methods in the
     provider charm would look something like:
 
@@ -1612,9 +1615,9 @@ class AlertmanagerRemoteConfigurationProvider(Object):
     the default provider of the `alertmanager_remote_configuration` relation will be
     `alertmanager-k8s` charm, which requires such separation.
 
-    The `AlertmanagerRemoteConfigurationProvider` also provides a JSON Schema of the Alertmanager
+    The `RemoteConfigurationProvider` also provides a JSON Schema of the Alertmanager
     configuration. Before returning configuration to the provider charm,
-    `AlertmanagerRemoteConfigurationProvider` validates it. Configuration that passed
+    `RemoteConfigurationProvider` validates it. Configuration that passed
     the validation is returned to the provider charm. Invalid configurations are discarded
     (empty dict is returned to the provider charm) and the relevant error message is logged.
     """
@@ -1668,9 +1671,6 @@ class AlertmanagerRemoteConfigurationProvider(Object):
 
         Args:
             event: Juju RelationJoinedEvent
-
-        Returns:
-            None
         """
         if not self._charm.unit.is_leader():
             return
@@ -1764,28 +1764,27 @@ class AlertmanagerRemoteConfigurationProvider(Object):
         return response.json()["config"]["original"] if response.status_code == 200 else ""
 
 
-class AlertmanagerRemoteConfigurationConsumer(Object):
+class RemoteConfigurationConsumer(Object):
     """API that manages a required `alertmanager_remote_configuration` relation.
 
-    The `AlertmanagerRemoteConfigurationConsumer` is intended to be used by charms that need
-    to push data to other charms over the `alertmanager_remote_configuration` interface.
+    The `RemoteConfigurationConsumer` is intended to be used by charms that need to push data
+    to other charms over the `alertmanager_remote_configuration` interface.
 
-    The `AlertmanagerRemoteConfigurationConsumer` object can be instantiated as follows
-    in your charm:
+    The `RemoteConfigurationConsumer` object can be instantiated as follows in your charm:
 
     ```
     from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import
-        AlertmanagerRemoteConfigurationConsumer,
+        RemoteConfigurationConsumer,
     )
 
     def __init__(self, *args):
         ...
-        self.remote_configuration_consumer = AlertmanagerRemoteConfigurationConsumer(self)
+        self.remote_configuration_consumer = RemoteConfigurationConsumer(self)
         ...
     ```
 
-    The `AlertmanagerRemoteConfigurationConsumer` assumes that, in the `metadata.yaml`
-    of your charm, you declare a required relation as follows:
+    The `RemoteConfigurationConsumer` assumes that, in the `metadata.yaml` of your charm,
+    you declare a required relation as follows:
 
     ```
     requires:
@@ -1793,7 +1792,7 @@ class AlertmanagerRemoteConfigurationConsumer(Object):
             interface: alertmanager_remote_configuration  # Relation interface
     ```
 
-    The `AlertmanagerRemoteConfigurationConsumer` provides handling of the most relevant charm
+    The `RemoteConfigurationConsumer` provides handling of the most relevant charm
     lifecycle events. On each of the defined Juju events, Alertmanager configuration and templates
     from a specified file will be pushed to the relation data bag.
     Inside the relation data bag, Alertmanager configuration will be stored under
@@ -1863,7 +1862,7 @@ class AlertmanagerRemoteConfigurationConsumer(Object):
             self._templates = self._get_templates(self._config)
             relation.data[self._charm.app]["alertmanager_config"] = json.dumps(self._config)  # type: ignore[union-attr]  # noqa: E501
             relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(self._templates)  # type: ignore[union-attr]  # noqa: E501
-        except FileNotFoundError as e:
+        except ConfigReadError as e:
             self._charm.unit.status = BlockedStatus(str(e))
 
     @staticmethod
