@@ -20,7 +20,7 @@ data bag.
 
 import json
 import logging
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import requests
 import yaml
@@ -1589,25 +1589,17 @@ class RemoteConfigurationProvider(Object):
     configuration of the Alertmanager from the specified configuration file and pushes
     the content to the relation data bag. This initial configuration can then be used
     by the consumer of the relation.
-    The `RemoteConfigurationProvider` provides two public methods for accessing the data
-    from the relation data bag - `config` and `templates`. Typical usage of these methods in the
-    provider charm would look something like:
+    The `RemoteConfigurationProvider` provides a public `config` method for exposing the data
+    from the relation data bag. Typical usage of these methods in the provider charm would look
+    something like:
 
     ```
     def get_config(self, *args):
         ...
-        alertmanager_config = self.remote_configuration_provider.config()
+        configuration, templates = self.remote_configuration_provider.config()
         ...
-        self.container.push("/alertmanager/config/file.yml", alertmanager_config)
-        ...
-    ```
-
-    ```
-    def get_templates(self, *args):
-        ...
-        alertmanager_templates = self.remote_configuration_provider.templates()
-        ...
-        self.container.push("/alertmanager/templates/file.tmpl", alertmanager_templates)
+        self.container.push("/alertmanager/config/file.yml", configuration)
+        self.container.push("/alertmanager/templates/file.tmpl", templates)
         ...
     ```
 
@@ -1679,7 +1671,28 @@ class RemoteConfigurationProvider(Object):
             alertmanager_config
         )
 
-    def config(self) -> dict:
+    def config(self) -> Tuple[dict, list]:
+        """Exposes Alertmanager configuration sent inside the relation data bag.
+
+        Charm which requires Alertmanager configuration, can access it like below:
+
+        ```
+        def get_config(self, *args):
+            ...
+            configuration, templates = self.remote_configuration_provider.config()
+            ...
+            self.container.push("/alertmanager/config/file.yml", configuration)
+            self.container.push("/alertmanager/templates/file.tmpl", templates)
+            ...
+        ```
+
+        Returns:
+            tuple: Alertmanager configuration (dict) and templates (list)
+        """
+        return self._alertmanager_config, self._alertmanager_templates
+
+    @property
+    def _alertmanager_config(self) -> dict:
         """Returns Alertmanager configuration sent inside the relation data bag.
 
         If the `alertmanager-remote-configuration` relation exists, takes the Alertmanager
@@ -1708,7 +1721,8 @@ class RemoteConfigurationProvider(Object):
                 )
         return config
 
-    def templates(self) -> list:
+    @property
+    def _alertmanager_templates(self) -> list:
         """Returns Alertmanager templates sent inside the relation data bag.
 
         If the `alertmanager-remote-configuration` relation exists and the relation data bag

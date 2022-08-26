@@ -414,7 +414,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _get_config(self) -> Union[dict, None]:
         local_config = self.config["config_file"]
-        remote_config = self.remote_configuration_provider.config()
+        remote_config, _ = self.remote_configuration_provider.config()
         if local_config and remote_config:
             logger.error("unable to use config from config_file and relation at the same time")
             raise ConfigUpdateFailure("Multiple configs detected")
@@ -428,7 +428,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _get_templates(self) -> Union[str, None]:
         local_templates = self.config["templates_file"]
-        remote_templates = self.remote_configuration_provider.templates()
+        _, remote_templates = self.remote_configuration_provider.config()
         if local_templates and remote_templates:
             logger.error(
                 "unable to use templates from templates_file and relation at the same time"
