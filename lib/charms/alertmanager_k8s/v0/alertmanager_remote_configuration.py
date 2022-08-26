@@ -1618,7 +1618,6 @@ class RemoteConfigurationProvider(Object):
         self,
         charm: CharmBase,
         relation_name: str = DEFAULT_RELATION_NAME,
-        config_file_path: str = DEFAULT_ALERTMANAGER_CONFIG_FILE_PATH,
         api_address: str = "http://localhost:9093",
     ):
         """API that manages a provided `remote-configuration` relation.
@@ -1627,14 +1626,11 @@ class RemoteConfigurationProvider(Object):
             charm: The charm object that instantiated this class.
             relation_name: Name of the relation with the `alertmanager_remote_configuration`
                 interface as defined in metadata.yaml. Defaults to `remote-configuration`.
-            config_file_path: The path to the Alertmanager configuration file. Defaults
-                to `/etc/alertmanager/alertmanager.yml`.
             api_address: Defaults to `http://localhost:9093`
         """
         super().__init__(charm, relation_name)
         self._charm = charm
         self._relation_name = relation_name
-        self._config_file_path = config_file_path
         self.api_address = api_address
 
         on_relation = self._charm.on[self._relation_name]
@@ -1819,22 +1815,21 @@ class RemoteConfigurationConsumer(Object):
     def __init__(
         self,
         charm: CharmBase,
+        alertmanager_config: dict,
         relation_name: str = DEFAULT_RELATION_NAME,
-        config_file_path: str = DEFAULT_ALERTMANAGER_CONFIG_FILE_PATH,
     ):
         """API that manages a required `remote-configuration` relation.
 
         Args:
             charm: The charm object that instantiated this class.
+            alertmanager_config: The content of Alertmanager configuration file.
             relation_name: Name of the relation with the `alertmanager_remote_configuration`
                 interface as defined in metadata.yaml. Defaults to `remote-configuration`.
-            config_file_path: The path to the Alertmanager configuration file. Defaults
-                to `/etc/alertmanager/alertmanager.yml`.
         """
         super().__init__(charm, relation_name)
         self._charm = charm
+        self.alertmanager_config = alertmanager_config
         self._relation_name = relation_name
-        self._config_file_path = config_file_path
 
         on_relation = self._charm.on[self._relation_name]
 
@@ -1871,10 +1866,16 @@ class RemoteConfigurationConsumer(Object):
         self._update_relation_databag(relation)
 
     def _update_relation_databag(self, relation: Optional[Relation]) -> None:
+        """Updates relation data bag with Alertmanager config and templates.
+
+        Args:
+            relation: Juju Relation object
+        """
         try:
-            self._config = load_config_file(self._config_file_path)
-            self._templates = self._get_templates(self._config)
-            relation.data[self._charm.app]["alertmanager_config"] = json.dumps(self._config)  # type: ignore[union-attr]  # noqa: E501
+            self._templates = self._get_templates(self.alertmanager_config)
+            relation.data[self._charm.app]["alertmanager_config"] = json.dumps(
+                self.alertmanager_config
+            )
             relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(self._templates)  # type: ignore[union-attr]  # noqa: E501
         except ConfigReadError as e:
             self._charm.unit.status = BlockedStatus(str(e))

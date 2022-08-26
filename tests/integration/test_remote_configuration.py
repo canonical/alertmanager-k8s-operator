@@ -3,6 +3,7 @@
 # See LICENSE file for licensing details.
 
 import os
+import shutil
 import time
 from pathlib import Path
 
@@ -120,6 +121,7 @@ templates: []
     async def _build_and_deploy_remote_configuration_tester_charm(
         ops_test: OpsTest, app_name: str = TESTER_APP_NAME
     ):
+        _copy_alertmanager_remote_configuration_library_into_tester_charm()
         tester_charm = await ops_test.build_charm(TESTER_CHARM_PATH)
         await ops_test.model.deploy(  # type: ignore[union-attr]
             tester_charm,
@@ -128,3 +130,10 @@ templates: []
             trust=True,
         )
         await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+
+
+def _copy_alertmanager_remote_configuration_library_into_tester_charm():
+    """Ensure that the tester charm uses the current Alertmanager Remote Configuration library."""
+    library_path = "lib/charms/alertmanager_k8s/v0/alertmanager_remote_configuration.py"
+    install_path = "tests/integration/remote_configuration_tester/" + library_path
+    shutil.copyfile(library_path, install_path)
