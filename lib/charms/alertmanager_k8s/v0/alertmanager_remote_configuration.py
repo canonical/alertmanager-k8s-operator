@@ -1507,7 +1507,6 @@ ALERTMANAGER_CONFIG_JSON_SCHEMA = {
     },
 }
 DEFAULT_RELATION_NAME = "remote-configuration"
-DEFAULT_ALERTMANAGER_CONFIG_FILE_PATH = "/etc/alertmanager/alertmanager.yml"
 
 
 class ConfigReadError(Exception):
