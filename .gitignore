@@ -8,3 +8,4 @@ build/
 .idea/
 .tox/
 .mypy_cache
+.hypothesis
