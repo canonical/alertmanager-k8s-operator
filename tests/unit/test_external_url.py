@@ -128,9 +128,12 @@ class TestExternalUrl(unittest.TestCase):
         self.assertTrue(self.is_service_running())
 
         # AND WHEN the traefik relation is removed
-        app_data = {"ingress": ""}
-        self.harness.update_relation_data(rel_id, "traefik-app", app_data)
+        self.harness.remove_relation_unit(rel_id, "traefik-app/0")
         self.harness.remove_relation(rel_id)
+
+        # NOTE intentionally not emptying out relation data manually
+        # app_data = {"ingress": ""}
+        # self.harness.update_relation_data(rel_id, "traefik-app", app_data)
 
         # THEN the fqdn is used as external url
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
