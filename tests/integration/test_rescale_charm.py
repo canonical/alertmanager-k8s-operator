@@ -33,7 +33,7 @@ async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
     logger.info("build charm from local source folder")
 
     logger.info("deploy charm")
-    await ops_test.model.deploy(  # type: ignore[union-attr]
+    await ops_test.model.deploy(
         charm_under_test, application_name=app_name, resources=resources, num_units=10, trust=True
     )
     await block_until_leader_elected(ops_test, app_name)
@@ -45,15 +45,15 @@ async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
         logger.info("Elected leader is unit/0 - resetting and repeating")
         assert 0, "No luck in electing a leader that is not the zero unit. Try re-running?"
 
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
 
 
 # @pytest.mark.abort_on_fail
 @pytest.mark.xfail
 async def test_scale_down_to_single_unit_with_leadership_change(ops_test: OpsTest):
     """Scale down below current leader to trigger a leadership change event."""
-    await ops_test.model.applications[app_name].scale(scale=1)  # type: ignore[union-attr]
-    await ops_test.model.wait_for_idle(  # type: ignore[union-attr]
+    await ops_test.model.applications[app_name].scale(scale=1)
+    await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=1000, wait_for_exact_units=1
     )
     assert await is_alertmanager_up(ops_test, app_name)
@@ -63,8 +63,8 @@ async def test_scale_down_to_single_unit_with_leadership_change(ops_test: OpsTes
 @pytest.mark.xfail
 async def test_scale_up_from_single_unit(ops_test: OpsTest):
     """Add a few more units."""
-    await ops_test.model.applications[app_name].scale(scale_change=2)  # type: ignore[union-attr]
-    await ops_test.model.wait_for_idle(  # type: ignore[union-attr]
+    await ops_test.model.applications[app_name].scale(scale_change=2)
+    await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=1000, wait_for_exact_units=3
     )
     assert await is_alertmanager_up(ops_test, app_name)

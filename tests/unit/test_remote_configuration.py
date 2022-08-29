@@ -3,7 +3,7 @@
 
 import json
 import unittest
-from unittest.mock import Mock, PropertyMock, call, patch
+from unittest.mock import MagicMock, Mock, PropertyMock, call, patch
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
@@ -182,16 +182,19 @@ class TestAlertmanagerRemoteConfigurationConsumer(unittest.TestCase):
 
 
 class TestAlertmanagerRemoteConfigurationProvider(unittest.TestCase):
-    @patch("requests.get")
+    @patch("urllib.request.urlopen")
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("charm.KubernetesServicePatch", lambda x, y: None)
     @k8s_resource_multipatch
-    def setUp(self, _, patched_get) -> None:
-        default_config = _mock_requests_get(
-            json_data={"config": {"original": TEST_ALERTMANAGER_DEFAULT_CONFIG}}
+    def setUp(self, _, patched_urlopen) -> None:
+        urllib_response = MagicMock()
+        urllib_response.getcode.return_value = 200
+        urllib_response.read.return_value = bytes(
+            json.dumps({"config": {"original": TEST_ALERTMANAGER_DEFAULT_CONFIG}}),
+            encoding="utf-8",
         )
-        patched_get.return_value = default_config
+        patched_urlopen.return_value = urllib_response
         self.harness = testing.Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
         self.harness.set_can_connect("alertmanager", True)

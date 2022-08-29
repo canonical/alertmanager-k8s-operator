@@ -41,14 +41,14 @@ class TestAlertmanagerRemoteConfiguration:
     @pytest.mark.abort_on_fail
     async def setup(self, ops_test: OpsTest):
         charm = await ops_test.build_charm(".")
-        await ops_test.model.deploy(  # type: ignore[union-attr]
+        await ops_test.model.deploy(
             charm,
             resources=RESOURCES,
             application_name=APP_NAME,
             trust=True,
         )
         await self._build_and_deploy_remote_configuration_tester_charm(ops_test)
-        await ops_test.model.wait_for_idle(  # type: ignore[union-attr]
+        await ops_test.model.wait_for_idle(
             apps=[APP_NAME, TESTER_APP_NAME], status="active", timeout=1000
         )
 
@@ -83,7 +83,7 @@ receivers:
 - name: test_receiver
 templates: []
         """
-        await ops_test.model.add_relation(  # type: ignore[union-attr]
+        await ops_test.model.add_relation(
             relation1=f"{APP_NAME}:remote-configuration", relation2=TESTER_APP_NAME
         )
         time.sleep(5)  # 5 seconds for the Alertmanager to apply new config
@@ -104,7 +104,7 @@ templates: []
         test_app_name = "another-configurer"
         await self._build_and_deploy_remote_configuration_tester_charm(ops_test, test_app_name)
         try:
-            await ops_test.model.add_relation(  # type: ignore[union-attr]
+            await ops_test.model.add_relation(
                 relation1=f"{APP_NAME}:remote-configuration", relation2=test_app_name
             )
             assert False
@@ -123,13 +123,13 @@ templates: []
     ):
         _copy_alertmanager_remote_configuration_library_into_tester_charm()
         tester_charm = await ops_test.build_charm(TESTER_CHARM_PATH)
-        await ops_test.model.deploy(  # type: ignore[union-attr]
+        await ops_test.model.deploy(
             tester_charm,
             resources=TESTER_APP_RESOURCES,
             application_name=app_name,
             trust=True,
         )
-        await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+        await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
 
 
 def _copy_alertmanager_remote_configuration_library_into_tester_charm():

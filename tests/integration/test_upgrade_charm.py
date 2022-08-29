@@ -29,7 +29,7 @@ resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 
 @pytest.mark.abort_on_fail
 async def test_setup_env(ops_test: OpsTest):
-    await ops_test.model.set_config(  # type: ignore[union-attr]
+    await ops_test.model.set_config(
         {"update-status-hook-interval": "60m", "logging-config": "<root>=WARNING; unit=DEBUG"}
     )
 
@@ -38,14 +38,14 @@ async def test_setup_env(ops_test: OpsTest):
 async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_under_test):
     """Build the charm-under-test, deploy the charm from charmhub, and upgrade from path."""
     logger.info("deploy charm from charmhub")
-    await ops_test.model.deploy(  # type: ignore[union-attr]
+    await ops_test.model.deploy(
         "ch:alertmanager-k8s", application_name=app_name, channel="edge", trust=True
     )
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
 
     logger.info("upgrade deployed charm with local charm %s", charm_under_test)
-    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)
 
 
@@ -53,21 +53,21 @@ async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_und
 async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_under_test):
     # Deploy related apps
     await asyncio.gather(
-        ops_test.model.deploy(  # type: ignore[union-attr]
+        ops_test.model.deploy(
             "ch:prometheus-k8s", application_name="prom", channel="edge", trust=True
         ),
-        ops_test.model.deploy("ch:karma-k8s", application_name="karma", channel="edge"),  # type: ignore[union-attr]  # noqa: E501
+        ops_test.model.deploy("ch:karma-k8s", application_name="karma", channel="edge"),
     )
 
     # Relate apps
     await asyncio.gather(
-        ops_test.model.add_relation(app_name, "prom:alertmanager"),  # type: ignore[union-attr]
-        ops_test.model.add_relation(app_name, "karma"),  # type: ignore[union-attr]
+        ops_test.model.add_relation(app_name, "prom:alertmanager"),
+        ops_test.model.add_relation(app_name, "karma"),
     )
 
     # Refresh from path
-    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(  # type: ignore[union-attr]
+    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
+    await ops_test.model.wait_for_idle(
         apps=[app_name, "prom", "karma"], status="active", timeout=2500
     )
     assert await is_alertmanager_up(ops_test, app_name)
@@ -76,14 +76,14 @@ async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_
 @pytest.mark.abort_on_fail
 async def test_upgrade_with_multiple_units(ops_test: OpsTest, charm_under_test):
     # Add unit
-    await ops_test.model.applications[app_name].scale(scale_change=1)  # type: ignore[union-attr]
-    await ops_test.model.wait_for_idle(  # type: ignore[union-attr]
+    await ops_test.model.applications[app_name].scale(scale_change=1)
+    await ops_test.model.wait_for_idle(
         apps=[app_name, "prom", "karma"], status="active", timeout=1000
     )
 
     # Refresh from path
-    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(  # type: ignore[union-attr]
+    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
+    await ops_test.model.wait_for_idle(
         apps=[app_name, "prom", "karma"], status="active", timeout=2500
     )
     assert await is_alertmanager_up(ops_test, app_name)

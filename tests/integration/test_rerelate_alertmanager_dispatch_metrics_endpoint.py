@@ -33,69 +33,69 @@ related_app = "related-app"
 async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     """Build the charm-under-test and deploy it together with related charms."""
     await asyncio.gather(
-        ops_test.model.deploy(  # type: ignore[union-attr]
+        ops_test.model.deploy(
             charm_under_test,
             resources=resources,
             application_name=app_name,
             num_units=2,
             trust=True,
         ),
-        ops_test.model.deploy(  # type: ignore[union-attr]
+        ops_test.model.deploy(
             "ch:prometheus-k8s", application_name=related_app, channel="edge", trust=True
         ),
     )
 
-    await ops_test.model.add_relation(app_name, f"{related_app}:alertmanager")  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=2500)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.add_relation(app_name, f"{related_app}:alertmanager")
+    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=2500)
 
     assert await is_alertmanager_up(ops_test, app_name)
 
-    await ops_test.model.add_relation(app_name, f"{related_app}:metrics-endpoint")  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.add_relation(app_name, f"{related_app}:metrics-endpoint")
+    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)
 
     assert await is_alertmanager_up(ops_test, app_name)
 
 
 @pytest.mark.abort_on_fail
 async def test_remove_relation(ops_test: OpsTest):
-    await ops_test.model.applications[app_name].remove_relation("alerting", related_app)  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.applications[app_name].remove_relation(  # type: ignore[union-attr]
+    await ops_test.model.applications[app_name].remove_relation("alerting", related_app)
+    await ops_test.model.applications[app_name].remove_relation(
         "self-metrics-endpoint", related_app
     )
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)
 
 
 @pytest.mark.abort_on_fail
 async def test_rerelate(ops_test: OpsTest):
-    await ops_test.model.add_relation(app_name, f"{related_app}:alertmanager")  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.add_relation(app_name, f"{related_app}:alertmanager")
+    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)
 
-    await ops_test.model.add_relation(app_name, f"{related_app}:metrics-endpoint")  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.add_relation(app_name, f"{related_app}:metrics-endpoint")
+    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)
 
 
 @pytest.mark.abort_on_fail
 async def test_remove_related_app(ops_test: OpsTest):
-    await ops_test.model.applications[related_app].remove()  # type: ignore[union-attr]
+    await ops_test.model.applications[related_app].remove()
     # Block until it is really gone. Added after an itest failed when tried to redeploy:
     # juju.errors.JujuError: ['cannot add application "related-app": application already exists']
-    await ops_test.model.block_until(lambda: related_app not in ops_test.model.applications)  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.block_until(lambda: related_app not in ops_test.model.applications)
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)
 
 
 @pytest.mark.abort_on_fail
 async def test_rerelate_app(ops_test: OpsTest):
-    await ops_test.model.deploy(  # type: ignore[union-attr]
+    await ops_test.model.deploy(
         "ch:prometheus-k8s", application_name=related_app, channel="edge", trust=True
     )
-    await ops_test.model.add_relation(app_name, f"{related_app}:alertmanager")  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.add_relation(app_name, f"{related_app}:alertmanager")
+    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)
 
-    await ops_test.model.add_relation(app_name, f"{related_app}:metrics-endpoint")  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.add_relation(app_name, f"{related_app}:metrics-endpoint")
+    await ops_test.model.wait_for_idle(apps=[app_name, related_app], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)

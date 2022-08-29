@@ -33,11 +33,11 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     Assert on the unit status before any relations/configurations take place.
     """
     # deploy charm from local source folder
-    await ops_test.model.deploy(  # type: ignore[union-attr]
+    await ops_test.model.deploy(
         charm_under_test, resources=resources, application_name=app_name, trust=True
     )
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)  # type: ignore[union-attr]  # noqa: E501
-    assert ops_test.model.applications[app_name].units[0].workload_status == "active"  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    assert ops_test.model.applications[app_name].units[0].workload_status == "active"
     assert await is_alertmanager_up(ops_test, app_name)
 
 
@@ -62,8 +62,8 @@ async def test_update_config(ops_test: OpsTest):
     receiver_name = config["route"]["receiver"]
     rename_toplevel_receiver(config, receiver_name * 2)
 
-    await ops_test.model.applications[app_name].set_config({"config_file": yaml.safe_dump(config)})  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=60)  # type: ignore[union-attr]  # noqa: E501
+    await ops_test.model.applications[app_name].set_config({"config_file": yaml.safe_dump(config)})
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=60)
 
     # Obtain an "after" snapshot of the config from the server.
     config_from_server_after = client.config()

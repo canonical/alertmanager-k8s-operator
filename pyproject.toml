@@ -52,7 +52,12 @@ allow_redefinition = true
 
 # Ignore libraries that do not have type hint nor stubs
 [[tool.mypy.overrides]]
-module = ["ops.*", "lightkube.*", "git.*", "pytest_operator.*", "validators.*"]
+module = ["ops.*", "lightkube.*", "git.*", "validators.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pytest_operator.*"]
+follow_imports = "skip"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

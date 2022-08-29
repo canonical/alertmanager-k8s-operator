@@ -20,9 +20,10 @@ data bag.
 
 import json
 import logging
+import urllib.parse
+import urllib.request
 from typing import Optional, Tuple, Union
 
-import requests
 import yaml
 from jsonschema import exceptions, validate  # type: ignore[import]
 from ops.charm import CharmBase, RelationChangedEvent, RelationJoinedEvent
@@ -1768,9 +1769,11 @@ class RemoteConfigurationProvider(Object):
             str: Alertmanager configuration
         """
         config_endpoint = "api/v2/status"
-        url = "{}/{}".format(self.api_address, config_endpoint)
-        response = requests.get(url)
-        return response.json()["config"]["original"] if response.status_code == 200 else ""
+        url = urllib.parse.urljoin(self.api_address, config_endpoint)
+        response = urllib.request.urlopen(url)
+        return (
+            json.loads(response.read())["config"]["original"] if response.getcode() == 200 else ""
+        )
 
 
 class RemoteConfigurationConsumer(Object):
