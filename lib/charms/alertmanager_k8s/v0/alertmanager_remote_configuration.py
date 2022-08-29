@@ -1535,7 +1535,7 @@ def load_config_file(path: str) -> dict:
         with open(path, "r") as config_yaml:
             config = yaml.safe_load(config_yaml)
         return config
-    except (FileNotFoundError, yaml.YAMLError) as e:
+    except (FileNotFoundError, OSError, yaml.YAMLError) as e:
         raise ConfigReadError(path) from e
 
 
