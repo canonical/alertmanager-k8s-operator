@@ -518,7 +518,7 @@ class AlertmanagerCharm(CharmBase):
             version = self.api.version
             self.unit.set_workload_version(version)
         except AlertmanagerBadResponse:
-            logger.debug("Could not get Alertmanager version")
+            logger.debug("Cannot set workload version at this time: could not get Alertmanager version.")
 
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent."""
