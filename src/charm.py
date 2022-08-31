@@ -6,6 +6,7 @@
 
 import hashlib
 import logging
+import re
 import socket
 from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
@@ -63,7 +64,7 @@ class AlertmanagerCharm(CharmBase):
     # Container name is automatically determined from charm name
     # Layer name is used for the layer label argument in container.add_layer
     # Service name matches charm name for consistency
-    _container_name = _layer_name = _service_name = "alertmanager"
+    _container_name = _layer_name = _service_name = _exe_name = "alertmanager"
     _relation_name = "alerting"
     _peer_relation_name = "replicas"  # must match metadata.yaml peer role name
     _api_port = 9093  # port to listen on for the web interface and API
@@ -240,7 +241,7 @@ class AlertmanagerCharm(CharmBase):
                 sorted([f"--cluster.peer={address}" for address in peer_addresses])
             )
             return (
-                f"alertmanager "
+                f"{self._exe_name} "
                 f"--config.file={self._config_path} "
                 f"--storage.path={self._storage_path} "
                 f"--web.listen-address=:{self._api_port} "
@@ -514,10 +515,9 @@ class AlertmanagerCharm(CharmBase):
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
         self._common_exit_hook()
-        try:
-            version = self.api.version
+        if version := self._alertmanager_version:
             self.unit.set_workload_version(version)
-        except AlertmanagerBadResponse:
+        else:
             logger.debug(
                 "Cannot set workload version at this time: could not get Alertmanager version."
             )
@@ -628,6 +628,19 @@ class AlertmanagerCharm(CharmBase):
     def _external_url(self) -> str:
         """Return the externally-reachable (public) address of the alertmanager api server."""
         return self.model.config.get("web_external_url") or self.ingress.url or self._internal_url
+
+    @property
+    def _alertmanager_version(self) -> str:
+        """Returns the version of alertmanager.
+
+        Returns:
+            A string equal to the agent version.
+        """
+        container = self.unit.get_container(self._container_name)
+        if not container.can_connect():
+            return None
+        version_output, _ = container.exec([self._exe_name, "--version"]).wait_output()
+        return re.search(r"version (\d*\.\d*\.\d*)", version_output).group(1)
 
 
 if __name__ == "__main__":
