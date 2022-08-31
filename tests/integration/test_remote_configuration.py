@@ -111,8 +111,8 @@ templates: []
         except juju.errors.JujuError as e:
             assert True
             assert (
-                e.message == f'cannot add relation "{test_app_name}:remote-configuration '
-                'alertmanager-k8s:remote-configuration": establishing a new relation for '
+                e.message == 'cannot add relation "alertmanager-k8s:remote-configuration '
+                f'{test_app_name}:remote-configuration": establishing a new relation for '
                 "alertmanager-k8s:remote-configuration would exceed its maximum relation "
                 "limit of 1"
             )

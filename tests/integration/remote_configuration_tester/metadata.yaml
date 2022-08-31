@@ -6,7 +6,7 @@ description: |
 summary: |
   A charm to test the Alertmanager Remote Configuration library
 
-requires:
+provides:
   remote-configuration:
     interface: alertmanager_remote_configuration
 
