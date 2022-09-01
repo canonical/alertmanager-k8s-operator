@@ -634,7 +634,7 @@ class AlertmanagerCharm(CharmBase):
         """Returns the version of Alertmanager.
 
         Returns:
-            A string equal to the agent version.
+            A string equal to the Alertmanager version.
         """
         container = self.unit.get_container(self._container_name)
         if not container.can_connect():
