@@ -640,7 +640,12 @@ class AlertmanagerCharm(CharmBase):
         if not container.can_connect():
             return None
         version_output, _ = container.exec([self._exe_name, "--version"]).wait_output()
-        return re.search(r"version (\d*\.\d*\.\d*)", version_output).group(1)
+        # Output looks like this:
+        # alertmanager, version 0.23.0 (branch: HEAD, ...
+        result = re.search(r"version (\d*\.\d*\.\d*)", version_output)
+        if result is None:
+            return result
+        return result.group(1)
 
 
 if __name__ == "__main__":
