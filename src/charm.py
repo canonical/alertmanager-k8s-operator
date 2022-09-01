@@ -630,7 +630,7 @@ class AlertmanagerCharm(CharmBase):
         return self.model.config.get("web_external_url") or self.ingress.url or self._internal_url
 
     @property
-    def _alertmanager_version(self) -> str:
+    def _alertmanager_version(self) -> Optional[str]:
         """Returns the version of alertmanager.
 
         Returns:
