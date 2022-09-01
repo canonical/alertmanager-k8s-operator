@@ -631,7 +631,7 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _alertmanager_version(self) -> Optional[str]:
-        """Returns the version of alertmanager.
+        """Returns the version of Alertmanager.
 
         Returns:
             A string equal to the agent version.
