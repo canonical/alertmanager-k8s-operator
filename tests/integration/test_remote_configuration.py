@@ -4,7 +4,10 @@
 
 """This test module tests remote configuration support in Alertmanager.
 
-
+0. Deploy `alertmanager-k8s` and `remote-configuration-tester`.
+1. Create `remote-configuration` relation.
+2. Verify that the configuration provided by `remote-configuration-tester` has been applied in
+`alertmanager-k8s`.
 """
 
 import os

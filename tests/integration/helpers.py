@@ -9,7 +9,6 @@ import logging
 import urllib.request
 from typing import Dict, Optional, Tuple
 
-import yaml
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
