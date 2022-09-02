@@ -6,7 +6,6 @@
 
 import logging
 
-import yaml
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     ConfigReadError,
     RemoteConfigurationProvider,
@@ -45,23 +44,8 @@ class AlertmanagerTesterCharm(CharmBase):
             self.unit.status = WaitingStatus("Waiting for the container to be ready")
             event.defer()
             return
-        self.container.push(
-            self.ALERTMANAGER_CONFIG_FILE, yaml.safe_dump(self._alertmanager_config)
-        )
+        self.container.push(self.ALERTMANAGER_CONFIG_FILE, self.config["config_file"])
         self.unit.status = ActiveStatus()
-
-    @property
-    def _alertmanager_config(self) -> dict:
-        return {
-            "route": {
-                "receiver": "test_receiver",
-                "group_by": ["alertname"],
-                "group_wait": "1234s",
-                "group_interval": "4321s",
-                "repeat_interval": "1111h",
-            },
-            "receivers": [{"name": "test_receiver"}],
-        }
 
 
 if __name__ == "__main__":

@@ -2,12 +2,16 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+"""This test module tests remote configuration support in Alertmanager.
+
+
+"""
+
 import os
 import shutil
 from pathlib import Path
 
 import helpers
-import juju.errors
 import pytest
 import yaml
 from deepdiff import DeepDiff  # type: ignore[import]
@@ -28,112 +32,74 @@ TESTER_APP_RESOURCES = {
     ]
 }
 
-ALERTMANAGER_TEST_INITIAL_CONFIG = """route:
-  receiver: dummy
+TESTER_CHARM_CONFIG = """route:
+  receiver: test_receiver
+  group_by:
+  - alertname
+  group_wait: 1234s
+  group_interval: 4321s
+  repeat_interval: 1111h
 receivers:
-- name: dummy
+- name: test_receiver
 """
 
 
-class TestAlertmanagerRemoteConfiguration:
-    @pytest.fixture(scope="module")
-    @pytest.mark.abort_on_fail
-    async def setup(self, ops_test: OpsTest):
-        charm = await ops_test.build_charm(".")
-        await ops_test.model.deploy(
-            charm,
-            resources=RESOURCES,
-            application_name=APP_NAME,
-            trust=True,
-        )
-        await self._build_and_deploy_remote_configuration_tester_charm(ops_test)
-        await ops_test.model.wait_for_idle(
-            apps=[APP_NAME, TESTER_APP_NAME], status="active", timeout=1000
-        )
+@pytest.fixture(scope="module")
+async def tester_charm(ops_test: OpsTest):
+    _copy_alertmanager_remote_configuration_library_into_tester_charm()
+    tester_charm = await ops_test.build_charm(TESTER_CHARM_PATH)
+    await ops_test.model.deploy(
+        tester_charm,
+        resources=TESTER_APP_RESOURCES,
+        application_name=TESTER_APP_NAME,
+        config={"config_file": TESTER_CHARM_CONFIG},
+        trust=True,
+    )
+    await ops_test.model.wait_for_idle(apps=[TESTER_APP_NAME], status="active", timeout=1000)
 
-    @pytest.mark.abort_on_fail
-    async def test_given_alertmanager_not_related_to_remote_configurer_when_relation_created_then_alertmanager_configuration_is_updated_with_the_configuration_provided_by_the_remote_configurer(  # noqa: E501
-        self, ops_test: OpsTest, setup
-    ):
-        # This is the config set in the remote-configuration-tester charm augmented
-        # with the defaults coming directly from the Alertmanager.
-        expected_config = """global:
-  resolve_timeout: 5m
-  http_config:
-    follow_redirects: true
-  smtp_hello: localhost
-  smtp_require_tls: true
-  pagerduty_url: https://events.pagerduty.com/v2/enqueue
-  opsgenie_api_url: https://api.opsgenie.com/
-  wechat_api_url: https://qyapi.weixin.qq.com/cgi-bin/
-  victorops_api_url: https://alert.victorops.com/integrations/generic/20131114/alert/
-route:
-  receiver: test_receiver
-  group_by:
-  - juju_application
-  - alertname
-  - juju_model_uuid
-  - juju_model
-  continue: false
-  group_wait: 20m34s
-  group_interval: 1h12m1s
-  repeat_interval: 46d7h
-receivers:
-- name: test_receiver
-templates: []
-        """
-        await ops_test.model.add_relation(
-            relation1=f"{APP_NAME}:remote-configuration", relation2=TESTER_APP_NAME
-        )
-        await ops_test.model.wait_for_idle(
-            apps=[APP_NAME],
-            status="active",
-            timeout=1000,
-            idle_period=5,
-        )
-        actual_config = await helpers.get_alertmanager_config(ops_test, APP_NAME, 0)
-        assert (
-            DeepDiff(
-                yaml.safe_load(actual_config),
-                yaml.safe_load(expected_config),
-                ignore_order=True,
-            )
-            == {}
-        )
 
-    @pytest.mark.abort_on_fail
-    async def test_given_alertmanager_related_to_remote_configurer_when_another_relation_created_then_juju_api_error_is_raised(  # noqa: E501
-        self, ops_test: OpsTest, setup
-    ):
-        test_app_name = "another-configurer"
-        await self._build_and_deploy_remote_configuration_tester_charm(ops_test, test_app_name)
-        try:
-            await ops_test.model.add_relation(
-                relation1=f"{APP_NAME}:remote-configuration", relation2=test_app_name
-            )
-            assert False
-        except juju.errors.JujuError as e:
-            assert True
-            assert (
-                e.message == 'cannot add relation "alertmanager-k8s:remote-configuration '
-                f'{test_app_name}:remote-configuration": establishing a new relation for '
-                "alertmanager-k8s:remote-configuration would exceed its maximum relation "
-                "limit of 1"
-            )
+@pytest.fixture(scope="module")
+@pytest.mark.abort_on_fail
+async def setup(ops_test: OpsTest, charm_under_test, tester_charm):
+    await ops_test.model.deploy(
+        charm_under_test,
+        resources=RESOURCES,
+        application_name=APP_NAME,
+        trust=True,
+    )
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME, TESTER_APP_NAME], status="active", timeout=1000
+    )
 
-    @staticmethod
-    async def _build_and_deploy_remote_configuration_tester_charm(
-        ops_test: OpsTest, app_name: str = TESTER_APP_NAME
-    ):
-        _copy_alertmanager_remote_configuration_library_into_tester_charm()
-        tester_charm = await ops_test.build_charm(TESTER_CHARM_PATH)
-        await ops_test.model.deploy(
-            tester_charm,
-            resources=TESTER_APP_RESOURCES,
-            application_name=app_name,
-            trust=True,
+
+@pytest.mark.abort_on_fail
+async def test_remote_configuration_applied_on_relation_created(ops_test: OpsTest, setup):
+    await ops_test.model.add_relation(
+        relation1=f"{APP_NAME}:remote-configuration", relation2=TESTER_APP_NAME
+    )
+    expected_config = _add_juju_details_to_alertmanager_config(TESTER_CHARM_CONFIG)
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME],
+        status="active",
+        timeout=1000,
+        idle_period=5,
+    )
+
+    _, actual_config, _ = await helpers.get_alertmanager_config_from_file(
+        ops_test=ops_test,
+        app_name=APP_NAME,
+        container_name="alertmanager",
+        config_file_path="/etc/alertmanager/alertmanager.yml",
+    )
+
+    assert (
+        DeepDiff(
+            yaml.safe_load(actual_config),
+            yaml.safe_load(expected_config),
+            ignore_order=True,
         )
-        await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+        == {}
+    )
 
 
 def _copy_alertmanager_remote_configuration_library_into_tester_charm():
@@ -141,3 +107,12 @@ def _copy_alertmanager_remote_configuration_library_into_tester_charm():
     library_path = "lib/charms/alertmanager_k8s/v0/alertmanager_remote_configuration.py"
     install_path = "tests/integration/remote_configuration_tester/" + library_path
     shutil.copyfile(library_path, install_path)
+
+
+def _add_juju_details_to_alertmanager_config(config: str) -> str:
+    juju_details = ["juju_application", "juju_model", "juju_model_uuid"]
+    config_dict = yaml.safe_load(config)
+    group_by = config_dict["route"]["group_by"]
+    group_by.extend(juju_details)
+    config_dict["route"]["group_by"] = group_by
+    return yaml.safe_dump(config_dict)

@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 import urllib.request
-from typing import Dict
+from typing import Dict, Optional, Tuple
 
 import yaml
 from pytest_operator.plugin import OpsTest
@@ -98,8 +98,10 @@ async def is_alertmanager_up(ops_test: OpsTest, app_name: str):
     )
 
 
-async def get_alertmanager_config(ops_test: OpsTest, app_name: str, unit_num: int) -> str:
-    address = await get_unit_address(ops_test, app_name, unit_num)
-    status_url = f"http://{address}:9093/api/v2/status"
-    response = urllib.request.urlopen(status_url, data=None, timeout=2.0)
-    return yaml.safe_load(response.read())["config"]["original"]
+async def get_alertmanager_config_from_file(
+    ops_test: OpsTest, app_name: str, container_name: str, config_file_path: str
+) -> Tuple[Optional[int], str, str]:
+    rc, stdout, stderr = await ops_test.juju(
+        "ssh", "--container", f"{container_name}", f"{app_name}/0", "cat", f"{config_file_path}"
+    )
+    return rc, stdout, stderr
