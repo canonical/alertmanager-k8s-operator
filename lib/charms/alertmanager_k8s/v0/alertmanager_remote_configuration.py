@@ -124,7 +124,7 @@ def config_main_keys_are_valid(config: dict) -> bool:
         "time_intervals",
         "mute_time_intervals",
     ]
-    return all(item in allowed_main_keys for item in config.keys())
+    return all(item in allowed_main_keys for item in config.keys()) if config else False
 
 
 class AlertmanagerRemoteConfigurationChangedEvent(EventBase):
@@ -378,8 +378,7 @@ class RemoteConfigurationProvider(Object):
             relation: Juju Relation object
         """
         config = alertmanager_config
-        if config:
-            templates = self._get_templates(config)
+        templates = self._get_templates(config)
         if config_main_keys_are_valid(config):
             relation.data[self._charm.app]["alertmanager_config"] = json.dumps(config)  # type: ignore[union-attr]  # noqa: E501
             relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(templates)  # type: ignore[union-attr]  # noqa: E501
@@ -399,7 +398,7 @@ class RemoteConfigurationProvider(Object):
             list: List of templates
         """
         templates = []
-        if config.get("templates", []):
+        if config and config.get("templates", []):
             for file in config.pop("templates"):
                 try:
                     templates.append(load_templates_file(file))

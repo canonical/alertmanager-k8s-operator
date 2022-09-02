@@ -4,7 +4,6 @@
 
 import os
 import shutil
-import time
 from pathlib import Path
 
 import helpers
@@ -86,7 +85,12 @@ templates: []
         await ops_test.model.add_relation(
             relation1=f"{APP_NAME}:remote-configuration", relation2=TESTER_APP_NAME
         )
-        time.sleep(5)  # 5 seconds for the Alertmanager to apply new config
+        await ops_test.model.wait_for_idle(
+            apps=[APP_NAME],
+            status="active",
+            timeout=1000,
+            idle_period=5,
+        )
         actual_config = await helpers.get_alertmanager_config(ops_test, APP_NAME, 0)
         assert (
             DeepDiff(

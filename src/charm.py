@@ -7,6 +7,7 @@
 import hashlib
 import logging
 import socket
+from types import SimpleNamespace
 from typing import List, Optional, Tuple, Union, cast
 from urllib.parse import urlparse
 
@@ -67,11 +68,12 @@ class AlertmanagerCharm(CharmBase):
     # Layer name is used for the layer label argument in container.add_layer
     # Service name matches charm name for consistency
     _container_name = _layer_name = _service_name = "alertmanager"
-    _relation_name = "alerting"
-    _peer_relation_name = "replicas"  # must match metadata.yaml peer role name
-    _remote_configuration_relation_name = "remote_configuration"
-    _api_port = 9093  # port to listen on for the web interface and API
-    _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
+    _relations = SimpleNamespace(
+        alerting="alerting", peer="replicas", remote_config="remote_configuration"
+    )
+    _ports = SimpleNamespace(api_port=9093, ha_port=9094)
+    # _api_port = 9093  # port to listen on for the web interface and API
+    # _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
 
     # path, inside the workload container, to the alertmanager and amtool configuration files
     # the amalgamated templates file goes in the same folder as the main configuration file
@@ -100,11 +102,11 @@ class AlertmanagerCharm(CharmBase):
         # reinitialize the charm between core events.
         self.alertmanager_provider = AlertmanagerProvider(
             self,
-            self._relation_name,
-            self._api_port,
+            self._relations.alerting,
+            self._ports.api_port,
             external_url=lambda: AlertmanagerCharm._external_url.fget(self),  # type: ignore
         )
-        self.api = Alertmanager(port=self._api_port, web_route_prefix=self.web_route_prefix)
+        self.api = Alertmanager(port=self._ports.api_port, web_route_prefix=self.web_route_prefix)
 
         self.grafana_dashboard_provider = GrafanaDashboardProvider(charm=self)
         self.grafana_source_provider = GrafanaSourceProvider(
@@ -118,8 +120,8 @@ class AlertmanagerCharm(CharmBase):
         self.service_patcher = KubernetesServicePatch(
             self,
             [
-                (f"{self.app.name}", self._api_port, self._api_port),
-                (f"{self.app.name}-ha", self._ha_port, self._ha_port),
+                (f"{self.app.name}", self._ports.api_port, self._ports.api_port),
+                (f"{self.app.name}-ha", self._ports.ha_port, self._ports.ha_port),
             ],
         )
         self.resources_patch = KubernetesComputeResourcesPatch(
@@ -133,7 +135,7 @@ class AlertmanagerCharm(CharmBase):
         self._scraping = MetricsEndpointProvider(
             self,
             relation_name="self-metrics-endpoint",
-            jobs=[{"static_configs": [{"targets": [f"*:{self._api_port}"]}]}],
+            jobs=[{"static_configs": [{"targets": [f"*:{self._ports.api_port}"]}]}],
         )
 
         self.container = self.unit.get_container(self._container_name)
@@ -152,10 +154,10 @@ class AlertmanagerCharm(CharmBase):
 
         # Peer relation events
         self.framework.observe(
-            self.on[self._peer_relation_name].relation_joined, self._on_peer_relation_joined
+            self.on[self._relations.peer].relation_joined, self._on_peer_relation_joined
         )
         self.framework.observe(
-            self.on[self._peer_relation_name].relation_changed, self._on_peer_relation_changed
+            self.on[self._relations.peer].relation_changed, self._on_peer_relation_changed
         )
 
         # Action events
@@ -173,7 +175,7 @@ class AlertmanagerCharm(CharmBase):
     def _on_k8s_patch_failed(self, event: K8sResourcePatchFailedEvent):
         self.unit.status = BlockedStatus(event.message)
 
-    def _handle_ingress(self, event):
+    def _handle_ingress(self, _):
         if url := self.ingress.url:
             logger.info("Ingress is ready: '%s'.", url)
         else:
@@ -222,7 +224,7 @@ class AlertmanagerCharm(CharmBase):
     @property
     def api_port(self) -> int:
         """Get the API port number to use for alertmanager (default: 9093)."""
-        return self._api_port
+        return self._ports.api_port
 
     @property
     def peer_relation(self) -> Optional["Relation"]:
@@ -231,7 +233,7 @@ class AlertmanagerCharm(CharmBase):
         Returns: peer relation object
         (NOTE: would return None if called too early, e.g. during install).
         """
-        return self.model.get_relation(self._peer_relation_name)
+        return self.model.get_relation(self._relations.peer)
 
     def _alertmanager_layer(self) -> Layer:
         """Returns Pebble configuration layer for alertmanager."""
@@ -241,7 +243,9 @@ class AlertmanagerCharm(CharmBase):
             peer_addresses = self._get_peer_addresses()
 
             # cluster listen address - empty string disables HA mode
-            listen_address_arg = "" if len(peer_addresses) == 0 else f"0.0.0.0:{self._ha_port}"
+            listen_address_arg = (
+                "" if len(peer_addresses) == 0 else f"0.0.0.0:{self._ports.ha_port}"
+            )
 
             # The chosen port in the cluster.listen-address flag is the port that needs to be
             # specified in the cluster.peer flag of the other peers.
@@ -254,7 +258,7 @@ class AlertmanagerCharm(CharmBase):
                 f"alertmanager "
                 f"--config.file={self._config_path} "
                 f"--storage.path={self._storage_path} "
-                f"--web.listen-address=:{self._api_port} "
+                f"--web.listen-address=:{self._ports.api_port} "
                 f"--cluster.listen-address={listen_address_arg} "
                 f"--web.external-url={self._external_url} "
                 f"{peer_cmd_args}"
@@ -305,9 +309,6 @@ class AlertmanagerCharm(CharmBase):
 
     def _update_layer(self) -> bool:
         """Update service layer to reflect changes in peers (replicas).
-
-        Args:
-          restart: a flag indicating if the service should be restarted if a change was detected.
 
         Returns:
           True if anything changed; False otherwise
@@ -633,7 +634,7 @@ class AlertmanagerCharm(CharmBase):
                         )
                         continue
                     # Drop scheme and replace API port with HA port
-                    addresses.append(f"{parsed.hostname}:{self._ha_port}{parsed.path}")
+                    addresses.append(f"{parsed.hostname}:{self._ports.ha_port}{parsed.path}")
 
         return addresses
 
@@ -660,7 +661,7 @@ class AlertmanagerCharm(CharmBase):
 
         If an external (public) url is set, add in its path.
         """
-        return f"http://{socket.getfqdn()}:{self._api_port}{self.web_route_prefix}"
+        return f"http://{socket.getfqdn()}:{self._ports.api_port}{self.web_route_prefix}"
 
     @property
     def _external_url(self) -> str:
