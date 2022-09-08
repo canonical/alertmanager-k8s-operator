@@ -314,7 +314,8 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
             app_or_unit="remote-config-provider",
             key_values={
                 "alertmanager_config": json.dumps(dummy_remote_config),
-                "alertmanager_templates": json.dumps([test_template])},
+                "alertmanager_templates": json.dumps([test_template]),
+            },
         )
 
         self.assertIn(expected_call, patched_push.mock_calls)
