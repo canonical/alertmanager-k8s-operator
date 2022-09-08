@@ -10,9 +10,9 @@ import hypothesis.strategies as st
 import ops
 import validators
 import yaml
-from helpers import k8s_resource_multipatch, tautology
+from helpers import FakeProcessVersionCheck, k8s_resource_multipatch, tautology
 from hypothesis import given
-from ops.model import ActiveStatus, BlockedStatus
+from ops.model import ActiveStatus, BlockedStatus, Container
 from ops.testing import Harness
 
 from charm import Alertmanager, AlertmanagerCharm
@@ -33,6 +33,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
+    @patch.object(Container, "exec", new=FakeProcessVersionCheck)
     def setUp(self, *_):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
@@ -122,6 +123,7 @@ class TestInvalidConfig(unittest.TestCase):
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
+    @patch.object(Container, "exec", new=FakeProcessVersionCheck)
     def test_charm_blocks_on_invalid_config_on_startup(self, *_):
         # GIVEN an invalid config file (mocked above)
         # WHEN the charm starts
@@ -135,6 +137,7 @@ class TestInvalidConfig(unittest.TestCase):
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
+    @patch.object(Container, "exec", new=FakeProcessVersionCheck)
     def test_charm_blocks_on_invalid_config_changed(self, *_):
         # GIVEN a valid configuration (mocked below)
         with patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", "")):
