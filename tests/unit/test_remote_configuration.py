@@ -4,13 +4,12 @@
 import json
 import logging
 import unittest
+from typing import cast
 from unittest.mock import Mock, PropertyMock, call, patch
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
-    DEFAULT_RELATION_NAME as RELATION_NAME,
-)
-from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
+    DEFAULT_RELATION_NAME,
     ConfigReadError,
     RemoteConfigurationProvider,
     load_config_file,
@@ -32,7 +31,7 @@ TEST_APP_NAME = "provider-tester"
 METADATA = f"""
 name: {TEST_APP_NAME}
 provides:
-  {RELATION_NAME}:
+  {DEFAULT_RELATION_NAME}:
     interface: alertmanager_remote_configuration
 """
 TEST_ALERTMANAGER_CONFIG_WITHOUT_TEMPLATES_FILE_PATH = "./tests/unit/test_config/alertmanager.yml"
@@ -59,25 +58,19 @@ class RemoteConfigurationProviderCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
-        try:
-            alertmanager_config = load_config_file(self.ALERTMANAGER_CONFIG_FILE)
-        except ConfigReadError:
-            alertmanager_config = {}
+        alertmanager_config = load_config_file(self.ALERTMANAGER_CONFIG_FILE)
         self.remote_configuration_provider = RemoteConfigurationProvider(
             charm=self,
             alertmanager_config=alertmanager_config,
-            relation_name=RELATION_NAME,
+            relation_name=DEFAULT_RELATION_NAME,
         )
 
         self.framework.observe(self.on.alertmanager_config_file_changed, self._update_config)
 
     def _update_config(self, _):
         try:
-            relation = self.model.get_relation(RELATION_NAME)
-            try:
-                alertmanager_config = load_config_file(self.ALERTMANAGER_CONFIG_FILE)
-            except ConfigReadError:
-                alertmanager_config = {}
+            relation = self.model.get_relation(DEFAULT_RELATION_NAME)
+            alertmanager_config = load_config_file(self.ALERTMANAGER_CONFIG_FILE)
             self.remote_configuration_provider.update_relation_data_bag(
                 alertmanager_config, relation
             )
@@ -96,7 +89,7 @@ class TestAlertmanagerRemoteConfigurationProvider(unittest.TestCase):
         with open(TEST_ALERTMANAGER_CONFIG_WITHOUT_TEMPLATES_FILE_PATH, "r") as config_yaml:
             expected_config = yaml.safe_load(config_yaml)
 
-        relation_id = self.harness.add_relation(RELATION_NAME, "requirer")
+        relation_id = self.harness.add_relation(DEFAULT_RELATION_NAME, "requirer")
         self.harness.add_relation_unit(relation_id, "requirer/0")
 
         self.assertEqual(
@@ -126,7 +119,7 @@ class TestAlertmanagerRemoteConfigurationProvider(unittest.TestCase):
         )
         with open(TEST_ALERTMANAGER_TEMPLATES_FILE_PATH, "r") as templates_file:
             expected_templates = templates_file.readlines()
-        relation_id = self.harness.add_relation(RELATION_NAME, "requirer")
+        relation_id = self.harness.add_relation(DEFAULT_RELATION_NAME, "requirer")
         self.harness.add_relation_unit(relation_id, "requirer/0")
 
         self.harness.charm.on.alertmanager_config_file_changed.emit()
@@ -148,7 +141,7 @@ class TestAlertmanagerRemoteConfigurationProvider(unittest.TestCase):
         patched_alertmanager_config_file.return_value = TEST_ALERTMANAGER_INVALID_CONFIG_FILE_PATH
         with open(TEST_ALERTMANAGER_CONFIG_WITHOUT_TEMPLATES_FILE_PATH, "r") as config_yaml:
             expected_config = yaml.safe_load(config_yaml)
-        relation_id = self.harness.add_relation(RELATION_NAME, "requirer")
+        relation_id = self.harness.add_relation(DEFAULT_RELATION_NAME, "requirer")
         self.harness.add_relation_unit(relation_id, "requirer/0")
 
         self.harness.charm.on.alertmanager_config_file_changed.emit()
@@ -171,7 +164,7 @@ class TestAlertmanagerRemoteConfigurationProvider(unittest.TestCase):
         patched_alertmanager_config_file.return_value = test_config_file
         with open(TEST_ALERTMANAGER_CONFIG_WITHOUT_TEMPLATES_FILE_PATH, "r") as config_yaml:
             expected_config = yaml.safe_load(config_yaml)
-        relation_id = self.harness.add_relation(RELATION_NAME, "requirer")
+        relation_id = self.harness.add_relation(DEFAULT_RELATION_NAME, "requirer")
         self.harness.add_relation_unit(relation_id, "requirer/0")
 
         self.harness.charm.on.alertmanager_config_file_changed.emit()
@@ -214,7 +207,9 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         self.harness.set_can_connect("alertmanager", True)
         self.harness.begin_with_initial_hooks()
 
-        self.relation_id = self.harness.add_relation(RELATION_NAME, "remote-config-provider")
+        self.relation_id = self.harness.add_relation(
+            DEFAULT_RELATION_NAME, "remote-config-provider"
+        )
         self.harness.add_relation_unit(self.relation_id, "remote-config-provider/0")
 
     @patch("ops.model.Container.push")
@@ -228,20 +223,15 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         patched_exec_mock = Mock()
         patched_exec_mock.wait_output.return_value = ("whatever", "")
         patched_exec.return_value = patched_exec_mock
-        remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
-        expected_config = """receivers:
-- name: test_receiver
-route:
-  group_by:
-  - juju_application
-  - juju_model
-  - alertname
-  - juju_model_uuid
-  receiver: test_receiver
-  group_wait: 1234s
-  group_interval: 4321s
-  repeat_interval: 1111h
-"""
+        expected_config = remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
+        # add juju topology to "group_by"
+        route = cast(dict, expected_config.get("route", {}))
+        route["group_by"] = list(
+            set(route.get("group_by", [])).union(
+                ["juju_application", "juju_model", "juju_model_uuid"]
+            )
+        )
+        expected_config["route"] = route
 
         self.harness.update_relation_data(
             relation_id=self.relation_id,
@@ -254,11 +244,7 @@ route:
                 if TEST_ALERTMANAGER_CONFIG_FILE in item:
                     self.assertEqual(item[0], TEST_ALERTMANAGER_CONFIG_FILE)
                     self.assertEqual(
-                        DeepDiff(
-                            yaml.safe_load(item[1]),
-                            yaml.safe_load(expected_config),
-                            ignore_order=True,
-                        ),
+                        DeepDiff(yaml.safe_load(item[1]), expected_config, ignore_order=True),
                         {},
                     )
 
@@ -267,14 +253,13 @@ route:
     def test_configs_available_from_both_relation_data_bag_and_charm_config_block_charm(
         self,
     ):
-        dummy_charm_config = yaml.safe_load(TEST_ALERTMANAGER_DEFAULT_CONFIG)
         dummy_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
         self.harness.update_relation_data(
             relation_id=self.relation_id,
             app_or_unit="remote-config-provider",
             key_values={"alertmanager_config": json.dumps(dummy_remote_config)},
         )
-        self.harness.update_config({"config_file": dummy_charm_config})
+        self.harness.update_config({"config_file": TEST_ALERTMANAGER_DEFAULT_CONFIG})
 
         self.assertEqual(
             self.harness.charm.unit.status, BlockedStatus("Multiple configs detected")
@@ -318,15 +303,18 @@ route:
     def test_templates_pushed_to_relation_data_bag_are_saved_to_templates_file_in_alertmanager(
         self, patched_templates_path, patched_push
     ):
+        dummy_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
         test_templates_file = "/this/is/test/templates.tmpl"
         patched_templates_path.return_value = test_templates_file
         test_template = '{{define "myTemplate"}}do something{{end}}'
-        expected_calls = [call(test_templates_file, test_template, make_dirs=True)]
+        expected_call = call(test_templates_file, test_template, make_dirs=True)
 
         self.harness.update_relation_data(
             relation_id=self.relation_id,
             app_or_unit="remote-config-provider",
-            key_values={"alertmanager_templates": json.dumps([test_template])},
+            key_values={
+                "alertmanager_config": json.dumps(dummy_remote_config),
+                "alertmanager_templates": json.dumps([test_template])},
         )
 
-        patched_push.assert_has_calls(expected_calls)
+        self.assertIn(expected_call, patched_push.mock_calls)

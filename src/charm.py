@@ -8,7 +8,7 @@ import hashlib
 import logging
 import socket
 from types import SimpleNamespace
-from typing import List, Optional, Tuple, Union, cast
+from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
@@ -71,7 +71,7 @@ class AlertmanagerCharm(CharmBase):
     _relations = SimpleNamespace(
         alerting="alerting", peer="replicas", remote_config="remote_configuration"
     )
-    _ports = SimpleNamespace(api_port=9093, ha_port=9094)
+    _ports = SimpleNamespace(api=9093, ha=9094)
     # _api_port = 9093  # port to listen on for the web interface and API
     # _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
 
@@ -103,10 +103,10 @@ class AlertmanagerCharm(CharmBase):
         self.alertmanager_provider = AlertmanagerProvider(
             self,
             self._relations.alerting,
-            self._ports.api_port,
+            self._ports.api,
             external_url=lambda: AlertmanagerCharm._external_url.fget(self),  # type: ignore
         )
-        self.api = Alertmanager(port=self._ports.api_port, web_route_prefix=self.web_route_prefix)
+        self.api = Alertmanager(port=self._ports.api, web_route_prefix=self.web_route_prefix)
 
         self.grafana_dashboard_provider = GrafanaDashboardProvider(charm=self)
         self.grafana_source_provider = GrafanaSourceProvider(
@@ -120,8 +120,8 @@ class AlertmanagerCharm(CharmBase):
         self.service_patcher = KubernetesServicePatch(
             self,
             [
-                (f"{self.app.name}", self._ports.api_port, self._ports.api_port),
-                (f"{self.app.name}-ha", self._ports.ha_port, self._ports.ha_port),
+                (f"{self.app.name}", self._ports.api, self._ports.api),
+                (f"{self.app.name}-ha", self._ports.ha, self._ports.ha),
             ],
         )
         self.resources_patch = KubernetesComputeResourcesPatch(
@@ -135,7 +135,7 @@ class AlertmanagerCharm(CharmBase):
         self._scraping = MetricsEndpointProvider(
             self,
             relation_name="self-metrics-endpoint",
-            jobs=[{"static_configs": [{"targets": [f"*:{self._ports.api_port}"]}]}],
+            jobs=[{"static_configs": [{"targets": [f"*:{self._ports.api}"]}]}],
         )
 
         self.container = self.unit.get_container(self._container_name)
@@ -224,7 +224,7 @@ class AlertmanagerCharm(CharmBase):
     @property
     def api_port(self) -> int:
         """Get the API port number to use for alertmanager (default: 9093)."""
-        return self._ports.api_port
+        return self._ports.api
 
     @property
     def peer_relation(self) -> Optional["Relation"]:
@@ -243,9 +243,7 @@ class AlertmanagerCharm(CharmBase):
             peer_addresses = self._get_peer_addresses()
 
             # cluster listen address - empty string disables HA mode
-            listen_address_arg = (
-                "" if len(peer_addresses) == 0 else f"0.0.0.0:{self._ports.ha_port}"
-            )
+            listen_address_arg = "" if len(peer_addresses) == 0 else f"0.0.0.0:{self._ports.ha}"
 
             # The chosen port in the cluster.listen-address flag is the port that needs to be
             # specified in the cluster.peer flag of the other peers.
@@ -258,7 +256,7 @@ class AlertmanagerCharm(CharmBase):
                 f"alertmanager "
                 f"--config.file={self._config_path} "
                 f"--storage.path={self._storage_path} "
-                f"--web.listen-address=:{self._ports.api_port} "
+                f"--web.listen-address=:{self._ports.api} "
                 f"--cluster.listen-address={listen_address_arg} "
                 f"--web.external-url={self._external_url} "
                 f"{peer_cmd_args}"
@@ -334,6 +332,21 @@ class AlertmanagerCharm(CharmBase):
 
         return False
 
+    def _get_remote_config(self) -> Optional[Tuple[Optional[dict], Optional[str]]]:
+        remote_config, remote_templates = self.remote_configuration.config()
+        if remote_config:
+            templates = "\n".join(remote_templates) if remote_templates else None
+            return remote_config, templates
+        return None
+
+    def _get_local_config(self) -> Optional[Tuple[Optional[dict], Optional[str]]]:
+        config = self.config["config_file"]
+        if config:
+            local_config = yaml.safe_load(config)
+            local_templates = self.config["templates_file"] or None
+            return local_config, local_templates
+        return None
+
     @property
     def _default_config(self) -> dict:
         return {
@@ -366,8 +379,18 @@ class AlertmanagerCharm(CharmBase):
         )
         pending.append((self._amtool_config_path, amtool_config))
 
+        # block if multiple config sources configured
+        if self._get_remote_config() and self._get_local_config():
+            logger.error("unable to use config from config_file and relation at the same time")
+            raise ConfigUpdateFailure("Multiple configs detected")
         # if no config provided, use default config with a dummy receiver
-        config = self._get_config() or self._default_config
+        if compound_config := self._get_remote_config():
+            config, templates = compound_config
+        elif compound_config := self._get_local_config():
+            config, templates = compound_config
+        else:
+            config = self._default_config
+            templates = None
 
         # `yaml.safe_load`'s return type changes based on input. For example, it returns `str`
         # for "foo" but `dict` for "foo: bar". Error out if type is not dict.
@@ -386,7 +409,7 @@ class AlertmanagerCharm(CharmBase):
             )
 
         # add templates, if any
-        if templates := self._get_templates():
+        if templates:
             config["templates"] = [f"{self._templates_path}"]
             pending.append((self._templates_path, templates))
 
@@ -412,36 +435,6 @@ class AlertmanagerCharm(CharmBase):
         logger.debug("config changed")
         self._push_config_and_reload(pending)
         self._stored.config_hash = config_hash
-
-    def _get_config(self) -> Union[dict, None]:
-        local_config = self.config["config_file"]
-        remote_config, _ = self.remote_configuration.config()
-        if local_config and remote_config:
-            logger.error("unable to use config from config_file and relation at the same time")
-            raise ConfigUpdateFailure("Multiple configs detected")
-        if local_config:
-            logger.info("using configuration from config_file")
-            return yaml.safe_load(local_config)
-        if remote_config:
-            logger.info("using configuration from relation")
-            return remote_config
-        return None
-
-    def _get_templates(self) -> Union[str, None]:
-        local_templates = self.config["templates_file"]
-        _, remote_templates = self.remote_configuration.config()
-        if local_templates and remote_templates:
-            logger.error(
-                "unable to use templates from templates_file and relation at the same time"
-            )
-            raise ConfigUpdateFailure("Multiple templates configs detected")
-        if local_templates:
-            logger.info("using templates from templates_file")
-            return local_templates
-        if remote_templates:
-            logger.info("using templates from relation")
-            return "\n".join(remote_templates)
-        return None
 
     def _push_config_and_reload(self, pending_config: List[Tuple[str, str]]):  # noqa: C901
         """Push config into workload container, and trigger a hot-reload (or service restart).
@@ -634,7 +627,7 @@ class AlertmanagerCharm(CharmBase):
                         )
                         continue
                     # Drop scheme and replace API port with HA port
-                    addresses.append(f"{parsed.hostname}:{self._ports.ha_port}{parsed.path}")
+                    addresses.append(f"{parsed.hostname}:{self._ports.ha}{parsed.path}")
 
         return addresses
 
@@ -661,7 +654,7 @@ class AlertmanagerCharm(CharmBase):
 
         If an external (public) url is set, add in its path.
         """
-        return f"http://{socket.getfqdn()}:{self._ports.api_port}{self.web_route_prefix}"
+        return f"http://{socket.getfqdn()}:{self._ports.api}{self.web_route_prefix}"
 
     @property
     def _external_url(self) -> str:

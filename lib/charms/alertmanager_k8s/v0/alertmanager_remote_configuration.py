@@ -204,7 +204,16 @@ class RemoteConfigurationRequirer(Object):
 
         on_relation = self._charm.on[self._relation_name]
 
+        self.framework.observe(on_relation.relation_created, self._on_relation_created)
         self.framework.observe(on_relation.relation_changed, self._on_relation_changed)
+        self.framework.observe(on_relation.relation_broken, self._on_relation_broken)
+
+    def _on_relation_created(self, _) -> None:
+        """Event handler for remote configuration relation created event.
+
+        Informs about the fact that the configuration from remote provider will be used.
+        """
+        logger.debug("Using remote configuration from the remote_configuration relation.")
 
     def _on_relation_changed(self, _) -> None:
         """Event handler for remote configuration relation changed event.
@@ -213,6 +222,13 @@ class RemoteConfigurationRequirer(Object):
         changes.
         """
         self.on.remote_configuration_changed.emit()
+
+    def _on_relation_broken(self, _) -> None:
+        """Event handler for remote configuration relation broken event.
+
+        Informs about the fact that the configuration from remote provider will no longer be used.
+        """
+        logger.debug("Remote configuration no longer available.")
 
     def config(self) -> Tuple[Optional[dict], Optional[list]]:
         """Exposes Alertmanager configuration sent inside the relation data bag.

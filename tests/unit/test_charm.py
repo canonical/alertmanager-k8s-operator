@@ -117,7 +117,18 @@ class TestWithInitialHooks(unittest.TestCase):
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
+    def test_templates_file_not_created_if_user_provides_templates_without_config(self, *unused):
+        templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
+        self.harness.update_config({"templates_file": templates})
+
+        with self.assertRaises(FileNotFoundError):
+            self.harness.charm.container.pull(self.harness.charm._templates_path)
+
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @k8s_resource_multipatch
     def test_templates_section_added_if_user_provided_templates(self, *unused):
+        new_config = yaml.dump({"route": {"group_by": ["alertname", "juju_model"]}})
+        self.harness.update_config({"config_file": new_config})
         templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
         self.harness.update_config({"templates_file": templates})
         updated_templates = self.harness.charm.container.pull(self.harness.charm._templates_path)

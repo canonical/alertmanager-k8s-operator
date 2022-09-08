@@ -158,7 +158,7 @@ class TestExternalUrl(unittest.TestCase):
         )
         self.assertEqual(
             am_config["alertmanager.url"],
-            f"http://localhost:{self.harness.charm._ports.api_port}/path/to/alertmanager/",
+            f"http://localhost:{self.harness.charm._ports.api}/path/to/alertmanager/",
         )
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
