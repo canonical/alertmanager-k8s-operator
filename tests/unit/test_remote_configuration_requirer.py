@@ -5,7 +5,7 @@ import json
 import logging
 import unittest
 from typing import cast
-from unittest.mock import Mock, PropertyMock, call, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
@@ -57,14 +57,11 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         )
         self.harness.add_relation_unit(self.relation_id, "remote-config-provider/0")
 
-    @patch("ops.model.Container.push")
     @patch("ops.model.Container.exec")
-    @patch("charm.AlertmanagerCharm._config_path", new_callable=PropertyMock)
     @k8s_resource_multipatch
     def test_valid_config_pushed_to_relation_data_bag_updates_alertmanager_config(
-        self, patched_config_path, patched_exec, patched_push
+        self, patched_exec
     ):
-        patched_config_path.return_value = TEST_ALERTMANAGER_CONFIG_FILE
         patched_exec_mock = Mock()
         patched_exec_mock.wait_output.return_value = ("whatever", "")
         patched_exec.return_value = patched_exec_mock
@@ -83,15 +80,12 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
             app_or_unit="remote-config-provider",
             key_values={"alertmanager_config": json.dumps(remote_config)},
         )
+        config = self.harness.charm.container.pull(self.harness.charm._config_path)
 
-        for mock_call in patched_push.mock_calls:
-            for item in mock_call:
-                if TEST_ALERTMANAGER_CONFIG_FILE in item:
-                    self.assertEqual(item[0], TEST_ALERTMANAGER_CONFIG_FILE)
-                    self.assertEqual(
-                        DeepDiff(yaml.safe_load(item[1]), expected_config, ignore_order=True),
-                        {},
-                    )
+        self.assertEqual(
+            DeepDiff(yaml.safe_load(config.read()), expected_config, ignore_order=True),
+            {},
+        )
 
     @k8s_resource_multipatch
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
@@ -110,15 +104,12 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
             self.harness.charm.unit.status, BlockedStatus("Multiple configs detected")
         )
 
-    @patch("ops.model.Container.push")
     @patch("ops.model.Container.exec")
     @patch("charm.AlertmanagerCharm._default_config", new_callable=PropertyMock)
-    @patch("charm.AlertmanagerCharm._config_path", new_callable=PropertyMock)
     @k8s_resource_multipatch
     def test_invalid_config_pushed_to_the_relation_data_bag_does_not_update_alertmanager_config(
-        self, patched_config_path, patched_default_config, patched_exec, patched_push
+        self, patched_default_config, patched_exec
     ):
-        patched_config_path.return_value = TEST_ALERTMANAGER_CONFIG_FILE
         patched_exec_mock = Mock()
         patched_exec_mock.wait_output.return_value = ("whatever", "")
         patched_exec.return_value = patched_exec_mock
@@ -131,28 +122,17 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
             app_or_unit="remote-config-provider",
             key_values={"alertmanager_config": json.dumps(invalid_config)},
         )
+        config = self.harness.charm.container.pull(self.harness.charm._config_path)
 
-        for mock_call in patched_push.mock_calls:
-            for item in mock_call:
-                if TEST_ALERTMANAGER_CONFIG_FILE in item:
-                    self.assertEqual(item[0], TEST_ALERTMANAGER_CONFIG_FILE)
-                    self.assertEqual(
-                        DeepDiff(yaml.safe_load(item[1]), default_config, ignore_order=True),
-                        {},
-                    )
+        self.assertEqual(yaml.safe_load(config.read()), default_config)
 
-    @patch("ops.model.Container.push")
-    @patch("charm.AlertmanagerCharm._templates_path", new_callable=PropertyMock)
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
     def test_templates_pushed_to_relation_data_bag_are_saved_to_templates_file_in_alertmanager(
-        self, patched_templates_path, patched_push
+        self,
     ):
         dummy_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
-        test_templates_file = "/this/is/test/templates.tmpl"
-        patched_templates_path.return_value = test_templates_file
         test_template = '{{define "myTemplate"}}do something{{end}}'
-        expected_call = call(test_templates_file, test_template, make_dirs=True)
 
         self.harness.update_relation_data(
             relation_id=self.relation_id,
@@ -162,5 +142,6 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
                 "alertmanager_templates": json.dumps([test_template]),
             },
         )
+        updated_templates = self.harness.charm.container.pull(self.harness.charm._templates_path)
 
-        self.assertIn(expected_call, patched_push.mock_calls)
+        self.assertEqual(updated_templates.read(), test_template)

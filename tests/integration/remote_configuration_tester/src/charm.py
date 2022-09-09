@@ -5,11 +5,11 @@
 """A Charm to functionally test the Alertmanager Operator."""
 
 import logging
+from pathlib import Path
 
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     ConfigReadError,
     RemoteConfigurationProvider,
-    load_config_file,
 )
 from ops.charm import CharmBase, PebbleReadyEvent
 from ops.main import main
@@ -21,21 +21,18 @@ logger = logging.getLogger(__name__)
 class AlertmanagerTesterCharm(CharmBase):
     """A Charm to functionally test the Alertmanager Operator."""
 
-    ALERTMANAGER_CONFIG_FILE = "/etc/alertmanager/alertmanager.yml"
+    ALERTMANAGER_CONFIG_FILE = Path("/etc/alertmanager/alertmanager.yml")
 
     def __init__(self, *args):
         super().__init__(*args)
         self.container = self.unit.get_container("remote-configuration-tester")
 
-        alertmanager_config = {}
         try:
-            alertmanager_config = load_config_file(self.ALERTMANAGER_CONFIG_FILE)
-        except ConfigReadError:
-            logger.warning("Alertmanager config not available yet.")
-        if alertmanager_config:
-            self.remote_configuration_consumer = RemoteConfigurationProvider(
-                charm=self, alertmanager_config=alertmanager_config
+            self.remote_configuration_consumer = RemoteConfigurationProvider.with_config_file(
+                charm=self, config_file=self.ALERTMANAGER_CONFIG_FILE
             )
+        except ConfigReadError:
+            pass
 
         self.framework.observe(self.on.remote_configuration_tester_pebble_ready, self._on_ready)
 

@@ -20,16 +20,11 @@ the `alertmanager_remote_configuration` interface, should use the `RemoteConfigu
 Charms that need to can utilize the Alertmanager configuration provided from the external source
 through a relation using the `alertmanager_remote_configuration` interface, should use
 the `RemoteConfigurationRequirer`.
-
-For custom consumer implementations, three additional methods are available - `load_config_file`,
-`load_templates_file` and `config_main_keys_are_valid`. First two can be used to prepare
-the relevant data to be pushed to the relation data bag. `config_main_keys_are_valid` facilitates
-the basic sanity check of Alertmanager's configuration. It checks whether given configuration
-contains only allowed main keys or not.
 """
 
 import json
 import logging
+from pathlib import Path
 from typing import Optional, Tuple
 
 import yaml
@@ -55,50 +50,10 @@ DEFAULT_RELATION_NAME = "remote-configuration"
 class ConfigReadError(Exception):
     """Raised if Alertmanager configuration can't be read."""
 
-    def __init__(self, config_file: str):
+    def __init__(self, config_file: Path):
         self.message = "Failed to read {}".format(config_file)
 
         super().__init__(self.message)
-
-
-def load_config_file(path: str) -> dict:
-    """Reads given Alertmanager configuration file and turns it into a dictionary.
-
-    Args:
-        path: Path to the Alertmanager configuration file
-
-    Returns:
-        dict: Alertmanager configuration file in a form of a dictionary
-
-    Raises:
-        ConfigReadError: if a problem with reading given config file happens
-    """
-    try:
-        with open(path, "r") as config_yaml:
-            config = yaml.safe_load(config_yaml)
-        return config
-    except (FileNotFoundError, OSError, yaml.YAMLError) as e:
-        raise ConfigReadError(path) from e
-
-
-def load_templates_file(path: str) -> str:
-    """Reads given Alertmanager templates file and returns its content in a form of a string.
-
-    Args:
-        path: Alertmanager templates file path
-
-    Returns:
-        str: Alertmanager templates
-
-    Raises:
-        ConfigReadError: if a problem with reading given config file happens
-    """
-    try:
-        with open(path, "r") as template_file:
-            templates = template_file.read()
-        return templates
-    except (FileNotFoundError, OSError, ValueError) as e:
-        raise ConfigReadError(path) from e
 
 
 def config_main_keys_are_valid(config: dict) -> bool:
@@ -318,9 +273,27 @@ class RemoteConfigurationProvider(Object):
 
     def __init__(self, *args):
         ...
+        config = RemoteConfigurationProvider.load_config_file(FILE_PATH)
         self.remote_configuration_provider = RemoteConfigurationProvider(
             charm=self,
-            alertmanager_config=some_config_dict,
+            alertmanager_config=config,
+        )
+        ...
+    ```
+
+    Alternatively, RemoteConfigurationProvider can be instantiated using a factory, which allows
+    using a configuration file path directly instead of a configuration string:
+
+    ```
+    from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import
+        RemoteConfigurationProvider,
+    )
+
+    def __init__(self, *args):
+        ...
+        self.remote_configuration_provider = RemoteConfigurationProvider.with_config_file(
+            charm=self,
+            config_file=FILE_PATH,
         )
         ...
     ```
@@ -367,6 +340,30 @@ class RemoteConfigurationProvider(Object):
 
         self.framework.observe(on_relation.relation_joined, self._on_relation_joined)
 
+    @classmethod
+    def with_config_file(
+        cls,
+        charm: CharmBase,
+        config_file: Path,
+        relation_name: str = DEFAULT_RELATION_NAME,
+    ):
+        """The RemoteConfigurationProvider object factory.
+
+        This factory provides an alternative way of instantiating the RemoteConfigurationProvider.
+        While the default constructor requires passing a config dict, the factory allows using
+        a configuration file path.
+
+        Args:
+            charm: The charm object that instantiated this class.
+            config_file: Path to the Alertmanager configuration file.
+            relation_name: Name of the relation with the `alertmanager_remote_configuration`
+                interface as defined in metadata.yaml. Defaults to `remote-configuration`.
+
+        Returns:
+            RemoteConfigurationProvider object
+        """
+        return cls(charm, cls.load_config_file(config_file), relation_name)
+
     def _on_relation_joined(self, event: RelationJoinedEvent) -> None:
         """Event handler for RelationJoinedEvent.
 
@@ -381,6 +378,26 @@ class RemoteConfigurationProvider(Object):
             self.update_relation_data_bag(self.alertmanager_config, event.relation)
         else:
             logger.warning("Alertmanager configuration not available. Ignoring...")
+
+    @staticmethod
+    def load_config_file(path: Path) -> dict:
+        """Reads given Alertmanager configuration file and turns it into a dictionary.
+
+        Args:
+            path: Path to the Alertmanager configuration file
+
+        Returns:
+            dict: Alertmanager configuration file in a form of a dictionary
+
+        Raises:
+            ConfigReadError: if a problem with reading given config file happens
+        """
+        try:
+            with open(path, "r") as config_yaml:
+                config = yaml.safe_load(config_yaml)
+            return config
+        except (FileNotFoundError, OSError, yaml.YAMLError) as e:
+            raise ConfigReadError(path) from e
 
     def update_relation_data_bag(
         self, alertmanager_config: dict, relation: Optional[Relation]
@@ -399,8 +416,7 @@ class RemoteConfigurationProvider(Object):
             relation.data[self._charm.app]["alertmanager_config"] = json.dumps(config)  # type: ignore[union-attr]  # noqa: E501
             relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(templates)  # type: ignore[union-attr]  # noqa: E501
 
-    @staticmethod
-    def _get_templates(config: dict) -> Optional[list]:
+    def _get_templates(self, config: dict) -> Optional[list]:
         """Prepares templates data to be put in a relation data bag.
 
         If the main config file contains templates section, content of the files specified in this
@@ -417,7 +433,27 @@ class RemoteConfigurationProvider(Object):
         if config and config.get("templates", []):
             for file in config.pop("templates"):
                 try:
-                    templates.append(load_templates_file(file))
+                    templates.append(self._load_templates_file(file))
                 except FileNotFoundError:
                     continue
         return templates
+
+    @staticmethod
+    def _load_templates_file(path: Path) -> str:
+        """Reads given Alertmanager templates file and returns its content in a form of a string.
+
+        Args:
+            path: Alertmanager templates file path
+
+        Returns:
+            str: Alertmanager templates
+
+        Raises:
+            ConfigReadError: if a problem with reading given config file happens
+        """
+        try:
+            with open(path, "r") as template_file:
+                templates = template_file.read()
+            return templates
+        except (FileNotFoundError, OSError, ValueError) as e:
+            raise ConfigReadError(path) from e

@@ -4,6 +4,7 @@
 import json
 import logging
 import unittest
+from pathlib import Path
 from unittest.mock import PropertyMock, patch
 
 import yaml
@@ -11,7 +12,6 @@ from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     DEFAULT_RELATION_NAME,
     ConfigReadError,
     RemoteConfigurationProvider,
-    load_config_file,
 )
 from ops import testing
 from ops.charm import CharmBase, CharmEvents
@@ -52,7 +52,9 @@ class RemoteConfigurationProviderCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
-        alertmanager_config = load_config_file(self.ALERTMANAGER_CONFIG_FILE)
+        alertmanager_config = RemoteConfigurationProvider.load_config_file(
+            Path(self.ALERTMANAGER_CONFIG_FILE)
+        )
         self.remote_configuration_provider = RemoteConfigurationProvider(
             charm=self,
             alertmanager_config=alertmanager_config,
@@ -64,7 +66,9 @@ class RemoteConfigurationProviderCharm(CharmBase):
     def _update_config(self, _):
         try:
             relation = self.model.get_relation(DEFAULT_RELATION_NAME)
-            alertmanager_config = load_config_file(self.ALERTMANAGER_CONFIG_FILE)
+            alertmanager_config = RemoteConfigurationProvider.load_config_file(
+                Path(self.ALERTMANAGER_CONFIG_FILE)
+            )
             self.remote_configuration_provider.update_relation_data_bag(
                 alertmanager_config, relation
             )
