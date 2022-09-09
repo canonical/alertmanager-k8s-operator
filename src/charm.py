@@ -72,8 +72,6 @@ class AlertmanagerCharm(CharmBase):
         alerting="alerting", peer="replicas", remote_config="remote_configuration"
     )
     _ports = SimpleNamespace(api=9093, ha=9094)
-    # _api_port = 9093  # port to listen on for the web interface and API
-    # _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
 
     # path, inside the workload container, to the alertmanager and amtool configuration files
     # the amalgamated templates file goes in the same folder as the main configuration file
