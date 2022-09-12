@@ -5,7 +5,7 @@ build/
 .coverage
 **/__pycache__/
 *.py[cod]
+.hypothesis/
 .idea/
 .tox/
 .mypy_cache
-.hypothesis
