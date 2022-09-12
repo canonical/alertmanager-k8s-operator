@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import ops
 import yaml
-from helpers import cli_arg, k8s_resource_multipatch, tautology
-from ops.model import ActiveStatus, BlockedStatus
+from helpers import FakeProcessVersionCheck, cli_arg, k8s_resource_multipatch, tautology
+from ops.model import ActiveStatus, BlockedStatus, Container
 from ops.testing import Harness
 
 from charm import Alertmanager, AlertmanagerCharm
@@ -28,6 +28,7 @@ class TestExternalUrl(unittest.TestCase):
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
+    @patch.object(Container, "exec", new=FakeProcessVersionCheck)
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.harness.set_model_name(self.__class__.__name__)
@@ -126,6 +127,17 @@ class TestExternalUrl(unittest.TestCase):
         # THEN the cli arg is reverted to the ingress
         self.assertEqual(self.get_url_cli_arg(), external_url_ingress)
         self.assertTrue(self.is_service_running())
+
+        # AND WHEN the traefik relation is removed
+        self.harness.remove_relation_unit(rel_id, "traefik-app/0")
+        self.harness.remove_relation(rel_id)
+
+        # NOTE intentionally not emptying out relation data manually
+        # app_data = {"ingress": ""}
+        # self.harness.update_relation_data(rel_id, "traefik-app", app_data)
+
+        # THEN the fqdn is used as external url
+        self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")

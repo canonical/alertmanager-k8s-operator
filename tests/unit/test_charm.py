@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import ops
 import yaml
-from helpers import k8s_resource_multipatch, tautology
-from ops.model import ActiveStatus, BlockedStatus
+from helpers import FakeProcessVersionCheck, k8s_resource_multipatch, tautology
+from ops.model import ActiveStatus, BlockedStatus, Container
 from ops.testing import Harness
 
 from charm import Alertmanager, AlertmanagerCharm
@@ -25,6 +25,7 @@ class TestWithInitialHooks(unittest.TestCase):
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
+    @patch.object(Container, "exec", new=FakeProcessVersionCheck)
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
@@ -161,6 +162,7 @@ class TestWithoutInitialHooks(unittest.TestCase):
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
+    @patch.object(Container, "exec", new=FakeProcessVersionCheck)
     def test_unit_status_around_pebble_ready(self, *unused):
         # before pebble_ready, status should be "maintenance"
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.MaintenanceStatus)
