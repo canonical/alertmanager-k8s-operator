@@ -6,7 +6,6 @@
 
 import hashlib
 import logging
-import re
 import socket
 from types import SimpleNamespace
 from typing import List, Optional, Tuple, cast
@@ -68,7 +67,7 @@ class AlertmanagerCharm(CharmBase):
     # Container name is automatically determined from charm name
     # Layer name is used for the layer label argument in container.add_layer
     # Service name matches charm name for consistency
-    _container_name = _layer_name = _service_name = _exe_name = "alertmanager"
+    _container_name = _layer_name = _service_name = "alertmanager"
     _relations = SimpleNamespace(
         alerting="alerting", peer="replicas", remote_config="remote_configuration"
     )
@@ -252,7 +251,7 @@ class AlertmanagerCharm(CharmBase):
                 sorted([f"--cluster.peer={address}" for address in peer_addresses])
             )
             return (
-                f"{self._exe_name} "
+                f"alertmanager "
                 f"--config.file={self._config_path} "
                 f"--storage.path={self._storage_path} "
                 f"--web.listen-address=:{self._ports.api} "
@@ -659,24 +658,6 @@ class AlertmanagerCharm(CharmBase):
     def _external_url(self) -> str:
         """Return the externally-reachable (public) address of the alertmanager api server."""
         return self.model.config.get("web_external_url") or self.ingress.url or self._internal_url
-
-    @property
-    def _alertmanager_version(self) -> Optional[str]:
-        """Returns the version of Alertmanager.
-
-        Returns:
-            A string equal to the Alertmanager version.
-        """
-        container = self.unit.get_container(self._container_name)
-        if not container.can_connect():
-            return None
-        version_output, _ = container.exec([self._exe_name, "--version"]).wait_output()
-        # Output looks like this:
-        # alertmanager, version 0.23.0 (branch: HEAD, ...
-        result = re.search(r"version (\d*\.\d*\.\d*)", version_output)
-        if result is None:
-            return result
-        return result.group(1)
 
 
 if __name__ == "__main__":
