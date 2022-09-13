@@ -33,7 +33,7 @@ from ops.framework import EventBase, EventSource, Object, ObjectEvents
 from ops.model import Relation
 
 # The unique Charmhub library identifier, never change it
-LIBID = "something dummy for now"
+LIBID = "0e5a4c0ecde34c9880bb8899ac53444d"
 
 # Increment this major API version when introducing breaking changes
 LIBAPI = 0
@@ -435,6 +435,7 @@ class RemoteConfigurationProvider(Object):
                 try:
                     templates.append(self._load_templates_file(file))
                 except FileNotFoundError:
+                    logger.warning(f"Template file {file} not found. Skipping.")
                     continue
         return templates
 
