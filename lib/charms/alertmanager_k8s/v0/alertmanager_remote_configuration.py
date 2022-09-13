@@ -370,10 +370,7 @@ class RemoteConfigurationProvider(Object):
         """
         if not self._charm.unit.is_leader():
             return
-        if self.alertmanager_config:
-            self.update_relation_data_bag(self.alertmanager_config)
-        else:
-            logger.warning("Alertmanager configuration not available. Ignoring...")
+        self.update_relation_data_bag(self.alertmanager_config)
 
     @staticmethod
     def load_config_file(path: Path) -> dict:
@@ -403,12 +400,16 @@ class RemoteConfigurationProvider(Object):
         Args:
             alertmanager_config: Alertmanager configuration dictionary.
         """
+        if not self._charm.unit.is_leader():
+            return
         config = alertmanager_config
         templates = self._get_templates(config)
-        for relation in self._charm.model.relations[self._relation_name]:
-            if config_main_keys_are_valid(config):
+        if config_main_keys_are_valid(config):
+            for relation in self._charm.model.relations[self._relation_name]:
                 relation.data[self._charm.app]["alertmanager_config"] = json.dumps(config)  # type: ignore[union-attr]  # noqa: E501
                 relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(templates)  # type: ignore[union-attr]  # noqa: E501
+        else:
+            logger.warning("Invalid Alertmanager configuration. Ignoring...")
 
     def _get_templates(self, config: dict) -> Optional[list]:
         """Prepares templates data to be put in a relation data bag.
