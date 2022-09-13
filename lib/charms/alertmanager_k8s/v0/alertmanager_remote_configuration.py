@@ -28,9 +28,8 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import yaml
-from ops.charm import CharmBase, RelationJoinedEvent
+from ops.charm import CharmBase
 from ops.framework import EventBase, EventSource, Object, ObjectEvents
-from ops.model import Relation
 
 # The unique Charmhub library identifier, never change it
 LIBID = "0e5a4c0ecde34c9880bb8899ac53444d"
@@ -364,18 +363,15 @@ class RemoteConfigurationProvider(Object):
         """
         return cls(charm, cls.load_config_file(config_file), relation_name)
 
-    def _on_relation_joined(self, event: RelationJoinedEvent) -> None:
+    def _on_relation_joined(self, _) -> None:
         """Event handler for RelationJoinedEvent.
 
         Takes care of pushing Alertmanager configuration to the relation data bag.
-
-        Args:
-            event: Juju event
         """
         if not self._charm.unit.is_leader():
             return
         if self.alertmanager_config:
-            self.update_relation_data_bag(self.alertmanager_config, event.relation)
+            self.update_relation_data_bag(self.alertmanager_config)
         else:
             logger.warning("Alertmanager configuration not available. Ignoring...")
 
@@ -399,22 +395,20 @@ class RemoteConfigurationProvider(Object):
         except (FileNotFoundError, OSError, yaml.YAMLError) as e:
             raise ConfigReadError(path) from e
 
-    def update_relation_data_bag(
-        self, alertmanager_config: dict, relation: Optional[Relation]
-    ) -> None:
+    def update_relation_data_bag(self, alertmanager_config: dict) -> None:
         """Updates relation data bag with Alertmanager config and templates.
 
         Before updating relation data bag, basic sanity check of given configuration is done.
 
         Args:
             alertmanager_config: Alertmanager configuration dictionary.
-            relation: Juju Relation object
         """
         config = alertmanager_config
         templates = self._get_templates(config)
-        if config_main_keys_are_valid(config):
-            relation.data[self._charm.app]["alertmanager_config"] = json.dumps(config)  # type: ignore[union-attr]  # noqa: E501
-            relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(templates)  # type: ignore[union-attr]  # noqa: E501
+        for relation in self._charm.model.relations[self._relation_name]:
+            if config_main_keys_are_valid(config):
+                relation.data[self._charm.app]["alertmanager_config"] = json.dumps(config)  # type: ignore[union-attr]  # noqa: E501
+                relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(templates)  # type: ignore[union-attr]  # noqa: E501
 
     def _get_templates(self, config: dict) -> Optional[list]:
         """Prepares templates data to be put in a relation data bag.

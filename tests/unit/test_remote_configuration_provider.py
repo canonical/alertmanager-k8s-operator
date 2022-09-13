@@ -65,13 +65,10 @@ class RemoteConfigurationProviderCharm(CharmBase):
 
     def _update_config(self, _):
         try:
-            relation = self.model.get_relation(DEFAULT_RELATION_NAME)
             alertmanager_config = RemoteConfigurationProvider.load_config_file(
                 Path(self.ALERTMANAGER_CONFIG_FILE)
             )
-            self.remote_configuration_provider.update_relation_data_bag(
-                alertmanager_config, relation
-            )
+            self.remote_configuration_provider.update_relation_data_bag(alertmanager_config)
         except ConfigReadError:
             logger.warning("Error reading Alertmanager config file.")
 
