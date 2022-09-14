@@ -31,4 +31,4 @@ def httpserver_listen_address():
         local_ip_address = "127.0.0.1"
     finally:
         s.close()
-    return (local_ip_address, PYTEST_HTTP_SERVER_PORT)
+    return local_ip_address, PYTEST_HTTP_SERVER_PORT

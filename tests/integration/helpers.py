@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 import urllib.request
-from typing import Dict
+from typing import Dict, Optional, Tuple
 
 from pytest_operator.plugin import OpsTest
 
@@ -95,3 +95,12 @@ async def is_alertmanager_up(ops_test: OpsTest, app_name: str):
             for unit_num in range(len(ops_test.model.applications[app_name].units))
         ]
     )
+
+
+async def get_alertmanager_config_from_file(
+    ops_test: OpsTest, app_name: str, container_name: str, config_file_path: str
+) -> Tuple[Optional[int], str, str]:
+    rc, stdout, stderr = await ops_test.juju(
+        "ssh", "--container", f"{container_name}", f"{app_name}/0", "cat", f"{config_file_path}"
+    )
+    return rc, stdout, stderr

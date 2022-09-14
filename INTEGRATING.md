@@ -99,6 +99,42 @@ Since Alertmanager units automatically form a cluster, the charm only needs a "p
 juju relate alertmanager-k8s:ingress traefik-k8s:ingress
 ```
 
+### Remote Configuration
+
+```yaml
+  remote-configuration:
+    interface: alertmanager_remote_configuration
+    limit: 1
+```
+
+Remote Configuration relation offers the option of configuring Alertmanager via relation data.
+This method assumes usage of another charm providing the configuration 
+(i.e. [alertmanager-configurer-k8s]). 
+
+Remote configuration and local configuration (using charm's config parameters) are mutually 
+exclusive. In case configuration is provided through both channels simultaneously, charm will go 
+to `Blocked` state, awaiting conflict resolution by the user.
+
+```bash
+juju relate alertmanager-k8s:remote-configuration SOME_PROVIDER_CHARM:remote-configuration
+```
+
+```mermaid
+graph LR
+
+subgraph observability["Observability"]
+  alertmanager[Alertmanager]
+end
+
+subgraph alertmanager-configurer["Remote Configuration Provider"]
+  am_config[alertmanager-configurer-k8s]
+end
+
+am_config --->|remote_configuration| alertmanager
+user{User} -.-> |REST API CALLS| am_config
+```
+
 [Loki operator]: https://charmhub.io/loki-k8s
 [Prometheus operator]: https://charmhub.io/prometheus-k8s
 [Karma operator]: https://charmhub.io/karma-k8s/
+[alertmanager-configurer-k8s]: https://github.com/canonical/alertmanager-configurer-k8s-operator

@@ -1,0 +1,9 @@
+# Copyright 2022 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+options:
+  config_file:
+    type: string
+    default: ""
+    description: |
+      Alertmanager configuration file (yaml).

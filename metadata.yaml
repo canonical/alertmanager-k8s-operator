@@ -56,6 +56,9 @@ requires:
   ingress:
     interface: ingress
     limit: 1
+  remote-configuration:
+    interface: alertmanager_remote_configuration
+    limit: 1
 
 peers:
   replicas:

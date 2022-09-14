@@ -8,11 +8,15 @@ import hashlib
 import logging
 import re
 import socket
+from types import SimpleNamespace
 from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
+from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
+    RemoteConfigurationRequirer,
+)
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
@@ -65,10 +69,10 @@ class AlertmanagerCharm(CharmBase):
     # Layer name is used for the layer label argument in container.add_layer
     # Service name matches charm name for consistency
     _container_name = _layer_name = _service_name = _exe_name = "alertmanager"
-    _relation_name = "alerting"
-    _peer_relation_name = "replicas"  # must match metadata.yaml peer role name
-    _api_port = 9093  # port to listen on for the web interface and API
-    _ha_port = 9094  # port for HA-communication between multiple instances of alertmanager
+    _relations = SimpleNamespace(
+        alerting="alerting", peer="replicas", remote_config="remote_configuration"
+    )
+    _ports = SimpleNamespace(api=9093, ha=9094)
 
     # path, inside the workload container, to the alertmanager and amtool configuration files
     # the amalgamated templates file goes in the same folder as the main configuration file
@@ -97,11 +101,11 @@ class AlertmanagerCharm(CharmBase):
         # reinitialize the charm between core events.
         self.alertmanager_provider = AlertmanagerProvider(
             self,
-            self._relation_name,
-            self._api_port,
+            self._relations.alerting,
+            self._ports.api,
             external_url=lambda: AlertmanagerCharm._external_url.fget(self),  # type: ignore
         )
-        self.api = Alertmanager(port=self._api_port, web_route_prefix=self.web_route_prefix)
+        self.api = Alertmanager(port=self._ports.api, web_route_prefix=self.web_route_prefix)
 
         self.grafana_dashboard_provider = GrafanaDashboardProvider(charm=self)
         self.grafana_source_provider = GrafanaSourceProvider(
@@ -110,12 +114,13 @@ class AlertmanagerCharm(CharmBase):
             source_url=self._external_url,
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
+        self.remote_configuration = RemoteConfigurationRequirer(self)
 
         self.service_patcher = KubernetesServicePatch(
             self,
             [
-                (f"{self.app.name}", self._api_port, self._api_port),
-                (f"{self.app.name}-ha", self._ha_port, self._ha_port),
+                (f"{self.app.name}", self._ports.api, self._ports.api),
+                (f"{self.app.name}-ha", self._ports.ha, self._ports.ha),
             ],
         )
         self.resources_patch = KubernetesComputeResourcesPatch(
@@ -129,7 +134,7 @@ class AlertmanagerCharm(CharmBase):
         self._scraping = MetricsEndpointProvider(
             self,
             relation_name="self-metrics-endpoint",
-            jobs=[{"static_configs": [{"targets": [f"*:{self._api_port}"]}]}],
+            jobs=[{"static_configs": [{"targets": [f"*:{self._ports.api}"]}]}],
         )
 
         self.container = self.unit.get_container(self._container_name)
@@ -140,12 +145,18 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
+        # Remote configuration events
+        self.framework.observe(
+            self.remote_configuration.on.remote_configuration_changed,
+            self._on_remote_configuration_changed,
+        )
+
         # Peer relation events
         self.framework.observe(
-            self.on[self._peer_relation_name].relation_joined, self._on_peer_relation_joined
+            self.on[self._relations.peer].relation_joined, self._on_peer_relation_joined
         )
         self.framework.observe(
-            self.on[self._peer_relation_name].relation_changed, self._on_peer_relation_changed
+            self.on[self._relations.peer].relation_changed, self._on_peer_relation_changed
         )
 
         # Action events
@@ -163,7 +174,7 @@ class AlertmanagerCharm(CharmBase):
     def _on_k8s_patch_failed(self, event: K8sResourcePatchFailedEvent):
         self.unit.status = BlockedStatus(event.message)
 
-    def _handle_ingress(self, event):
+    def _handle_ingress(self, _):
         if url := self.ingress.url:
             logger.info("Ingress is ready: '%s'.", url)
         else:
@@ -212,7 +223,7 @@ class AlertmanagerCharm(CharmBase):
     @property
     def api_port(self) -> int:
         """Get the API port number to use for alertmanager (default: 9093)."""
-        return self._api_port
+        return self._ports.api
 
     @property
     def peer_relation(self) -> Optional["Relation"]:
@@ -221,7 +232,7 @@ class AlertmanagerCharm(CharmBase):
         Returns: peer relation object
         (NOTE: would return None if called too early, e.g. during install).
         """
-        return self.model.get_relation(self._peer_relation_name)
+        return self.model.get_relation(self._relations.peer)
 
     def _alertmanager_layer(self) -> Layer:
         """Returns Pebble configuration layer for alertmanager."""
@@ -231,7 +242,7 @@ class AlertmanagerCharm(CharmBase):
             peer_addresses = self._get_peer_addresses()
 
             # cluster listen address - empty string disables HA mode
-            listen_address_arg = "" if len(peer_addresses) == 0 else f"0.0.0.0:{self._ha_port}"
+            listen_address_arg = "" if len(peer_addresses) == 0 else f"0.0.0.0:{self._ports.ha}"
 
             # The chosen port in the cluster.listen-address flag is the port that needs to be
             # specified in the cluster.peer flag of the other peers.
@@ -244,7 +255,7 @@ class AlertmanagerCharm(CharmBase):
                 f"{self._exe_name} "
                 f"--config.file={self._config_path} "
                 f"--storage.path={self._storage_path} "
-                f"--web.listen-address=:{self._api_port} "
+                f"--web.listen-address=:{self._ports.api} "
                 f"--cluster.listen-address={listen_address_arg} "
                 f"--web.external-url={self._external_url} "
                 f"{peer_cmd_args}"
@@ -296,9 +307,6 @@ class AlertmanagerCharm(CharmBase):
     def _update_layer(self) -> bool:
         """Update service layer to reflect changes in peers (replicas).
 
-        Args:
-          restart: a flag indicating if the service should be restarted if a change was detected.
-
         Returns:
           True if anything changed; False otherwise
         """
@@ -322,6 +330,21 @@ class AlertmanagerCharm(CharmBase):
                 return False
 
         return False
+
+    def _get_remote_config(self) -> Optional[Tuple[Optional[dict], Optional[str]]]:
+        remote_config, remote_templates = self.remote_configuration.config()
+        if remote_config:
+            templates = "\n".join(remote_templates) if remote_templates else None
+            return remote_config, templates
+        return None
+
+    def _get_local_config(self) -> Optional[Tuple[Optional[dict], Optional[str]]]:
+        config = self.config["config_file"]
+        if config:
+            local_config = yaml.safe_load(config)
+            local_templates = self.config["templates_file"] or None
+            return local_config, local_templates
+        return None
 
     @property
     def _default_config(self) -> dict:
@@ -355,8 +378,18 @@ class AlertmanagerCharm(CharmBase):
         )
         pending.append((self._amtool_config_path, amtool_config))
 
+        # block if multiple config sources configured
+        if self._get_remote_config() and self._get_local_config():
+            logger.error("unable to use config from config_file and relation at the same time")
+            raise ConfigUpdateFailure("Multiple configs detected")
         # if no config provided, use default config with a dummy receiver
-        config = yaml.safe_load(self.config["config_file"]) or self._default_config
+        if compound_config := self._get_remote_config():
+            config, templates = compound_config
+        elif compound_config := self._get_local_config():
+            config, templates = compound_config
+        else:
+            config = self._default_config
+            templates = None
 
         # `yaml.safe_load`'s return type changes based on input. For example, it returns `str`
         # for "foo" but `dict` for "foo: bar". Error out if type is not dict.
@@ -375,7 +408,7 @@ class AlertmanagerCharm(CharmBase):
             )
 
         # add templates, if any
-        if templates := self.config["templates_file"]:
+        if templates:
             config["templates"] = [f"{self._templates_path}"]
             pending.append((self._templates_path, templates))
 
@@ -540,6 +573,10 @@ class AlertmanagerCharm(CharmBase):
         """
         self._common_exit_hook()
 
+    def _on_remote_configuration_changed(self, _):
+        """Event handler for remote configuration's RelationChangedEvent."""
+        self._common_exit_hook()
+
     def _on_update_status(self, _):
         """Event handler for UpdateStatusEvent.
 
@@ -595,7 +632,7 @@ class AlertmanagerCharm(CharmBase):
                         )
                         continue
                     # Drop scheme and replace API port with HA port
-                    addresses.append(f"{parsed.hostname}:{self._ha_port}{parsed.path}")
+                    addresses.append(f"{parsed.hostname}:{self._ports.ha}{parsed.path}")
 
         return addresses
 
@@ -622,7 +659,7 @@ class AlertmanagerCharm(CharmBase):
 
         If an external (public) url is set, add in its path.
         """
-        return f"http://{socket.getfqdn()}:{self._api_port}{self.web_route_prefix}"
+        return f"http://{socket.getfqdn()}:{self._ports.api}{self.web_route_prefix}"
 
     @property
     def _external_url(self) -> str:
