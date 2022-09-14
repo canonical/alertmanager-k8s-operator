@@ -55,7 +55,7 @@ class ConfigReadError(Exception):
         super().__init__(self.message)
 
 
-def config_main_keys_are_valid(config: dict) -> bool:
+def config_main_keys_are_valid(config: Optional[dict]) -> bool:
     """Checks whether main keys in the Alertmanager's config file are valid.
 
     This method facilitates the basic sanity check of Alertmanager's configuration. It checks
@@ -392,7 +392,7 @@ class RemoteConfigurationProvider(Object):
         except (FileNotFoundError, OSError, yaml.YAMLError) as e:
             raise ConfigReadError(path) from e
 
-    def update_relation_data_bag(self, alertmanager_config: dict) -> None:
+    def update_relation_data_bag(self, alertmanager_config: Optional[dict]) -> None:
         """Updates relation data bag with Alertmanager config and templates.
 
         Before updating relation data bag, basic sanity check of given configuration is done.
@@ -406,12 +406,12 @@ class RemoteConfigurationProvider(Object):
         templates = self._get_templates(config)
         if config_main_keys_are_valid(config):
             for relation in self._charm.model.relations[self._relation_name]:
-                relation.data[self._charm.app]["alertmanager_config"] = json.dumps(config)  # type: ignore[union-attr]  # noqa: E501
-                relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(templates)  # type: ignore[union-attr]  # noqa: E501
+                relation.data[self._charm.app]["alertmanager_config"] = json.dumps(config)
+                relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(templates)
         else:
             logger.warning("Invalid Alertmanager configuration. Ignoring...")
 
-    def _get_templates(self, config: dict) -> Optional[list]:
+    def _get_templates(self, config: Optional[dict]) -> Optional[list]:
         """Prepares templates data to be put in a relation data bag.
 
         If the main config file contains templates section, content of the files specified in this
@@ -430,7 +430,7 @@ class RemoteConfigurationProvider(Object):
                 try:
                     templates.append(self._load_templates_file(file))
                 except FileNotFoundError:
-                    logger.warning(f"Template file {file} not found. Skipping.")
+                    logger.warning("Template file {} not found. Skipping.".format(file))
                     continue
         return templates
 
