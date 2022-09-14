@@ -6,7 +6,7 @@ on:
 
 jobs:
   lib-check:
-    name: Static analysis of /lib for Python 3.5
+    name: Old Static analysis of /lib for Python 3.5
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -20,7 +20,7 @@ jobs:
     - name: Run static analysis for /lib for 3.5
       run: tox -vve static-lib
   static-analysis:
-    name: Static analysis
+    name: Old Static analysis
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
