@@ -1,4 +1,4 @@
-name: Pull Request
+name:  Old Pull Request
 on:
   pull_request:
     branches:
@@ -34,7 +34,7 @@ jobs:
     - name: Run static analysis (integration tests)
       run: tox -vve static-integration
   lint:
-    name: Lint
+    name: Old Lint
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -44,7 +44,7 @@ jobs:
     - name: Run linters
       run: tox -vve lint
   unit-test:
-    name: Unit tests
+    name: Old Unit tests
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -54,5 +54,5 @@ jobs:
     - name: Run tests
       run: tox -vve unit
   integration-test-microk8s:
-    name: Integration tests (microk8s)
+    name: Old Integration tests (microk8s)
     uses: ./.github/workflows/integration-tests.yml
