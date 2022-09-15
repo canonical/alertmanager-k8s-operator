@@ -24,7 +24,6 @@ the `RemoteConfigurationRequirer`.
 
 import json
 import logging
-from pathlib import Path
 from typing import Optional, Tuple
 
 import yaml
@@ -49,7 +48,7 @@ DEFAULT_RELATION_NAME = "remote-configuration"
 class ConfigReadError(Exception):
     """Raised if Alertmanager configuration can't be read."""
 
-    def __init__(self, config_file: Path):
+    def __init__(self, config_file: str):
         self.message = "Failed to read {}".format(config_file)
 
         super().__init__(self.message)
@@ -343,7 +342,7 @@ class RemoteConfigurationProvider(Object):
     def with_config_file(
         cls,
         charm: CharmBase,
-        config_file: Path,
+        config_file: str,
         relation_name: str = DEFAULT_RELATION_NAME,
     ):
         """The RemoteConfigurationProvider object factory.
@@ -373,7 +372,7 @@ class RemoteConfigurationProvider(Object):
         self.update_relation_data_bag(self.alertmanager_config)
 
     @staticmethod
-    def load_config_file(path: Path) -> dict:
+    def load_config_file(path: str) -> dict:
         """Reads given Alertmanager configuration file and turns it into a dictionary.
 
         Args:
@@ -435,7 +434,7 @@ class RemoteConfigurationProvider(Object):
         return templates
 
     @staticmethod
-    def _load_templates_file(path: Path) -> str:
+    def _load_templates_file(path: str) -> str:
         """Reads given Alertmanager templates file and returns its content in a form of a string.
 
         Args:

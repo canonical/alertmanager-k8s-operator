@@ -5,7 +5,6 @@
 """A Charm to functionally test the Alertmanager Operator."""
 
 import logging
-from pathlib import Path
 
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     ConfigReadError,
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 class AlertmanagerTesterCharm(CharmBase):
     """A Charm to functionally test the Alertmanager Operator."""
 
-    ALERTMANAGER_CONFIG_FILE = Path("/etc/alertmanager/alertmanager.yml")
+    ALERTMANAGER_CONFIG_FILE = "/etc/alertmanager/alertmanager.yml"
 
     def __init__(self, *args):
         super().__init__(*args)
