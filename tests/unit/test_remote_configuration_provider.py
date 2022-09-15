@@ -4,7 +4,6 @@
 import json
 import logging
 import unittest
-from pathlib import Path
 from unittest.mock import PropertyMock, patch
 
 import yaml
@@ -53,7 +52,7 @@ class RemoteConfigurationProviderCharm(CharmBase):
         super().__init__(*args)
 
         alertmanager_config = RemoteConfigurationProvider.load_config_file(
-            Path(self.ALERTMANAGER_CONFIG_FILE)
+            self.ALERTMANAGER_CONFIG_FILE
         )
         self.remote_configuration_provider = RemoteConfigurationProvider(
             charm=self,
@@ -66,7 +65,7 @@ class RemoteConfigurationProviderCharm(CharmBase):
     def _update_config(self, _):
         try:
             alertmanager_config = RemoteConfigurationProvider.load_config_file(
-                Path(self.ALERTMANAGER_CONFIG_FILE)
+                self.ALERTMANAGER_CONFIG_FILE
             )
             self.remote_configuration_provider.update_relation_data_bag(alertmanager_config)
         except ConfigReadError:
