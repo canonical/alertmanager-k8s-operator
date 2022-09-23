@@ -178,6 +178,7 @@ class RemoteConfigurationRequirer(Object):
 
     def _on_relation_broken(self, _) -> None:
         """Event handler for remote configuration relation broken event.
+
         Informs about the fact that the configuration from remote provider will no longer be used.
         """
         logger.debug("Remote configuration no longer available.")
