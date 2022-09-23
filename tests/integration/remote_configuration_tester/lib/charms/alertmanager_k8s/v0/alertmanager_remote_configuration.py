@@ -38,7 +38,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 1
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +159,7 @@ class RemoteConfigurationRequirer(Object):
 
         self.framework.observe(on_relation.relation_created, self._on_relation_created)
         self.framework.observe(on_relation.relation_changed, self._on_relation_changed)
+        self.framework.observe(on_relation.relation_broken, self._on_relation_broken)
 
     def _on_relation_created(self, _) -> None:
         """Event handler for remote configuration relation created event.
@@ -174,6 +175,13 @@ class RemoteConfigurationRequirer(Object):
         changes.
         """
         self.on.remote_configuration_changed.emit()
+
+    def _on_relation_broken(self, _) -> None:
+        """Event handler for remote configuration relation broken event.
+
+        Informs about the fact that the configuration from remote provider will no longer be used.
+        """
+        logger.debug("Remote configuration no longer available.")
 
     def config(self) -> Tuple[Optional[dict], Optional[list]]:
         """Exposes Alertmanager configuration sent inside the relation data bag.
@@ -248,18 +256,6 @@ class RemoteConfigurationRequirer(Object):
         return templates
 
 
-class AlertmanagerConfigurationBrokenEvent(EventBase):
-    """Event emitted when configuration provided by the Provider charm is invalid."""
-
-    pass
-
-
-class AlertmanagerRemoteConfigurationProviderEvents(ObjectEvents):
-    """Event descriptor for events raised by `AlertmanagerRemoteConfigurationProvider`."""
-
-    configuration_broken = EventSource(AlertmanagerConfigurationBrokenEvent)
-
-
 class RemoteConfigurationProvider(Object):
     """API that manages a provided `alertmanager_remote_configuration` relation.
 
@@ -319,8 +315,6 @@ class RemoteConfigurationProvider(Object):
     `alertmanager-k8s` charm, which requires such separation.
     """
 
-    on = AlertmanagerRemoteConfigurationProviderEvents()
-
     def __init__(
         self,
         charm: CharmBase,
@@ -343,6 +337,7 @@ class RemoteConfigurationProvider(Object):
         on_relation = self._charm.on[self._relation_name]
 
         self.framework.observe(on_relation.relation_joined, self._on_relation_joined)
+        self.framework.observe(on_relation.relation_departed, self._on_relation_departed)
 
     @classmethod
     def with_config_file(
@@ -376,6 +371,15 @@ class RemoteConfigurationProvider(Object):
         if not self._charm.unit.is_leader():
             return
         self.update_relation_data_bag(self.alertmanager_config)
+
+    def _on_relation_departed(self, _) -> None:
+        """Event handler for RelationDepartedEvent.
+
+        Clears the relation data bag when relation departs.
+        """
+        if not self._charm.unit.is_leader():
+            return
+        self._clear_relation_data()
 
     @staticmethod
     def load_config_file(path: str) -> dict:
@@ -415,7 +419,6 @@ class RemoteConfigurationProvider(Object):
         else:
             logger.warning("Invalid Alertmanager configuration. Ignoring...")
             self._clear_relation_data()
-            self.on.configuration_broken.emit()
 
     def _prepare_relation_data(
         self, config: Optional[dict]
@@ -466,5 +469,5 @@ class RemoteConfigurationProvider(Object):
     def _clear_relation_data(self) -> None:
         """Clears relation data bag."""
         for relation in self._charm.model.relations[self._relation_name]:
-            relation.data[self._charm.app]["alertmanager_config"] = ""
-            relation.data[self._charm.app]["alertmanager_templates"] = ""
+            relation.data[self._charm.app]["alertmanager_config"] = json.dumps({})
+            relation.data[self._charm.app]["alertmanager_templates"] = json.dumps([])
