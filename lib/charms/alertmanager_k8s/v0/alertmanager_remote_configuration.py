@@ -38,7 +38,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 2
 
 logger = logging.getLogger(__name__)
 
@@ -256,6 +256,18 @@ class RemoteConfigurationRequirer(Object):
         return templates
 
 
+class AlertmanagerConfigurationBrokenEvent(EventBase):
+    """Event emitted when configuration provided by the Provider charm is invalid."""
+
+    pass
+
+
+class AlertmanagerRemoteConfigurationProviderEvents(ObjectEvents):
+    """Event descriptor for events raised by `AlertmanagerRemoteConfigurationProvider`."""
+
+    configuration_broken = EventSource(AlertmanagerConfigurationBrokenEvent)
+
+
 class RemoteConfigurationProvider(Object):
     """API that manages a provided `alertmanager_remote_configuration` relation.
 
@@ -314,6 +326,8 @@ class RemoteConfigurationProvider(Object):
     the default provider of the `alertmanager_remote_configuration` relation will be
     `alertmanager-k8s` charm, which requires such separation.
     """
+
+    on = AlertmanagerRemoteConfigurationProviderEvents()
 
     def __init__(
         self,
@@ -401,37 +415,41 @@ class RemoteConfigurationProvider(Object):
         """
         if not self._charm.unit.is_leader():
             return
-        config = alertmanager_config
-        templates = self._get_templates(config)
+        config, templates = self._prepare_relation_data(alertmanager_config)
         if config_main_keys_are_valid(config):
             for relation in self._charm.model.relations[self._relation_name]:
                 relation.data[self._charm.app]["alertmanager_config"] = json.dumps(config)
                 relation.data[self._charm.app]["alertmanager_templates"] = json.dumps(templates)
         else:
             logger.warning("Invalid Alertmanager configuration. Ignoring...")
+            self._clear_relation_data()
+            self.on.configuration_broken.emit()
 
-    def _get_templates(self, config: Optional[dict]) -> Optional[list]:
-        """Prepares templates data to be put in a relation data bag.
+    def _prepare_relation_data(
+        self, config: Optional[dict]
+    ) -> Tuple[Optional[dict], Optional[list]]:
+        """Prepares relation data to be put in a relation data bag.
 
         If the main config file contains templates section, content of the files specified in this
         section will be concatenated. At the same time, templates section will be removed from
         the main config, as alertmanager-k8s-operator charm doesn't tolerate it.
 
         Args:
-            config: Alertmanager config
+            config: Content of the Alertmanager configuration file
 
         Returns:
+            dict: Alertmanager configuration
             list: List of templates
         """
         templates = []
-        if config and config.get("templates", []):
+        if config and config.get("templates") is not None:
             for file in config.pop("templates"):
                 try:
                     templates.append(self._load_templates_file(file))
                 except FileNotFoundError:
                     logger.warning("Template file {} not found. Skipping.".format(file))
                     continue
-        return templates
+        return config, templates
 
     @staticmethod
     def _load_templates_file(path: str) -> str:
@@ -452,3 +470,9 @@ class RemoteConfigurationProvider(Object):
             return templates
         except (FileNotFoundError, OSError, ValueError) as e:
             raise ConfigReadError(path) from e
+
+    def _clear_relation_data(self) -> None:
+        """Clears relation data bag."""
+        for relation in self._charm.model.relations[self._relation_name]:
+            relation.data[self._charm.app]["alertmanager_config"] = ""
+            relation.data[self._charm.app]["alertmanager_templates"] = ""
