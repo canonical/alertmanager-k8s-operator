@@ -59,6 +59,8 @@ requires:
   remote-configuration:
     interface: alertmanager_remote_configuration
     limit: 1
+  catalogue:
+    interface: catalogue
 
 peers:
   replicas:

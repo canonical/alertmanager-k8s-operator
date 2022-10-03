@@ -17,6 +17,7 @@ from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvide
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
+from charms.catalogue_k8s.v0.catalogue import CatalogueConsumer, CatalogueItem
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
@@ -28,7 +29,11 @@ from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
 )
 from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
+from charms.traefik_k8s.v1.ingress import (
+    IngressPerAppReadyEvent,
+    IngressPerAppRequirer,
+    IngressPerAppRevokedEvent,
+)
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -137,6 +142,29 @@ class AlertmanagerCharm(CharmBase):
             jobs=[{"static_configs": [{"targets": [f"*:{self._ports.api}"]}]}],
         )
 
+        self.catalog = CatalogueConsumer(
+            charm=self,
+            refresh_event=[
+                self.ingress.on.ready,
+                self.ingress.on.revoked,
+                self.on.update_status,
+                self.on.upgrade_charm,
+            ],
+            item=CatalogueItem(
+                name="Alertmanager",
+                icon="bell-alert",
+                url=self._external_url,
+                description=(
+                    "Alertmanager receives alerts from supporting applications, such as "
+                    "Prometheus or Loki, then deduplicates, groups and routes them to "
+                    "the configured receiver(s)."
+                ),
+            ),
+        )
+
+        self.framework.observe(self.ingress.on.ready, self._on_ingress_ready)
+        self.framework.observe(self.ingress.on.revoked, self._on_ingress_revoked)
+
         self.container = self.unit.get_container(self._container_name)
 
         # Core lifecycle events
@@ -206,6 +234,12 @@ class AlertmanagerCharm(CharmBase):
         event.set_results(
             {"result": output, "error-message": err, "valid": False if err else True}
         )
+
+    def _on_ingress_ready(self, event: IngressPerAppReadyEvent):
+        logger.info("This app's ingress URL: %s", event.url)
+
+    def _on_ingress_revoked(self, event: IngressPerAppRevokedEvent):
+        logger.info("This app no longer has ingress")
 
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
