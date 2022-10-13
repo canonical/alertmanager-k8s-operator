@@ -140,6 +140,7 @@ class AlertmanagerCharm(CharmBase):
             self,
             relation_name="self-metrics-endpoint",
             jobs=[{"static_configs": [{"targets": [f"*:{self._ports.api}"]}]}],
+            external_url=self._external_url,
         )
 
         self.catalog = CatalogueConsumer(
