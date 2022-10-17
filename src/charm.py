@@ -139,7 +139,8 @@ class AlertmanagerCharm(CharmBase):
         self._scraping = MetricsEndpointProvider(
             self,
             relation_name="self-metrics-endpoint",
-            jobs=[{"static_configs": [{"targets": [f"*:{self._ports.api}"]}]}],
+            jobs=self.self_scraping_job,
+            external_url=self._external_url,
         )
 
         self.catalog = CatalogueConsumer(
@@ -190,6 +191,16 @@ class AlertmanagerCharm(CharmBase):
         # Action events
         self.framework.observe(self.on.show_config_action, self._on_show_config_action)
         self.framework.observe(self.on.check_config_action, self._on_check_config)
+
+    @property
+    def self_scraping_job(self):
+        """The self-monitoring scrape job."""
+        port = urlparse(self._external_url).port or 80
+        return [
+            {
+                "static_configs": [{"targets": [f"*:{port}"]}],
+            }
+        ]
 
     def _resource_reqs_from_config(self) -> ResourceRequirements:
         limits = {
