@@ -270,7 +270,9 @@ class AlertmanagerProvider(RelationManagerBase):
         """
         # Drop the scheme
         parsed = urlparse(self._external_url())
-        return {"public_address": "{}:{}{}".format(parsed.hostname, parsed.port, parsed.path)}
+        return {
+            "public_address": "{}:{}{}".format(parsed.hostname, parsed.port or 80, parsed.path)
+        }
 
     def update_relation_data(self, event: Optional[RelationEvent] = None):
         """Helper function for updating relation data bags.

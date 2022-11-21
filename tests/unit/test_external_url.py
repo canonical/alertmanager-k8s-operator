@@ -217,6 +217,23 @@ class TestExternalUrl(unittest.TestCase):
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
+    def test_netloc_without_port(self):
+        # WHEN the external url config option is set without a port
+        self.harness.update_config({"web_external_url": "http://demo.site"})
+
+        # THEN the pebble command is rendered with the config option as-is
+        self.assertEqual(self.get_url_cli_arg(), "http://demo.site")
+
+        # BUT the cluster relation data is rendered with port 80 (and without scheme)
+        expected_rel_data = {
+            "public_address": "demo.site:80",
+        }
+        rel = self.harness.charm.framework.model.get_relation("alerting", self.rel_id)
+        self.assertEqual(expected_rel_data, rel.data[self.harness.charm.unit])
+
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch("socket.getfqdn", new=lambda *args: "fqdn")
+    @k8s_resource_multipatch
     def test_invalid_web_route_prefix(self):
         for invalid_url in ["htp://foo.bar", "foo.bar"]:
             with self.subTest(url=invalid_url):
