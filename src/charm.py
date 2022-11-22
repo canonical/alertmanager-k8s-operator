@@ -148,8 +148,9 @@ class AlertmanagerCharm(CharmBase):
             refresh_event=[
                 self.ingress.on.ready,
                 self.ingress.on.revoked,
+                self.on["ingress"].relation_changed,
                 self.on.update_status,
-                self.on.upgrade_charm,
+                self.on.config_changed,  # web_external_url; also covers upgrade-charm
             ],
             item=CatalogueItem(
                 name="Alertmanager",

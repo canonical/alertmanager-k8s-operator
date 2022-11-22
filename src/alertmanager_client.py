@@ -167,7 +167,11 @@ class Alertmanager:
             raise AlertmanagerBadResponse("Response is not a YAML string") from e
 
     def _post(
-        self, url: str, post_data: bytes, headers: dict = None, timeout: int = None
+        self,
+        url: str,
+        post_data: bytes,
+        headers: Optional[dict] = None,
+        timeout: Optional[int] = None,
     ) -> bytes:
         """Make a HTTP POST request to Alertmanager.
 
@@ -288,7 +292,9 @@ class Alertmanager:
 
         return response
 
-    def _delete(self, url: str, headers: dict = None, timeout: int = None) -> bytes:
+    def _delete(
+        self, url: str, headers: Optional[dict] = None, timeout: Optional[int] = None
+    ) -> bytes:
         """Make a HTTP DELETE request to Alertmanager.
 
         Args:
@@ -318,7 +324,7 @@ class Alertmanager:
 
         return response
 
-    def _get(self, url: str, headers: dict = None, timeout: int = None) -> str:
+    def _get(self, url: str, headers: Optional[dict] = None, timeout: Optional[int] = None) -> str:
         """Make a HTTP GET request to Alertmanager.
 
         Args:
