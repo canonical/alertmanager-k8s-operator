@@ -37,7 +37,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 3
+LIBPATCH = 4
 
 # Set to match metadata.yaml
 INTERFACE_NAME = "karma_dashboard"
@@ -328,7 +328,7 @@ class KarmaProvider(RelationManagerBase):
         # It is needed here because the target URL may be set by the consumer before any
         # "karma-dashboard" relation is joined, in which case there are no relation unit data bags
         # available for storing the target URL.
-        self._stored.set_default(config={})
+        self._stored.set_default(config=dict())
 
         events = self.charm.on[self.name]
         self.framework.observe(events.relation_joined, self._on_relation_joined)
@@ -344,12 +344,12 @@ class KarmaProvider(RelationManagerBase):
             True if the currently stored configuration for an alertmanager target is valid; False
             otherwise.
         """
-        return KarmaAlertmanagerConfig.is_valid(self._stored.config)
+        return KarmaAlertmanagerConfig.is_valid(self._stored.config)  # type: ignore
 
     @property
     def target(self) -> Optional[str]:
         """str: Alertmanager URL to be used by Karma."""
-        return self._stored.config.get("uri", None)
+        return self._stored.config.get("uri", None)  # type: ignore
 
     @target.setter
     def target(self, url: str) -> None:
@@ -370,12 +370,12 @@ class KarmaProvider(RelationManagerBase):
             logger.warning("Invalid config: {%s, %s}", name, url)
             return
 
-        self._stored.config.update(config)
+        self._stored.config.update(config)  # type: ignore
 
         # target changed - must update all relation data
         self._update_relation_data()
 
-    def _update_relation_data(self, event: RelationJoinedEvent = None):
+    def _update_relation_data(self, event: Optional[RelationJoinedEvent] = None):
         """Helper function for updating relation data bags.
 
         This function can be used in two different ways:
@@ -391,7 +391,7 @@ class KarmaProvider(RelationManagerBase):
             # a single consumer charm's unit may be related to multiple karma dashboards
             if self.name in self.charm.model.relations:
                 for relation in self.charm.model.relations[self.name]:
-                    relation.data[self.charm.unit].update(self._stored.config)
+                    relation.data[self.charm.unit].update(self._stored.config)  # type: ignore
         else:
             # update relation data only for the newly joined relation
-            event.relation.data[self.charm.unit].update(self._stored.config)
+            event.relation.data[self.charm.unit].update(self._stored.config)  # type: ignore
