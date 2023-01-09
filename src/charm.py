@@ -27,7 +27,7 @@ from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     ResourceRequirements,
     adjust_resource_requirements,
 )
-from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
+from charms.observability_libs.v1.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v1.ingress import (
     IngressPerAppReadyEvent,
@@ -46,8 +46,8 @@ from ops.model import (
 )
 from ops.pebble import ChangeError, ExecError, Layer, PathError, ProtocolError
 
-from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
+from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 logger = logging.getLogger(__name__)
 
 
