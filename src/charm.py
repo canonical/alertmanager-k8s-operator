@@ -46,8 +46,8 @@ from ops.model import (
 )
 from ops.pebble import ChangeError, ExecError, Layer, PathError, ProtocolError
 
-
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
+
 logger = logging.getLogger(__name__)
 
 
