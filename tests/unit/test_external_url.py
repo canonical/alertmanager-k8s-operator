@@ -128,13 +128,15 @@ class TestExternalUrl(unittest.TestCase):
         self.assertEqual(self.get_url_cli_arg(), external_url_ingress)
         self.assertTrue(self.is_service_running())
 
+        # NOTE intentionally not emptying out relation data manually
+        # FIXME: relation data is not emptied when relation-broken is emitted;
+        #   see https://github.com/canonical/operator/issues/888
+        app_data = {"ingress": ""}
+        self.harness.update_relation_data(rel_id, "traefik-app", app_data)
+
         # AND WHEN the traefik relation is removed
         self.harness.remove_relation_unit(rel_id, "traefik-app/0")
         self.harness.remove_relation(rel_id)
-
-        # NOTE intentionally not emptying out relation data manually
-        # app_data = {"ingress": ""}
-        # self.harness.update_relation_data(rel_id, "traefik-app", app_data)
 
         # THEN the fqdn is used as external url
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
