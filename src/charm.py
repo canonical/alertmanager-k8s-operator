@@ -27,7 +27,10 @@ from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     ResourceRequirements,
     adjust_resource_requirements,
 )
-from charms.observability_libs.v0.kubernetes_service_patch import KubernetesServicePatch
+from charms.observability_libs.v1.kubernetes_service_patch import (
+    KubernetesServicePatch,
+    ServicePort,
+)
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v1.ingress import (
     IngressPerAppReadyEvent,
@@ -124,8 +127,8 @@ class AlertmanagerCharm(CharmBase):
         self.service_patcher = KubernetesServicePatch(
             self,
             [
-                (f"{self.app.name}", self._ports.api, self._ports.api),
-                (f"{self.app.name}-ha", self._ports.ha, self._ports.ha),
+                ServicePort(self._ports.api, f"{self.app.name}"),
+                ServicePort(self._ports.ha, f"{self.app.name}-ha"),
             ],
         )
         self.resources_patch = KubernetesComputeResourcesPatch(
