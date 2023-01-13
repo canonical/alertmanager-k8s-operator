@@ -127,8 +127,8 @@ class AlertmanagerCharm(CharmBase):
         self.service_patcher = KubernetesServicePatch(
             self,
             [
-                ServicePort(self._ports.api, f"{self.app.name}"),
-                ServicePort(self._ports.ha, f"{self.app.name}-ha"),
+                ServicePort(self._ports.api, name=f"{self.app.name}"),
+                ServicePort(self._ports.ha, name=f"{self.app.name}-ha"),
             ],
         )
         self.resources_patch = KubernetesComputeResourcesPatch(
