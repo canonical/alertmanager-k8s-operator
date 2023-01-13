@@ -129,8 +129,9 @@ class TestExternalUrl(unittest.TestCase):
         self.assertTrue(self.is_service_running())
 
         # NOTE intentionally not emptying out relation data manually
-        # FIXME: relation data is not emptied when relation-broken is emitted;
-        #   see https://github.com/canonical/operator/issues/888
+        # FIXME: figure out if we do or do not need to manually empty out relation-data
+        #   before relation-broken is emitted.
+        #   https://github.com/canonical/operator/issues/888
         app_data = {"ingress": ""}
         self.harness.update_relation_data(rel_id, "traefik-app", app_data)
 
