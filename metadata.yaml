@@ -16,7 +16,6 @@ description: |
 website: https://charmhub.io/alertmanager-k8s
 source: https://github.com/canonical/alertmanager-k8s-operator
 issues: https://github.com/canonical/alertmanager-k8s-operator/issues
-docs: https://discourse.charmhub.io/t/alertmanager-k8s-docs-index/5788
 
 # workload containers
 containers:
