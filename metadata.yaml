@@ -45,6 +45,11 @@ provides:
     # assumed network type: private
   karma-dashboard:
     interface: karma_dashboard
+    description: |
+      Links an entire Alertmanager cluster to a Karma[1] dashboard.
+      Scaling alertmanager would automatically cause karma to group alerts by cluster.
+
+      [1] https://charmhub.io/karma-k8s
   self-metrics-endpoint:
     interface: prometheus_scrape
   grafana-dashboard:
@@ -56,6 +61,10 @@ requires:
   ingress:
     interface: ingress
     limit: 1
+    description: |
+      Alertmanager typically needs a "per app" ingress, which is available in the traefik charm[1].
+
+      [1] https://charmhub.io/traefik-k8s
   remote-configuration:
     interface: alertmanager_remote_configuration
     limit: 1
