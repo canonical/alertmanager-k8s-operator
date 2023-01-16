@@ -32,11 +32,7 @@ from charms.observability_libs.v1.kubernetes_service_patch import (
     ServicePort,
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from charms.traefik_k8s.v1.ingress import (
-    IngressPerAppReadyEvent,
-    IngressPerAppRequirer,
-    IngressPerAppRevokedEvent,
-)
+from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -167,9 +163,6 @@ class AlertmanagerCharm(CharmBase):
             ),
         )
 
-        self.framework.observe(self.ingress.on.ready, self._on_ingress_ready)
-        self.framework.observe(self.ingress.on.revoked, self._on_ingress_revoked)
-
         self.container = self.unit.get_container(self._container_name)
 
         # Core lifecycle events
@@ -249,12 +242,6 @@ class AlertmanagerCharm(CharmBase):
         event.set_results(
             {"result": output, "error-message": err, "valid": False if err else True}
         )
-
-    def _on_ingress_ready(self, event: IngressPerAppReadyEvent):
-        logger.info("This app's ingress URL: %s", event.url)
-
-    def _on_ingress_revoked(self, event: IngressPerAppRevokedEvent):
-        logger.info("This app no longer has ingress")
 
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
