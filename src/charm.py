@@ -120,12 +120,12 @@ class AlertmanagerCharm(CharmBase):
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
         self.remote_configuration = RemoteConfigurationRequirer(self)
 
+        api = ServicePort(self._ports.api, name=f"{self.app.name}")
+        ha = ServicePort(self._ports.ha, name=f"{self.app.name}-ha")
         self.service_patcher = KubernetesServicePatch(
-            self,
-            [
-                ServicePort(self._ports.api, name=f"{self.app.name}"),
-                ServicePort(self._ports.ha, name=f"{self.app.name}-ha"),
-            ],
+            charm=self,
+            service_type="ClusterIP",
+            ports=[api, ha],
         )
         self.resources_patch = KubernetesComputeResourcesPatch(
             self,
