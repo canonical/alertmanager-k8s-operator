@@ -1,4 +1,9 @@
 # Contributing to alertmanager-k8s
+![GitHub](https://img.shields.io/github/license/canonical/alertmanager-k8s-operator)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/y/canonical/alertmanager-k8s-operator)
+![GitHub](https://img.shields.io/tokei/lines/github/canonical/alertmanager-k8s-operator)
+![GitHub](https://img.shields.io/github/issues/canonical/alertmanager-k8s-operator)
+![GitHub](https://img.shields.io/github/issues-pr/canonical/alertmanager-k8s-operator) ![GitHub](https://img.shields.io/github/contributors/canonical/alertmanager-k8s-operator) ![GitHub](https://img.shields.io/github/watchers/canonical/alertmanager-k8s-operator?style=social)
 
 ## Overview
 
