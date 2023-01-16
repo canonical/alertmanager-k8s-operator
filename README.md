@@ -118,6 +118,10 @@ juju status alertmanager-k8s --format=json \
   | jq -r '.applications."alertmanager-k8s".units."alertmanager-k8s/0".address'
 ```
 
+So, if you navigate to these IPs you will get Alertmanager dashboard:
+
+![Alertmanager UI](doc/alertmanager-ui.png)
+
 
 ## Clustering
 
@@ -188,8 +192,6 @@ juju refresh alertmanager-k8s \
   --resource alertmanager-image=quay.io/prometheus/alertmanager
 ```
 
-(Note: currently, refreshing to a different image only works when deploying from a local
-charm - [lp/1954462](https://bugs.launchpad.net/juju/+bug/1954462).)
 
 ### Resource revisions
 Workload images are archived on charmhub by revision number.
