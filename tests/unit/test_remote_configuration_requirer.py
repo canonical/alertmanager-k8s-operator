@@ -54,13 +54,15 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         # now does it.
         self.harness.set_can_connect("alertmanager", True)
 
-        with patch("ops.model.Container.exec") as patched_exec:
-            # In ops 2.0.0+, we need to mock exec, as begin_with_initial_hooks() now triggers
-            # pebble-ready, which execs "alertmanager --version".
-            patched_exec_mock = Mock()
-            patched_exec_mock.wait_output.return_value = ("alertmanager, version 0.23.0", "")
-            patched_exec.return_value = patched_exec_mock
-            self.harness.begin_with_initial_hooks()
+        # In ops 2.0.0+, we need to mock the version, as begin_with_initial_hooks() now triggers
+        # pebble-ready, which attempts to obtain the workload version.
+        patcher = patch.object(
+            AlertmanagerCharm, "_alertmanager_version", property(lambda *_: "0.0.0")
+        )
+        self.mock_version = patcher.start()
+        self.addCleanup(patcher.stop)
+
+        self.harness.begin_with_initial_hooks()
 
         self.relation_id = self.harness.add_relation(
             DEFAULT_RELATION_NAME, "remote-config-provider"
