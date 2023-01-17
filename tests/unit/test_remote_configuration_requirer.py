@@ -49,7 +49,19 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         self.harness = testing.Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
         self.harness.set_leader(True)
+
+        # TODO: Once we're on ops 2.0.0+ this can be removed as begin_with_initial_hooks()
+        # now does it.
         self.harness.set_can_connect("alertmanager", True)
+
+        # In ops 2.0.0+, we need to mock the version, as begin_with_initial_hooks() now triggers
+        # pebble-ready, which attempts to obtain the workload version.
+        patcher = patch.object(
+            AlertmanagerCharm, "_alertmanager_version", property(lambda *_: "0.0.0")
+        )
+        self.mock_version = patcher.start()
+        self.addCleanup(patcher.stop)
+
         self.harness.begin_with_initial_hooks()
 
         self.relation_id = self.harness.add_relation(
