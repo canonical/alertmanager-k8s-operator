@@ -43,7 +43,7 @@ route:
 class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
-    @patch("charm.KubernetesServicePatch", lambda x, y: None)
+    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @k8s_resource_multipatch
     def setUp(self, _) -> None:
         self.harness = testing.Harness(AlertmanagerCharm)

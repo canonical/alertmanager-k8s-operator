@@ -32,11 +32,7 @@ from charms.observability_libs.v1.kubernetes_service_patch import (
     ServicePort,
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from charms.traefik_k8s.v1.ingress import (
-    IngressPerAppReadyEvent,
-    IngressPerAppRequirer,
-    IngressPerAppRevokedEvent,
-)
+from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -124,12 +120,12 @@ class AlertmanagerCharm(CharmBase):
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
         self.remote_configuration = RemoteConfigurationRequirer(self)
 
+        api = ServicePort(self._ports.api, name=f"{self.app.name}")
+        ha = ServicePort(self._ports.ha, name=f"{self.app.name}-ha")
         self.service_patcher = KubernetesServicePatch(
-            self,
-            [
-                ServicePort(self._ports.api, name=f"{self.app.name}"),
-                ServicePort(self._ports.ha, name=f"{self.app.name}-ha"),
-            ],
+            charm=self,
+            service_type="ClusterIP",
+            ports=[api, ha],
         )
         self.resources_patch = KubernetesComputeResourcesPatch(
             self,
@@ -166,9 +162,6 @@ class AlertmanagerCharm(CharmBase):
                 ),
             ),
         )
-
-        self.framework.observe(self.ingress.on.ready, self._on_ingress_ready)
-        self.framework.observe(self.ingress.on.revoked, self._on_ingress_revoked)
 
         self.container = self.unit.get_container(self._container_name)
 
@@ -249,12 +242,6 @@ class AlertmanagerCharm(CharmBase):
         event.set_results(
             {"result": output, "error-message": err, "valid": False if err else True}
         )
-
-    def _on_ingress_ready(self, event: IngressPerAppReadyEvent):
-        logger.info("This app's ingress URL: %s", event.url)
-
-    def _on_ingress_revoked(self, event: IngressPerAppRevokedEvent):
-        logger.info("This app no longer has ingress")
 
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
