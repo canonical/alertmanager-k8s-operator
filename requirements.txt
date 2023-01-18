@@ -11,7 +11,7 @@ jsonschema
 # Code: https://github.com/canonical/operator/
 # Docs: https://ops.rtfd.io/
 # Deps: charm
-ops
+ops==2.0.0rc2
 
 # YAML processing framework
 # Code: https://github.com/yaml/pyyaml
