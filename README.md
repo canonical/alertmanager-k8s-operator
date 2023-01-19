@@ -1,5 +1,5 @@
 # Alertmanager Operator (k8s)
-
+[![Alertmanager](https://charmhub.io/alertmanager-k8s/badge.svg)](https://charmhub.io/cos-configuration-k8s)
 [![Test Suite](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-edge.yaml/badge.svg)](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-edge.yaml)
 ![Discourse status](https://img.shields.io/discourse/status?server=https%3A%2F%2Fdiscourse.charmhub.io&style=flat)
 
@@ -118,6 +118,10 @@ juju status alertmanager-k8s --format=json \
   | jq -r '.applications."alertmanager-k8s".units."alertmanager-k8s/0".address'
 ```
 
+So, if you navigate to these IPs you will get the Alertmanager dashboard:
+
+![Alertmanager UI](doc/alertmanager-ui.png)
+
 
 ## Clustering
 
@@ -188,25 +192,9 @@ juju refresh alertmanager-k8s \
   --resource alertmanager-image=quay.io/prometheus/alertmanager
 ```
 
-(Note: currently, refreshing to a different image only works when deploying from a local
-charm - [lp/1954462](https://bugs.launchpad.net/juju/+bug/1954462).)
-
-### Resource revisions
-Workload images are archived on charmhub by revision number.
-
-| Resource           | Revision | Image             |
-|--------------------|:--------:|-------------------|
-| alertmanager-image | r1       | [0.21-20.04_beta] |
-
-You can use `charmcraft` to see the mapping between charm revisions and resource revisions:
-
-```shell
-charmcraft status alertmanager-k8s
-```
 
 [ubuntu/prometheus-alertmanager]: https://hub.docker.com/r/ubuntu/prometheus-alertmanager
 [quay.io/prometheus/alertmanager]: https://quay.io/repository/prometheus/alertmanager?tab=tags
-[0.21-20.04_beta]: https://hub.docker.com/layers/ubuntu/prometheus-alertmanager/0.21-20.04_beta/images/sha256-1418c677768887c2c717d043c9cb8397a32552a61354cb98c25cef23eeeb2b3f?context=explore
 
 
 ## Official alertmanager documentation
