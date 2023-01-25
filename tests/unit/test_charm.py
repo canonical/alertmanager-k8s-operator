@@ -8,6 +8,7 @@ from unittest.mock import patch
 import ops
 import yaml
 from helpers import FakeProcessVersionCheck, k8s_resource_multipatch, tautology
+from ops import pebble
 from ops.model import ActiveStatus, BlockedStatus, Container
 from ops.testing import Harness
 
@@ -122,7 +123,11 @@ class TestWithInitialHooks(unittest.TestCase):
         templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
         self.harness.update_config({"templates_file": templates})
 
-        with self.assertRaises(FileNotFoundError):
+        # The testing harness's pull() used to raise FileNotFoundError, but
+        # now it (correctly) raises pebble.PathError as per the real system,
+        # so catch both.
+        # TODO: update to just pebble.PathError when ops 2.1 is released.
+        with self.assertRaises((pebble.PathError, FileNotFoundError)):
             self.harness.charm.container.pull(self.harness.charm._templates_path)
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
