@@ -480,7 +480,7 @@ class AlertmanagerCharm(CharmBase):
         Raises:
             ConfigUpdateFailure, if config update fails.
         """
-        for (path, contents) in pending_config:
+        for path, contents in pending_config:
             try:
                 self.container.push(path, contents, make_dirs=True)
             except ConnectionError as e:
