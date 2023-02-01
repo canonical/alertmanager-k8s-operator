@@ -3,22 +3,22 @@
 [![Test Suite](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-edge.yaml/badge.svg)](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-edge.yaml)
 ![Discourse status](https://img.shields.io/discourse/status?server=https%3A%2F%2Fdiscourse.charmhub.io&style=flat)
 
-This Charmed Operator handles instantiation, scaling, configuration, and Day 2
-operations specific to [Alertmanager].
+[Charmed Alertmanager (alertmanager-k8s)][Alertmanager operator] is a charm for
+[Alertmanager].
 
-This operator drives the Alertmanager application, and it can be composed with
-other operators to deliver a complex application or service,
-such as [COS Lite][COS Lite bundle].
+The charm imposes configurable resource limits on the workload, can be readily
+integrated with alert sources such as [prometheus][Prometheus operator] or
+[loki][Loki operator], and comes with built-in alert rules and dashboards for
+self-monitoring.
 
-Alertmanager receives alerts from supporting applications, such as
-[Prometheus][Prometheus operator] or [Loki][Loki operator], then deduplicates,
-groups and routes them to the configured receiver(s).
+It is an essential part of the [COS Lite bundle].
 
 
 [Alertmanager]: https://prometheus.io/docs/alerting/latest/alertmanager/
 [COS Lite bundle]: https://charmhub.io/cos-lite
 [Loki operator]: https://charmhub.io/loki-k8s
 [Prometheus operator]: https://charmhub.io/prometheus-k8s
+[Alertmanager operator]: https://charmhub.io/alertmanager-k8s
 
 
 ## Getting started
