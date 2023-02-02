@@ -7,20 +7,21 @@ on:
 
 jobs:
   ignore-list:
+    name: Check against ignorelist
     runs-on: ubuntu-latest
-    name: PR
     steps:
       - uses: actions/checkout@v3
-
-      - name: Check against ignorelist
+      - name: Generate diff
         id: check
         shell: bash
         run: |
+          echo "Comparing ${{ github.base-ref }} to ${{ github.head-ref }}"
           files=$(comm -23 <(git diff --name-only ${{ github.base-ref }} ${{ github.head-ref }} | sort) <(cat ci.ignorelist | sort))
           echo "$files"
           echo "files=$files" >> $GITHUB_OUTPUT
 
   pull-request:
+    name: PR
     needs: [ ignore-list ]
     uses: canonical/observability/.github/workflows/pull-request.yaml@main
     if: ${{ needs.check.outputs.files != '' }}
