@@ -9,6 +9,7 @@ jobs:
   ignore-list:
     name: Check against ignorelist
     runs-on: ubuntu-latest
+    # Map a step output to a job output
     outputs:
       files: ${{ steps.check.outputs.files }}
     steps:
@@ -30,5 +31,5 @@ jobs:
     name: PR
     needs: [ ignore-list ]
     uses: canonical/observability/.github/workflows/pull-request.yaml@main
-    if: ${{ needs.check.outputs.files != '' }}
+    if: ${{ needs.ignore-list.outputs.files != '' }}
     secrets: inherit
