@@ -7,6 +7,19 @@ on:
 
 jobs:
   pull-request:
+    runs-on: ubuntu-latest
     name: PR
-    uses: canonical/observability/.github/workflows/pull-request.yaml@main
-    secrets: inherit
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Check against ignorelist
+        id: check
+        shell: bash
+        run: |
+          files=$(comm -23 <(git diff --name-only ${{ github.base-ref }} ${{ github.head-ref }} | sort) <(cat ci.ignorelist | sort))
+          echo "$files"
+          echo "files=$files" >> $GITHUB_OUTPUT
+
+      - uses: canonical/observability/.github/workflows/pull-request.yaml@main
+        if: ${{ steps.check.outputs.files != '' }}
+        secrets: inherit
