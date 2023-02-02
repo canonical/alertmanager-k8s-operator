@@ -19,9 +19,9 @@ jobs:
         run: |
           echo "$(git branch --all)"
           echo "Comparing remotes/origin/${{ github.base_ref }} to remotes/origin/${{ github.head_ref }}"
-          files=$(comm -23 <(git diff --name-only remotes/origin/${{ github.base_ref }} remotes/origin/${{ github.head_ref }}| sort) <(cat ci.ignorelist | sort))
+          files=$(comm -23 <(git diff --name-only remotes/origin/${{ github.base_ref }} remotes/origin/${{ github.head_ref }} | sort) <(cat ci.ignorelist | sort))
           echo "$files"
-          echo "files=$files" >> $GITHUB_OUTPUT
+          echo "files=$files" | tr -d '\n' >> $GITHUB_OUTPUT
 
   pull-request:
     name: PR
