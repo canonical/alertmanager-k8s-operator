@@ -9,6 +9,8 @@ jobs:
   ignore-list:
     name: Check against ignorelist
     runs-on: ubuntu-latest
+    outputs:
+      files: ${{ steps.check.outputs.files }}
     steps:
       - uses: actions/checkout@v3
         with:
