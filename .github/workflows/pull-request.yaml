@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  pull-request:
+  ignore-list:
     runs-on: ubuntu-latest
     name: PR
     steps:
@@ -20,6 +20,8 @@ jobs:
           echo "$files"
           echo "files=$files" >> $GITHUB_OUTPUT
 
-      - uses: canonical/observability/.github/workflows/pull-request.yaml@main
-        if: ${{ steps.check.outputs.files != '' }}
-        secrets: inherit
+  pull-request:
+    needs: [ ignore-list ]
+    uses: canonical/observability/.github/workflows/pull-request.yaml@main
+    if: ${{ needs.check.outputs.files != '' }}
+    secrets: inherit
