@@ -20,12 +20,12 @@ jobs:
         id: check
         shell: bash
         run: |
-          echo "$(git branch --all)"
-          echo "Comparing remotes/origin/${{ github.base_ref }} to remotes/origin/${{ github.head_ref }}"
-          files=$(comm -23 <(git diff --name-only remotes/origin/${{ github.base_ref }} remotes/origin/${{ github.head_ref }} | sort) <(cat ci.ignorelist | sort))
+          base="remotes/origin/${{ github.base_ref }}"
+          head="remotes/origin/${{ github.head_ref }}"
+          echo "Comparing $base to $head"
+          files=$(comm -23 <(git diff --name-only $base $head | sort) <(sort ci.ignorelist))
           echo "$files"
           echo "files=$files" | tr -d '\n' >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
 
   pull-request:
     name: PR
