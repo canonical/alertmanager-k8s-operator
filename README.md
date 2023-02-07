@@ -1,7 +1,8 @@
 # Alertmanager Operator (k8s)
-[![Alertmanager](https://charmhub.io/alertmanager-k8s/badge.svg)](https://charmhub.io/alertmanager-k8s)
-[![Test Suite](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-edge.yaml/badge.svg)](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-edge.yaml)
-![Discourse status](https://img.shields.io/discourse/status?server=https%3A%2F%2Fdiscourse.charmhub.io&style=flat)
+[![Charmhub Badge](https://charmhub.io/alertmanager-k8s/badge.svg)](https://charmhub.io/alertmanager-k8s)
+[![Release Edge](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-edge.yaml/badge.svg)](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-edge.yaml)
+[![Release Libraries](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-libs.yaml/badge.svg)](https://github.com/canonical/alertmanager-k8s-operator/actions/workflows/release-libs.yaml)
+[![Discourse Status](https://img.shields.io/discourse/status?server=https%3A%2F%2Fdiscourse.charmhub.io&style=flat&label=CharmHub%20Discourse)](https://discourse.charmhub.io)
 
 [Charmed Alertmanager (alertmanager-k8s)][Alertmanager operator] is a charm for
 [Alertmanager].
