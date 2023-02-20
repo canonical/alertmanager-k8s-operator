@@ -53,7 +53,7 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     container_name = "alertmanager"
     sg_cmd = [
         "sg",
-        "microk8s",
+        "snap_microk8s",
         "-c",
     ]
     kubectl_cmd = [
