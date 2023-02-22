@@ -6,8 +6,11 @@
 
 import hashlib
 import logging
+import os
 import re
+import signal
 import socket
+import sys
 from types import SimpleNamespace
 from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
@@ -721,5 +724,11 @@ class AlertmanagerCharm(CharmBase):
         return result.group(1)
 
 
+def _signal_worker(*args) -> None:
+    os.kill(os.getppid(), signal.SIGTERM)
+    sys.exit(0)
+
+
 if __name__ == "__main__":
-    main(AlertmanagerCharm, use_juju_for_storage=True)
+    signal.signal(signal.SIGTERM, _signal_worker)
+    main(AlertmanagerCharm)
