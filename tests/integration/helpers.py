@@ -4,6 +4,7 @@
 """Helper functions for writing tests."""
 
 import asyncio
+import grp
 import json
 import logging
 import urllib.request
@@ -77,6 +78,16 @@ async def block_until_leader_elected(ops_test: OpsTest, app_name: str):
     # block_until does not take async (yet?) https://github.com/juju/python-libjuju/issues/609
     while not await is_leader_elected(ops_test, app_name):
         await asyncio.sleep(5)
+
+
+def uk8s_group() -> str:
+    try:
+        # Classically confined microk8s
+        uk8s_group = grp.getgrnam("microk8s").gr_name
+    except KeyError:
+        # Strictly confined microk8s
+        uk8s_group = "snap_microk8s"
+    return uk8s_group
 
 
 async def is_alertmanage_unit_up(ops_test: OpsTest, app_name: str, unit_num: int):
