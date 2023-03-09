@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import get_unit_address, is_alertmanager_up
+from helpers import get_unit_address, is_alertmanager_up, uk8s_group
 from pytest_operator.plugin import OpsTest
 
 from alertmanager_client import Alertmanager
@@ -53,7 +53,7 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     container_name = "alertmanager"
     sg_cmd = [
         "sg",
-        "microk8s",
+        uk8s_group(),
         "-c",
     ]
     kubectl_cmd = [

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import is_alertmanager_up
+from helpers import is_alertmanager_up, uk8s_group
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ async def test_kubectl_delete_pod(ops_test: OpsTest):
 
     cmd = [
         "sg",
-        "microk8s",
+        uk8s_group(),
         "-c",
         " ".join(["microk8s.kubectl", "delete", "pod", "-n", ops_test.model_name, pod_name]),
     ]
