@@ -34,7 +34,7 @@ resources:
   alertmanager-image:
     type: oci-image
     description: OCI image for alertmanager
-    upstream-source: ubuntu/prometheus-alertmanager:0.23-22.04_beta
+    upstream-source: ghcr.io/canonical/alertmanager:0.25.0
 
 provides:
   alerting:
