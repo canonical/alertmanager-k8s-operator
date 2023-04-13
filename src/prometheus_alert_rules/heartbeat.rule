@@ -1,0 +1,7 @@
+# Based on https://awesome-prometheus-alerts.grep.to/rules.html#prometheus-self-monitoring-1
+alert: Watchdog
+expr: vector(1)
+labels:
+  severity: none
+annotations:
+  summary: Continuously firing alert to ensure Alertmanager is working
