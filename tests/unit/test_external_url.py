@@ -71,10 +71,12 @@ class TestExternalUrl(unittest.TestCase):
         # GIVEN a charm with the fqdn as its external URL
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
         self.assertTrue(self.is_service_running())
+        self.assertEqual(self.fqdn_url, self.harness.charm._external_url)
 
         # WHEN the web_external_url config option is set
         external_url = "http://foo.bar:8080/path/to/alertmanager"
         self.harness.update_config({"web_external_url": external_url})
+        self.assertEqual(external_url, self.harness.charm._external_url)
 
         # THEN it is used as the cli arg instead of the fqdn
         self.assertEqual(self.get_url_cli_arg(), external_url)
@@ -95,6 +97,7 @@ class TestExternalUrl(unittest.TestCase):
         # GIVEN a charm with the fqdn as its external URL
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
         self.assertTrue(self.is_service_running())
+        self.assertEqual(self.harness.charm._external_url, self.fqdn_url)
 
         # WHEN a relation with traefik is formed but ingress isn't ready
         rel_id = self.harness.add_relation("ingress", "traefik-app")
@@ -103,6 +106,7 @@ class TestExternalUrl(unittest.TestCase):
         # THEN there is no change to the cli arg
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
         self.assertTrue(self.is_service_running())
+        self.assertEqual(self.harness.charm._external_url, self.fqdn_url)
 
         # WHEN ingress becomes available
         external_url_ingress = "http://foo.bar.ingress:80/path/to/mdl-alertmanager-k8s"
