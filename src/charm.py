@@ -139,7 +139,13 @@ class AlertmanagerCharm(CharmBase):
             self,
             relation_name="self-metrics-endpoint",
             jobs=self.self_scraping_job,
-            external_url=self._external_url,
+            refresh_event=[
+                self.on.update_status,
+                self.ingress.on.ready,
+                self.ingress.on.revoked,
+                self.on["ingress"].relation_changed,
+                self.on["ingress"].relation_departed,
+            ],
         )
 
         self.catalog = CatalogueConsumer(
@@ -192,10 +198,11 @@ class AlertmanagerCharm(CharmBase):
     @property
     def self_scraping_job(self):
         """The self-monitoring scrape job."""
-        port = urlparse(self._external_url).port or 80
+        external_url = urlparse(self._external_url)
         return [
             {
-                "static_configs": [{"targets": [f"*:{port}"]}],
+                "metrics_path": f"{external_url.path}/metrics",
+                "static_configs": [{"targets": [f"{external_url.hostname}:{external_url.port}"]}],
             }
         ]
 
