@@ -146,8 +146,6 @@ class AlertmanagerCharm(CharmBase):
                 self.on["ingress"].relation_changed,
                 self.on["ingress"].relation_departed,
             ],
-            # We do not provide an `external_url` arg here because scarping is
-            # by definition within model boundaries, i.e. reachable via fqdn.
         )
 
         self.catalog = CatalogueConsumer(
