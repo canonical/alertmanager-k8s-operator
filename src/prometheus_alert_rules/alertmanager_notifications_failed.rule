@@ -1,5 +1,5 @@
 alert: AlertmanagerNotificationsFailed
-expr: alertmanager_notifications_failed_total{integration=~".*"} != 0
+expr: rate(alertmanager_notifications_failed_total{integration=~".*"}[5m]) > 0
 for: 0m
 labels:
   severity: warning
