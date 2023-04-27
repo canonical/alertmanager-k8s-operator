@@ -8,6 +8,7 @@ from typing import cast
 from unittest.mock import Mock, PropertyMock, patch
 
 import yaml
+from charm import AlertmanagerCharm
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     DEFAULT_RELATION_NAME,
 )
@@ -15,8 +16,6 @@ from deepdiff import DeepDiff  # type: ignore[import]
 from helpers import k8s_resource_multipatch
 from ops import testing
 from ops.model import BlockedStatus
-
-from charm import AlertmanagerCharm
 
 logger = logging.getLogger(__name__)
 

@@ -13,6 +13,7 @@ from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
+from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
@@ -44,8 +45,6 @@ from ops.model import (
     WaitingStatus,
 )
 from ops.pebble import ChangeError, ExecError, Layer, PathError, ProtocolError
-
-from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
 logger = logging.getLogger(__name__)
 

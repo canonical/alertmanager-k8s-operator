@@ -8,10 +8,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from alertmanager_client import Alertmanager
 from helpers import get_unit_address, is_alertmanager_up, uk8s_group
 from pytest_operator.plugin import OpsTest
-
-from alertmanager_client import Alertmanager
 
 logger = logging.getLogger(__name__)
 

@@ -7,12 +7,11 @@ from unittest.mock import patch
 
 import ops
 import yaml
+from charm import Alertmanager, AlertmanagerCharm
 from helpers import FakeProcessVersionCheck, k8s_resource_multipatch, tautology
 from ops import pebble
 from ops.model import ActiveStatus, BlockedStatus, Container
 from ops.testing import Harness
-
-from charm import Alertmanager, AlertmanagerCharm
 
 ops.testing.SIMULATE_CAN_CONNECT = True
 

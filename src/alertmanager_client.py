@@ -70,7 +70,7 @@ class Alertmanager:
                 response = urllib.request.urlopen(url, data, timeout)
                 if response.code == 200 and response.reason == "OK":
                     return response.read()
-                elif retry == 0:
+                if retry == 0:
                     raise AlertmanagerBadResponse(
                         f"Bad response (code={response.code}, reason={response.reason})"
                     )

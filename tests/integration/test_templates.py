@@ -10,11 +10,10 @@ from pathlib import Path
 
 import pytest
 import yaml
+from alertmanager_client import Alertmanager
 from helpers import get_unit_address, is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 from werkzeug.wrappers import Request, Response
-
-from alertmanager_client import Alertmanager
 
 logger = logging.getLogger(__name__)
 
