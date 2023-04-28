@@ -8,11 +8,10 @@ from unittest.mock import patch
 
 import ops
 import yaml
+from charm import Alertmanager, AlertmanagerCharm
 from helpers import FakeProcessVersionCheck, cli_arg, k8s_resource_multipatch, tautology
 from ops.model import ActiveStatus, BlockedStatus, Container
 from ops.testing import Harness
-
-from charm import Alertmanager, AlertmanagerCharm
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,7 @@ class TestExternalUrl(unittest.TestCase):
         plan = self.harness.get_container_pebble_plan(CONTAINER_NAME).to_dict()
         args = plan["services"][SERVICE_NAME]["command"].split()
         cluster_args = filter(lambda s: s.startswith("--cluster.peer="), args)
-        cluster_args = sorted(map(lambda s: s.split("=")[1], cluster_args))
+        cluster_args = sorted((s.split("=")[1] for s in cluster_args))
         return cluster_args
 
     def is_service_running(self) -> bool:

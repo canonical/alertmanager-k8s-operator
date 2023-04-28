@@ -10,12 +10,11 @@ import hypothesis.strategies as st
 import ops
 import validators
 import yaml
+from charm import Alertmanager, AlertmanagerCharm
 from helpers import FakeProcessVersionCheck, k8s_resource_multipatch, tautology
 from hypothesis import given
 from ops.model import ActiveStatus, BlockedStatus, Container
 from ops.testing import Harness
-
-from charm import Alertmanager, AlertmanagerCharm
 
 logger = logging.getLogger(__name__)
 ops.testing.SIMULATE_CAN_CONNECT = True
