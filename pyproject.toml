@@ -28,6 +28,12 @@ per-file-ignores = {"tests/*" = ["D100","D101","D102","D103"]}
 convention = "google"
 
 # Static analysis tools configuration
+[tool.pyright]
+include = ["src"]
+extraPaths = ["lib"]
+pythonVersion = "3.8"
+pythonPlatform = "Linux"
+
 [tool.mypy]
 pretty = true
 python_version = 3.8

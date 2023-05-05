@@ -38,7 +38,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 3
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +137,7 @@ class RemoteConfigurationRequirer(Object):
     `alertmanager-k8s` charm, which requires such separation.
     """
 
-    on = AlertmanagerRemoteConfigurationRequirerEvents()
+    on = AlertmanagerRemoteConfigurationRequirerEvents()  # pyright: ignore
 
     def __init__(
         self,
@@ -174,7 +174,7 @@ class RemoteConfigurationRequirer(Object):
         Emits custom `remote_configuration_changed` event every time remote configuration
         changes.
         """
-        self.on.remote_configuration_changed.emit()
+        self.on.remote_configuration_changed.emit()  # pyright: ignore
 
     def _on_relation_broken(self, _) -> None:
         """Event handler for remote configuration relation broken event.
@@ -327,7 +327,7 @@ class RemoteConfigurationProvider(Object):
     `alertmanager-k8s` charm, which requires such separation.
     """
 
-    on = AlertmanagerRemoteConfigurationProviderEvents()
+    on = AlertmanagerRemoteConfigurationProviderEvents()  # pyright: ignore
 
     def __init__(
         self,
@@ -423,7 +423,7 @@ class RemoteConfigurationProvider(Object):
         else:
             logger.warning("Invalid Alertmanager configuration. Ignoring...")
             self._clear_relation_data()
-            self.on.configuration_broken.emit()
+            self.on.configuration_broken.emit()  # pyright: ignore
 
     def _prepare_relation_data(
         self, config: Optional[dict]

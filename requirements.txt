@@ -1,6 +1,6 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
-
+sklearn
 # An implementation of the JSON Schema specification
 # Code: https://github.com/python-jsonschema/jsonschema
 # Docs: https://python-jsonschema.readthedocs.io/

@@ -44,7 +44,7 @@ from ops.model import (
     Relation,
     WaitingStatus,
 )
-from ops.pebble import ChangeError, ExecError, Layer, PathError, ProtocolError
+from ops.pebble import ChangeError, ExecError, Layer, PathError, ProtocolError  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +93,8 @@ class AlertmanagerCharm(CharmBase):
         self._stored.set_default(config_hash=None, launched_with_peers=False)
 
         self.ingress = IngressPerAppRequirer(self, port=self.api_port)
-        self.framework.observe(self.ingress.on.ready, self._handle_ingress)
-        self.framework.observe(self.ingress.on.revoked, self._handle_ingress)
+        self.framework.observe(self.ingress.on.ready, self._handle_ingress)  # pyright: ignore
+        self.framework.observe(self.ingress.on.revoked, self._handle_ingress)  # pyright: ignore
 
         # The `_external_url` property is passed as a callable so that the charm library code
         # always uses up-to-date context.
@@ -131,7 +131,9 @@ class AlertmanagerCharm(CharmBase):
             self._container_name,
             resource_reqs_func=self._resource_reqs_from_config,
         )
-        self.framework.observe(self.resources_patch.on.patch_failed, self._on_k8s_patch_failed)
+        self.framework.observe(
+            self.resources_patch.on.patch_failed, self._on_k8s_patch_failed  # pyright: ignore
+        )
 
         # Self-monitoring
         self._scraping = MetricsEndpointProvider(
@@ -140,8 +142,8 @@ class AlertmanagerCharm(CharmBase):
             jobs=self.self_scraping_job,
             refresh_event=[
                 self.on.update_status,
-                self.ingress.on.ready,
-                self.ingress.on.revoked,
+                self.ingress.on.ready,  # pyright: ignore
+                self.ingress.on.revoked,  # pyright: ignore
                 self.on["ingress"].relation_changed,
                 self.on["ingress"].relation_departed,
             ],
@@ -150,8 +152,8 @@ class AlertmanagerCharm(CharmBase):
         self.catalog = CatalogueConsumer(
             charm=self,
             refresh_event=[
-                self.ingress.on.ready,
-                self.ingress.on.revoked,
+                self.ingress.on.ready,  # pyright: ignore
+                self.ingress.on.revoked,  # pyright: ignore
                 self.on["ingress"].relation_changed,
                 self.on.update_status,
                 self.on.config_changed,  # web_external_url; also covers upgrade-charm
@@ -172,13 +174,15 @@ class AlertmanagerCharm(CharmBase):
 
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
-        self.framework.observe(self.on.alertmanager_pebble_ready, self._on_pebble_ready)
+        self.framework.observe(
+            self.on.alertmanager_pebble_ready, self._on_pebble_ready  # pyright: ignore
+        )
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
         # Remote configuration events
         self.framework.observe(
-            self.remote_configuration.on.remote_configuration_changed,
+            self.remote_configuration.on.remote_configuration_changed,  # pyright: ignore
             self._on_remote_configuration_changed,
         )
 
@@ -191,8 +195,12 @@ class AlertmanagerCharm(CharmBase):
         )
 
         # Action events
-        self.framework.observe(self.on.show_config_action, self._on_show_config_action)
-        self.framework.observe(self.on.check_config_action, self._on_check_config)
+        self.framework.observe(
+            self.on.show_config_action, self._on_show_config_action  # pyright: ignore
+        )
+        self.framework.observe(
+            self.on.check_config_action, self._on_check_config  # pyright: ignore
+        )
 
     @property
     def self_scraping_job(self):
@@ -214,7 +222,7 @@ class AlertmanagerCharm(CharmBase):
         return adjust_resource_requirements(limits, requests, adhere_to_requests=True)
 
     def _on_k8s_patch_failed(self, event: K8sResourcePatchFailedEvent):
-        self.unit.status = BlockedStatus(event.message)
+        self.unit.status = BlockedStatus(str(event.message))
 
     def _handle_ingress(self, _):
         if url := self.ingress.url:
@@ -223,7 +231,7 @@ class AlertmanagerCharm(CharmBase):
             logger.info("Ingress revoked.")
         self._common_exit_hook()
 
-    def _check_config(self) -> Tuple[str, str]:
+    def _check_config(self) -> Tuple[Optional[str], Optional[str]]:
         container = self.unit.get_container(self._container_name)
 
         if not container.can_connect():
@@ -234,14 +242,14 @@ class AlertmanagerCharm(CharmBase):
         except ChangeError as e:
             output, err = "", e.err
         except ExecError as e:
-            output, err = e.stdout, e.stderr
+            output, err = str(e.stdout), str(e.stderr)
 
         return output, err
 
     def _on_check_config(self, event: ActionEvent) -> None:
         """Runs `amtool check-config` inside the workload."""
         output, err = self._check_config()
-        if not output:
+        if not output and err:
             event.fail(err)
             return
 
@@ -258,7 +266,7 @@ class AlertmanagerCharm(CharmBase):
         try:
             content = self.container.pull(self._config_path)
             # juju requires keys to be lowercase alphanumeric (can't use self._config_path)
-            event.set_results({"path": self._config_path, "content": content.read()})
+            event.set_results({"path": self._config_path, "content": str(content.read())})
         except (ProtocolError, PathError) as e:
             event.fail(str(e))
 
@@ -469,7 +477,7 @@ class AlertmanagerCharm(CharmBase):
         # Calculate hash of all the contents of the pending files.
         config_hash = sha256("".join(config[1] for config in pending))
 
-        if config_hash == self._stored.config_hash:
+        if config_hash == self._stored.config_hash:  # pyright: ignore
             logger.debug("no change in config")
             return
 
@@ -494,7 +502,7 @@ class AlertmanagerCharm(CharmBase):
                     f"Failed to push config file '{path}' into container: {e}"
                 )
 
-        output, err = self._check_config()
+        _, err = self._check_config()
         if err:
             raise ConfigUpdateFailure(
                 f"Failed to validate config (run check-config action): {err}"
