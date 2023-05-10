@@ -31,7 +31,7 @@ class Alertmanager:
         port: int = 9093,
         *,
         web_route_prefix: str = "",
-        timeout=2.0,
+        timeout=2,
     ):
         if web_route_prefix and not web_route_prefix.endswith("/"):
             web_route_prefix += "/"
