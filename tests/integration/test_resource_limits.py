@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import block_until_leader_elected, get_leader_unit_num, is_alertmanager_up
+from helpers import  is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
@@ -22,10 +22,9 @@ resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 @pytest.mark.abort_on_fail
 async def test_resource_limits_apply(ops_test: OpsTest, charm_under_test):
     """Set resource limits and make sure they are applied."""
-
     logger.info("deploying local charm")
     await ops_test.model.deploy(
-        charm_under_test, 
+        charm_under_test,
         resources=resources,
         application_name=app_name,
         config={"cpu": "300m", "memory": "300M"},
