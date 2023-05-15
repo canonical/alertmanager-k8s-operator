@@ -28,7 +28,7 @@ async def test_resource_limits_apply(ops_test: OpsTest, charm_under_test):
         resources=resources,
         application_name=app_name,
         config={"cpu": "300m", "memory": "300M"},
-        trust=True
+        trust=True,
     )
     await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=300, wait_for_exact_units=1, idle_period=10
