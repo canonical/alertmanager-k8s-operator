@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import  is_alertmanager_up
+from helpers import is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
