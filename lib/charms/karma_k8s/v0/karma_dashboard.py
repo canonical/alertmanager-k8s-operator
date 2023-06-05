@@ -37,7 +37,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 4
+LIBPATCH = 5
 
 # Set to match metadata.yaml
 INTERFACE_NAME = "karma_dashboard"
@@ -104,7 +104,9 @@ class KarmaAlertmanagerConfig:
         Returns:
             Alertmanager server configuration for Karma.
         """
-        return KarmaAlertmanagerConfig.from_dict({"name": name, "uri": url, "cluster": cluster})
+        return KarmaAlertmanagerConfig.from_dict(
+            {"name": name, "uri": url, "cluster": cluster}  # pyright: ignore
+        )
 
 
 class KarmaAlertmanagerConfigChanged(EventBase):
@@ -215,7 +217,7 @@ class KarmaConsumer(RelationManagerBase):
             relation_charm (CharmBase): consumer charm
     """
 
-    on = KarmaConsumerEvents()
+    on = KarmaConsumerEvents()  # pyright: ignore
 
     def __init__(self, charm, relation_name: str = "karma-dashboard"):
         super().__init__(charm, relation_name, RelationRole.requires)
@@ -241,7 +243,9 @@ class KarmaConsumer(RelationManagerBase):
         for relation in self.charm.model.relations[self.name]:
             # get data from related application
             for key in relation.data:
-                if key is not self.charm.unit and isinstance(key, ops.charm.model.Unit):
+                if key is not self.charm.unit and isinstance(
+                    key, ops.charm.model.Unit  # pyright: ignore
+                ):
                     data = relation.data[key]
                     config = KarmaAlertmanagerConfig.from_dict(data)
                     if config and config not in servers:
@@ -251,12 +255,12 @@ class KarmaConsumer(RelationManagerBase):
 
     def _on_relation_changed(self, _):
         """Event handler for RelationChangedEvent."""
-        self.on.alertmanager_config_changed.emit()
+        self.on.alertmanager_config_changed.emit()  # pyright: ignore
 
     def _on_relation_departed(self, _):
         """Hook is called when a unit leaves, but another unit may still be present."""
         # At this point the unit data bag of the departing unit is gone from relation data
-        self.on.alertmanager_config_changed.emit()
+        self.on.alertmanager_config_changed.emit()  # pyright: ignore
 
     @property
     def config_valid(self) -> bool:
@@ -328,7 +332,7 @@ class KarmaProvider(RelationManagerBase):
         # It is needed here because the target URL may be set by the consumer before any
         # "karma-dashboard" relation is joined, in which case there are no relation unit data bags
         # available for storing the target URL.
-        self._stored.set_default(config=dict())
+        self._stored.set_default(config={})
 
         events = self.charm.on[self.name]
         self.framework.observe(events.relation_joined, self._on_relation_joined)
