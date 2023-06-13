@@ -72,6 +72,9 @@ requires:
     interface: catalogue
   certificates:
     interface: tls_certificates
+    limit: 1
+    description: |
+      Certificate and key files for the alertmanager server to use to authenticate to client.
 
 peers:
   replicas:

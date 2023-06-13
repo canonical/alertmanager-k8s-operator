@@ -22,6 +22,7 @@ from charms.catalogue_k8s.v0.catalogue import CatalogueConsumer, CatalogueItem
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
+from charms.observability_libs.v0.cert_manager import CertManager
 from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     K8sResourcePatchFailedEvent,
     KubernetesComputeResourcesPatch,
@@ -45,7 +46,6 @@ from ops.model import (
     WaitingStatus,
 )
 from ops.pebble import ChangeError, ExecError, Layer, PathError, ProtocolError  # type: ignore
-from charms.observability_libs.v0.cert_manager import CertManager
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +81,9 @@ class AlertmanagerCharm(CharmBase):
     # path, inside the workload container, to the alertmanager and amtool configuration files
     # the amalgamated templates file goes in the same folder as the main configuration file
     _config_path = "/etc/alertmanager/alertmanager.yml"
+    _web_config_path = "/etc/alertmanager/alertmanager-web-config.yml"
+    _server_cert_path = "/etc/alertmanager/alertmanager.cert.pem"
+    _key_path = "/etc/alertmanager/alertmanager.key.pem"
     _templates_path = "/etc/alertmanager/templates.tmpl"
     _amtool_config_path = "/etc/amtool/config.yml"
 
@@ -93,7 +96,11 @@ class AlertmanagerCharm(CharmBase):
         super().__init__(*args)
         self._stored.set_default(config_hash=None, launched_with_peers=False)
 
-        self.cert_manager = CertManager(self)
+        self.server_cert = CertManager(self)
+        self.framework.observe(
+            self.server_cert.on.cert_changed,  # pyright: ignore
+            self._on_server_cert_changed,
+        )
 
         self.ingress = IngressPerAppRequirer(self, port=self.api_port)
         self.framework.observe(self.ingress.on.ready, self._handle_ingress)  # pyright: ignore
@@ -149,6 +156,7 @@ class AlertmanagerCharm(CharmBase):
                 self.ingress.on.revoked,  # pyright: ignore
                 self.on["ingress"].relation_changed,
                 self.on["ingress"].relation_departed,
+                self.server_cert.on.cert_changed,  # pyright: ignore
             ],
         )
 
@@ -209,12 +217,14 @@ class AlertmanagerCharm(CharmBase):
     def self_scraping_job(self):
         """The self-monitoring scrape job."""
         external_url = urlparse(self._external_url)
-        return [
-            {
-                "metrics_path": f"{external_url.path}/metrics",
-                "static_configs": [{"targets": [f"{external_url.hostname}:{external_url.port}"]}],
-            }
-        ]
+        job = {
+            "metrics_path": f"{external_url.path}/metrics",
+            "static_configs": [{"targets": [f"{external_url.hostname}:{external_url.port}"]}],
+        }
+        if self.server_cert.cert:
+            job["scheme"] = "https"
+
+        return [job]
 
     def _resource_reqs_from_config(self) -> ResourceRequirements:
         limits = {
@@ -304,6 +314,9 @@ class AlertmanagerCharm(CharmBase):
             peer_cmd_args = " ".join(
                 sorted([f"--cluster.peer={address}" for address in peer_addresses])
             )
+            web_config_arg = (
+                f"--web.config.file={self._web_config_path} " if self.server_cert.cert else ""
+            )
             return (
                 f"{self._exe_name} "
                 f"--config.file={self._config_path} "
@@ -311,6 +324,7 @@ class AlertmanagerCharm(CharmBase):
                 f"--web.listen-address=:{self._ports.api} "
                 f"--cluster.listen-address={listen_address_arg} "
                 f"--web.external-url={self._external_url} "
+                f"{web_config_arg}"
                 f"{peer_cmd_args}"
             )
 
@@ -511,6 +525,18 @@ class AlertmanagerCharm(CharmBase):
                 f"Failed to validate config (run check-config action): {err}"
             )
 
+        # FIXME: delete the webconfig first
+        if self.server_cert.cert:
+            web_config = {
+                # https://prometheus.io/docs/prometheus/latest/configuration/https/
+                "tls_server_config": {
+                    # Certificate and key files for server to use to authenticate to client.
+                    "cert_file": self._server_cert_path,
+                    "key_file": self._key_path,
+                },
+            }
+            self.container.push(self._web_config_path, yaml.safe_dump(web_config), make_dirs=True)
+
         # Obtain a "before" snapshot of the config from the server.
         # This is different from `config` above because alertmanager adds in a bunch of details
         # such as:
@@ -586,6 +612,9 @@ class AlertmanagerCharm(CharmBase):
 
         self.karma_provider.target = self._external_url
 
+        # FIXME update config first, then update layer, and only then, restart. Restart/reload
+        #  outside both of them.
+
         # Update pebble layer
         self._update_layer()
 
@@ -597,6 +626,15 @@ class AlertmanagerCharm(CharmBase):
             return
 
         self.unit.status = ActiveStatus()
+
+    def _on_server_cert_changed(self, _):
+        # FIXME: delete files first
+        if key := self.server_cert.key:
+            self.container.push(self._key_path, key, make_dirs=True)
+        if cert := self.server_cert.cert:
+            self.container.push(self._server_cert_path, cert, make_dirs=True)
+
+        self._common_exit_hook()
 
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""

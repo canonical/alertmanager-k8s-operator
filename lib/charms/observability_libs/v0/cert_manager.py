@@ -41,16 +41,35 @@ except ImportError:
         "charms.tls_certificates_interface.v2.tls_certificates is missing; please get it through charmcraft fetch-lib"
     )
 from ops.charm import CharmBase, RelationJoinedEvent
-from ops.framework import EventBase, Object
 from ops.model import ActiveStatus, Relation, WaitingStatus
+from ops.framework import EventBase, EventSource, Object, ObjectEvents
+
+
+class CertChanged(EventBase):
+    """Event raised when a cert is changed (becomes available or revoked)."""
+
+
+class CertManagerEvents(ObjectEvents):
+    cert_changed = EventSource(CertChanged)
 
 
 class CertManager(Object):
-    """CertManager is used to wrap TLS Certificates management operations for charms."""
+    """CertManager is used to wrap TLS Certificates management operations for charms.
+
+    TODO: figure out if the constructor should take
+        key_path: str,
+        cert_path: str,
+        ca_path: str,
+     instead of charm code pushing & deleting them itself.
+
+    CertManager manages one single cert.
+    """
+    on = CertManagerEvents()
 
     def __init__(
         self,
         charm: CharmBase,
+        *,
         private_key_password: bytes = b"",
         cert_subject: Optional[str] = None,
         peer_relation_name: str = "replicas",
@@ -64,6 +83,11 @@ class CertManager(Object):
         self.peer_relation_name = peer_relation_name
 
         self.certificates = TLSCertificatesRequiresV2(self.charm, "certificates")
+
+        # These will be updated with incoming events
+        self.ca = None
+        self.cert = None
+        self.key = None
 
         self.framework.observe(self.charm.on.install, self._on_install)
         self.framework.observe(
@@ -120,6 +144,7 @@ class CertManager(Object):
                 "private_key_password"
             )
             private_key = replicas_relation.data[self.charm.app].get("private_key")
+            self.key = private_key or None
             if not private_key_password or not private_key:
                 return  # TODO is return okay?
             csr = generate_csr(
@@ -132,13 +157,18 @@ class CertManager(Object):
 
     def _on_certificate_available(self, event: CertificateAvailableEvent) -> None:
         """Get the certificate from the event and store it in a peer relation."""
+        # Note: assuming "limit: 1" in metadata
+        self.ca = event.ca
+        self.cert = event.certificate
+        self.on.cert_changed.emit()
+
         if replicas_relation := self._is_peer_relation_ready(event):
             replicas_relation.data[self.charm.app].update({"certificate": event.certificate})
             replicas_relation.data[self.charm.app].update({"ca": event.ca})
             replicas_relation.data[self.charm.app].update(
                 {"chain": event.chain}
             )  # pyright: ignore
-            self.charm.unit.status = ActiveStatus()  # TODO correct? will it override a Blocked ?
+            self.charm.unit.status = ActiveStatus()  # FIXME remove (compound status)
 
     def _on_certificate_expiring(
         self, event: Union[CertificateExpiringEvent, CertificateInvalidatedEvent]
@@ -167,6 +197,12 @@ class CertManager(Object):
 
     def _certificate_revoked(self, event) -> None:
         """Remove the certificate from the peer relation and generate a new CSR."""
+        # Note: assuming "limit: 1" in metadata
+        self.ca = None
+        self.cert = None
+        # FIXME what about key rotation? would we ever need to?
+        self.on.cert_changed.emit()
+
         if replicas_relation := self._is_peer_relation_ready(event):
             old_csr = replicas_relation.data[self.charm.app].get("csr")
             if not old_csr:
@@ -190,6 +226,10 @@ class CertManager(Object):
 
     def _on_certificate_invalidated(self, event: CertificateInvalidatedEvent) -> None:
         """Deal with certificate revocation and expiration."""
+        self.ca = None
+        self.cert = None
+        self.on.cert_changed.emit()
+
         if self._is_peer_relation_ready(event):
             if event.reason == "revoked":
                 self._certificate_revoked(event)
@@ -198,4 +238,9 @@ class CertManager(Object):
 
     def _on_all_certificates_invalidated(self, event: AllCertificatesInvalidatedEvent) -> None:
         # Do what you want with this information, probably remove all certificates
-        pass
+
+        # Note: assuming "limit: 1" in metadata
+        self.ca = None
+        self.cert = None
+        self.on.cert_changed.emit()
+
