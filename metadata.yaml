@@ -70,6 +70,8 @@ requires:
     limit: 1
   catalogue:
     interface: catalogue
+  certificates:
+    interface: tls_certificates
 
 peers:
   replicas:

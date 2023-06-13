@@ -45,6 +45,7 @@ from ops.model import (
     WaitingStatus,
 )
 from ops.pebble import ChangeError, ExecError, Layer, PathError, ProtocolError  # type: ignore
+from charms.observability_libs.v0.cert_manager import CertManager
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,8 @@ class AlertmanagerCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         self._stored.set_default(config_hash=None, launched_with_peers=False)
+
+        self.cert_manager = CertManager(self)
 
         self.ingress = IngressPerAppRequirer(self, port=self.api_port)
         self.framework.observe(self.ingress.on.ready, self._handle_ingress)  # pyright: ignore
