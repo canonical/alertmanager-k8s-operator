@@ -349,7 +349,7 @@ class AlertmanagerCharm(CharmBase):
         # Update "launched with peers" flag.
         # The service should be restarted when peers joined if this is False.
         plan = self.container.get_plan()
-        service = plan.services.get(self._service_name)
+        service = plan.services[self._service_name]
         self._stored.launched_with_peers = "--cluster.peer" in service.command
 
         return True
