@@ -16,9 +16,8 @@ following example:
 ```python
 cert_manager = CertManager(
     charm=self,
-    private_key_password=b"some_password",
+    peer_relation_name="replicas",
     cert_subject="unit_name",  # Optional
-    peer_relation_name="replicas",  # Optional
     key="cert-manager"  # Optional
 )
 ```
@@ -141,17 +140,14 @@ class CertManager(Object):
         event: RelationJoinedEvent,
     ) -> None:
         """Generate the CSR and request the certificate creation."""
+        # FIXME add leader guard + comment this is assuming IPA.
         if replicas_relation := self._is_peer_relation_ready(event):
-            private_key_password = replicas_relation.data[self.charm.app].get(
-                "private_key_password"
-            )
             private_key = replicas_relation.data[self.charm.app].get("private_key")
             self.key = private_key or None
-            if not private_key_password or not private_key:
+            if not private_key:
                 return  # TODO is return okay?
             csr = generate_csr(
                 private_key=private_key.encode(),
-                private_key_password=private_key_password.encode(),
                 subject=self.cert_subject,
             )
             replicas_relation.data[self.charm.app].update({"csr": csr.decode()})
@@ -180,15 +176,11 @@ class CertManager(Object):
             old_csr = replicas_relation.data[self.charm.app].get("csr")
             if not old_csr:
                 return  # TODO what to do here? fail? should there always be a csr ?
-            private_key_password = replicas_relation.data[self.charm.app].get(
-                "private_key_password"
-            )
             private_key = replicas_relation.data[self.charm.app].get("private_key")
-            if not private_key_password or not private_key:
+            if not private_key:
                 return  # TODO is return okay ?
             new_csr = generate_csr(
                 private_key=private_key.encode(),
-                private_key_password=private_key_password.encode(),
                 subject=self.cert_subject,
             )
             self.certificates.request_certificate_renewal(
@@ -209,15 +201,11 @@ class CertManager(Object):
             old_csr = replicas_relation.data[self.charm.app].get("csr")
             if not old_csr:
                 return  # TODO what to do here? fail? should there always be a csr ?
-            private_key_password = replicas_relation.data[self.charm.app].get(
-                "private_key_password"
-            )
             private_key = replicas_relation.data[self.charm.app].get("private_key")
-            if not private_key_password or not private_key:
+            if not private_key:
                 return  # TODO what to do if None? fail?
             new_csr = generate_csr(
                 private_key=private_key.encode(),
-                private_key_password=private_key_password.encode(),
                 subject=self.cert_subject,
             )
             replicas_relation.data[self.charm.app].update({"csr": new_csr.decode()})
