@@ -75,7 +75,6 @@ class CertManager(Object):
         self,
         charm: CharmBase,
         *,
-        private_key_password: bytes = b"",
         cert_subject: Optional[str] = None,
         peer_relation_name: str = "replicas",
         key: str = "cert-manager",  # TODO what to put here?
@@ -83,7 +82,6 @@ class CertManager(Object):
         super().__init__(charm, key)
 
         self.charm = charm
-        self.private_key_password = private_key_password
         self.cert_subject = charm.unit.name if not cert_subject else cert_subject
         self.peer_relation_name = peer_relation_name
 
@@ -131,10 +129,9 @@ class CertManager(Object):
             return
 
         if replicas_relation := self._is_peer_relation_ready(event):
-            private_key = generate_private_key(self.private_key_password)
+            private_key = generate_private_key()
             replicas_relation.data[self.charm.app].update(
                 {
-                    "private_key_password": self.private_key_password.decode(),
                     "private_key": private_key.decode(),
                 }
             )
