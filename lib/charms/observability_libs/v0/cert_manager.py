@@ -45,6 +45,11 @@ from ops.model import ActiveStatus, Relation, WaitingStatus
 from ops.framework import EventBase, EventSource, Object, ObjectEvents
 
 
+LIBID = "deadbeef"
+LIBAPI = 0
+LIBPATCH = 1
+
+
 class CertChanged(EventBase):
     """Event raised when a cert is changed (becomes available or revoked)."""
 
