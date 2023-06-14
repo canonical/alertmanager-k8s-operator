@@ -536,7 +536,7 @@ class AlertmanagerCharm(CharmBase):
             }
             self.container.push(self._web_config_path, yaml.safe_dump(web_config), make_dirs=True)
         else:
-            self.container.remove_path(self._web_config_path)
+            self.container.remove_path(self._web_config_path, recursive=True)
 
     def _reload(self) -> None:
         """Trigger a hot-reload of the configuration (or service restart).
@@ -642,11 +642,11 @@ class AlertmanagerCharm(CharmBase):
         if key := self.server_cert.key:
             self.container.push(self._key_path, key, make_dirs=True)
         else:
-            self.container.remove_path(self._key_path)
+            self.container.remove_path(self._key_path, recursive=True)
         if cert := self.server_cert.cert:
             self.container.push(self._server_cert_path, cert, make_dirs=True)
         else:
-            self.container.remove_path(self._server_cert_path)
+            self.container.remove_path(self._server_cert_path, recursive=True)
 
         self._common_exit_hook()
 
