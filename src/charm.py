@@ -499,11 +499,11 @@ class AlertmanagerCharm(CharmBase):
             return
 
         logger.debug("config changed")
-        self._push_config_and_reload(pending)
+        self._push_config(pending)
         self._stored.config_hash = config_hash
 
-    def _push_config_and_reload(self, pending_config: List[Tuple[str, str]]):  # noqa: C901
-        """Push config into workload container, and trigger a hot-reload (or service restart).
+    def _push_config(self, pending_config: List[Tuple[str, str]]):  # noqa: C901
+        """Push config into workload container.
 
         Args:
             pending_config: a list of (path, contents) tuples to push into the workload container.
@@ -525,7 +525,6 @@ class AlertmanagerCharm(CharmBase):
                 f"Failed to validate config (run check-config action): {err}"
             )
 
-        # FIXME: delete the webconfig first
         if self.server_cert.cert:
             web_config = {
                 # https://prometheus.io/docs/prometheus/latest/configuration/https/
@@ -536,7 +535,15 @@ class AlertmanagerCharm(CharmBase):
                 },
             }
             self.container.push(self._web_config_path, yaml.safe_dump(web_config), make_dirs=True)
+        else:
+            self.container.remove_path(self._web_config_path)
 
+    def _reload(self) -> None:
+        """Trigger a hot-reload of the configuration (or service restart).
+
+        Raises:
+            ConfigUpdateFailure, if the reload (or restart) fails.
+        """
         # Obtain a "before" snapshot of the config from the server.
         # This is different from `config` above because alertmanager adds in a bunch of details
         # such as:
@@ -612,12 +619,6 @@ class AlertmanagerCharm(CharmBase):
 
         self.karma_provider.target = self._external_url
 
-        # FIXME update config first, then update layer, and only then, restart. Restart/reload
-        #  outside both of them.
-
-        # Update pebble layer
-        self._update_layer()
-
         # Update config file
         try:
             self._update_config()
@@ -625,14 +626,27 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = BlockedStatus(str(e))
             return
 
+        # Update pebble layer
+        self._update_layer()
+
+        # Reload or restart the service
+        try:
+            self._reload()
+        except ConfigUpdateFailure as e:
+            self.unit.status = BlockedStatus(str(e))
+            return
+
         self.unit.status = ActiveStatus()
 
     def _on_server_cert_changed(self, _):
-        # FIXME: delete files first
         if key := self.server_cert.key:
             self.container.push(self._key_path, key, make_dirs=True)
+        else:
+            self.container.remove_path(self._key_path)
         if cert := self.server_cert.cert:
             self.container.push(self._server_cert_path, cert, make_dirs=True)
+        else:
+            self.container.remove_path(self._server_cert_path)
 
         self._common_exit_hook()
 

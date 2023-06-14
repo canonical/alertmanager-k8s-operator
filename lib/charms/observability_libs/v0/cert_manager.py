@@ -69,7 +69,7 @@ class CertManager(Object):
 
     CertManager manages one single cert.
     """
-    on = CertManagerEvents()
+    on = CertManagerEvents()  # pyright: ignore
 
     def __init__(
         self,
@@ -165,14 +165,14 @@ class CertManager(Object):
         # Note: assuming "limit: 1" in metadata
         self.ca = event.ca
         self.cert = event.certificate
-        self.on.cert_changed.emit()
+        self.on.cert_changed.emit()  # pyright: ignore
 
         if replicas_relation := self._is_peer_relation_ready(event):
             replicas_relation.data[self.charm.app].update({"certificate": event.certificate})
             replicas_relation.data[self.charm.app].update({"ca": event.ca})
             replicas_relation.data[self.charm.app].update(
-                {"chain": event.chain}
-            )  # pyright: ignore
+                {"chain": event.chain}  # pyright: ignore
+            )
             self.charm.unit.status = ActiveStatus()  # FIXME remove (compound status)
 
     def _on_certificate_expiring(
@@ -206,7 +206,7 @@ class CertManager(Object):
         self.ca = None
         self.cert = None
         # FIXME what about key rotation? would we ever need to?
-        self.on.cert_changed.emit()
+        self.on.cert_changed.emit()  # pyright: ignore
 
         if replicas_relation := self._is_peer_relation_ready(event):
             old_csr = replicas_relation.data[self.charm.app].get("csr")
@@ -233,7 +233,7 @@ class CertManager(Object):
         """Deal with certificate revocation and expiration."""
         self.ca = None
         self.cert = None
-        self.on.cert_changed.emit()
+        self.on.cert_changed.emit()  # pyright: ignore
 
         if self._is_peer_relation_ready(event):
             if event.reason == "revoked":
@@ -247,5 +247,5 @@ class CertManager(Object):
         # Note: assuming "limit: 1" in metadata
         self.ca = None
         self.cert = None
-        self.on.cert_changed.emit()
+        self.on.cert_changed.emit()  # pyright: ignore
 
