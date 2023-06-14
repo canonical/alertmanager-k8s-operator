@@ -96,7 +96,7 @@ class AlertmanagerCharm(CharmBase):
         super().__init__(*args)
         self._stored.set_default(config_hash=None, launched_with_peers=False)
 
-        self.server_cert = CertManager(self)
+        self.server_cert = CertManager(self, peer_relation_name="replicas")
         self.framework.observe(
             self.server_cert.on.cert_changed,  # pyright: ignore
             self._on_server_cert_changed,
