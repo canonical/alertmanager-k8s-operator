@@ -24,8 +24,9 @@ cert_manager = CertManager(
 
 This library requires a peer relation to be declared in the requirer's metadata. Peer relation data
 is used to communicate the private key to all units. This is useful for "ingress per app", and is
-required because in juju, only the leader has permissions to read app data.
+required because in juju, only the leader has permissions to read app data. # FIXME is this still true
 """
+import socket
 from typing import Optional, Union
 import json
 
@@ -43,8 +44,8 @@ except ImportError:
     raise ImportError(
         "charms.tls_certificates_interface.v2.tls_certificates is missing; please get it through charmcraft fetch-lib"
     )
-from ops.charm import CharmBase, RelationJoinedEvent
-from ops.model import ActiveStatus, Relation, WaitingStatus
+from ops.charm import CharmBase
+from ops.model import Relation
 from ops.framework import EventBase, EventSource, Object, ObjectEvents
 
 
@@ -88,8 +89,7 @@ class CertManager(Object):
         super().__init__(charm, key)
 
         self.charm = charm
-        app_name = charm.unit.name.split("/")[0]
-        self.cert_subject = app_name if not cert_subject else cert_subject
+        self.cert_subject = charm.unit.name if not cert_subject else cert_subject
         self.peer_relation_name = peer_relation_name
         self.certificates_relation_name = certificates_relation_name
 
@@ -128,11 +128,8 @@ class CertManager(Object):
 
     def _on_peer_relation_created(self, _):
         """Generate the private key and store it in a peer relation."""
-        if not self.charm.unit.is_leader():
-            return
-
         # We're in "relation-joined", so the relation should be there
-        peer_relation = self._peer_relation
+        peer_relation = self._peer_relation  # FIXME either check it or remove this line
 
         # Just in case we already have a private key, do not overwrite it.
         # Not sure how this could happen.
@@ -152,15 +149,11 @@ class CertManager(Object):
     @property
     def private_key(self) -> Optional[str]:
         if peer_relation := self._peer_relation:
-            return peer_relation.data[self.charm.app].get("private_key", None)
+            return peer_relation.data[self.charm.unit].get("private_key", None)
         return None
 
     def _on_certificates_relation_joined(self, _) -> None:
         """Generate the CSR and request the certificate creation."""
-        if not self.charm.unit.is_leader():
-            # Only the leader generates a CSR (alertmanager is ingress per app).
-            return
-
         if not self._peer_relation:
             # tls-certificates relation event happened to fire before peer events.
             # Abort, and let the "peer joined" relation create the CSR.
@@ -170,16 +163,15 @@ class CertManager(Object):
 
     def _generate_csr(self):
         # At this point, assuming "peer joined" and "certificates joined" have already fired
-        # (caller must guard), so we must have a private_key entry in relation data at our
-        # disposal. Otherwise, traceback -> debug.
-        peer_relation = self._peer_relation
+        # so we must have a private_key entry in relation data at our disposal. Otherwise, 
+        # traceback -> debug.
 
         # In case we already have a csr, do not overwrite it.
-        if not peer_relation.data[self.charm.app].get("csr"):
+        if not self._csr:
             csr = generate_csr(
                 private_key=self.private_key.encode(),
                 subject=self.cert_subject,
-                sans_dns=["alertmanager.local", "www.alertmanager.local"]  # FIXME generalize
+                sans_dns=[socket.getfqdn()]  # FIXME make sure this works properly
             )
             self._csr = csr.decode()
             self.certificates.request_certificate_creation(certificate_signing_request=csr)
@@ -194,10 +186,13 @@ class CertManager(Object):
 
         # I think juju guarantees that a peer-created always fires before any regular
         # relation-changed. If that is not the case, we would need more guards and more paths.
-        self._ca_cert = event.ca
-        self._server_cert = event.certificate
-        self._chain = event.chain
-        self.on.cert_changed.emit()  # pyright: ignore
+
+        # Only store the certificate on the unit that requested it
+        if event.certificate_signing_request == self._csr:
+            self._ca_cert = event.ca
+            self._server_cert = event.certificate
+            self._chain = event.chain
+            self.on.cert_changed.emit()  # pyright: ignore
 
     @property
     def key(self):
@@ -205,36 +200,36 @@ class CertManager(Object):
 
     @property
     def _private_key(self) -> Optional[str]:
-        if peer_relation := self._peer_relation:
-            return peer_relation.data[self.charm.app].get("private_key", None)
+        if self._peer_relation:
+            return self._peer_relation.data[self.charm.unit].get("private_key", None)
         return None
 
     @_private_key.setter
     def _private_key(self, value: str):
-        """Caller must guard."""
-        self._peer_relation.data[self.charm.app].update({"private_key": value})
+        if self._peer_relation:
+            self._peer_relation.data[self.charm.unit].update({"private_key": value})
 
     @property
     def _csr(self) -> Optional[str]:
-        if peer_relation := self._peer_relation:
-            return peer_relation.data[self.charm.app].get("csr", None)
+        if self._peer_relation:
+            return self._peer_relation.data[self.charm.unit].get("csr", None)
         return None
 
     @_csr.setter
     def _csr(self, value: str):
-        """Caller must guard."""
-        self._peer_relation.data[self.charm.app].update({"csr": value})
+        if self._peer_relation:
+            self._peer_relation.data[self.charm.unit].update({"csr": value})
 
     @property
     def _ca_cert(self) -> Optional[str]:
-        if peer_relation := self._peer_relation:
-            return peer_relation.data[self.charm.app].get("ca", None)
+        if self._peer_relation:
+            return self._peer_relation.data[self.charm.unit].get("ca", None)
         return None
 
     @_ca_cert.setter
     def _ca_cert(self, value: str):
-        """Caller must guard."""
-        self._peer_relation.data[self.charm.app].update({"ca": value})
+        if self._peer_relation:
+            self._peer_relation.data[self.charm.unit].update({"ca": value})
 
     @property
     def cert(self):
@@ -242,75 +237,74 @@ class CertManager(Object):
 
     @property
     def _server_cert(self) -> Optional[str]:
-        if peer_relation := self._peer_relation:
-            return peer_relation.data[self.charm.app].get("certificate", None)
+        if self._peer_relation:
+            return self._peer_relation.data[self.charm.unit].get("certificate", None)
         return None
 
     @_server_cert.setter
     def _server_cert(self, value: str):
-        """Caller must guard."""
-        self._peer_relation.data[self.charm.app].update({"certificate": value})
+        if self._peer_relation:
+            self._peer_relation.data[self.charm.unit].update({"certificate": value})
 
     @property
-    def _chain(self) -> Optional[str]:
-        if peer_relation := self._peer_relation:
-            if chain := peer_relation.data[self.charm.app].get("chain", None):
+    def _chain(self) -> Optional[str]:  # FIXME check the typing: setter -> list, getter -> str
+        if self._peer_relation:
+            if chain := self._peer_relation.data[self.charm.unit].get("chain", None):
                 return json.loads(chain)
         return None
 
     @_chain.setter
     def _chain(self, value: list):
-        """Caller must guard."""
-        self._peer_relation.data[self.charm.app].update({"chain": json.dumps(value)})
+        if self._peer_relation:
+            self._peer_relation.data[self.charm.unit].update({"chain": json.dumps(value)})
 
     def _on_certificate_expiring(
         self, event: Union[CertificateExpiringEvent, CertificateInvalidatedEvent]
     ) -> None:
         """Generate a new CSR and request certificate renewal."""
-        new_csr = generate_csr(
-            private_key=self._private_key.encode(),
-            subject=self.cert_subject,
-        )
-        self.certificates.request_certificate_renewal(
-            old_certificate_signing_request=self._csr.encode(),
-            new_certificate_signing_request=new_csr,
-        )
-        self._csr = new_csr.decode()
+        if event.certificate == self._server_cert:
+            new_csr = generate_csr(
+                private_key=self._private_key.encode(),
+                subject=self.cert_subject,
+            )
+            self.certificates.request_certificate_renewal(
+                old_certificate_signing_request=self._csr.encode(),
+                new_certificate_signing_request=new_csr,
+            )
+            self._csr = new_csr.decode()
 
     def _certificate_revoked(self, event) -> None:
         """Remove the certificate from the peer relation and generate a new CSR."""
         # Note: assuming "limit: 1" in metadata
         # TODO: figure out what should happen with the existing csr after a "revoked"
-        #  Note: this is complicated because the tls lib technically supports multiple certs
-        #   but the event does not tell us which cert exactly was revoked, and also we're assuming
-        #   throughout this code that there is only one cert.
-        self._ca_cert = ""
-        self._server_cert = ""
-        self._chain = ""
-        self.on.cert_changed.emit()  # pyright: ignore
+        if event.certificate_signing_request == self._csr:
+            self._ca_cert = ""
+            self._server_cert = ""
+            self._chain = ""
+            self.on.cert_changed.emit()  # pyright: ignore
 
-        peer_relation = self._peer_relation
-        new_csr = generate_csr(
-            private_key=self._private_key.encode(),
-            subject=self.cert_subject,
-        )
-        self._csr = new_csr.decode()
-        self._server_cert = ""
-        self._ca_cert = ""
-        self._chain = ""
+            new_csr = generate_csr(
+                private_key=self._private_key.encode(),
+                subject=self.cert_subject,
+            )
+            self._csr = new_csr.decode()
+            self._server_cert = ""
+            self._ca_cert = ""
+            self._chain = ""
 
     def _on_certificate_invalidated(self, event: CertificateInvalidatedEvent) -> None:
         """Deal with certificate revocation and expiration."""
         self.on.cert_changed.emit()  # pyright: ignore
         # TODO: do we need to generate a new CSR?
-        if self._peer_relation(event):
-            if event.reason == "revoked":
-                self._certificate_revoked(event)
-            if event.reason == "expired":
-                self._ca_cert = ""
-                self._server_cert = ""
-                self._chain = ""
-                self._on_certificate_expiring(event)
+        if self._peer_relation:
+            if event.certificate_signing_request == self._csr:
+                if event.reason == "revoked":
+                    self._certificate_revoked(event)
+                if event.reason == "expired":
+                    self._ca_cert = ""
+                    self._server_cert = ""
+                    self._chain = ""
+                    self._on_certificate_expiring(event)
 
     def _on_all_certificates_invalidated(self, event: AllCertificatesInvalidatedEvent) -> None:
         # Do what you want with this information, probably remove all certificates
