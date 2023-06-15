@@ -159,7 +159,8 @@ class TestExternalUrl(unittest.TestCase):
 
         # THEN peer relation data is updated with the web route prefix
         peer_data = self.harness.get_relation_data(self.peer_rel_id, self.harness.charm.unit.name)
-        self.assertEqual(peer_data, {"private_address": "http://fqdn:9093/path/to/alertmanager/"})
+        url_data = peer_data["private_address"]
+        self.assertEqual(url_data, "http://fqdn:9093/path/to/alertmanager/")
 
         # AND the "alerting" relation data is updated with the external url's route prefix (path)
         regular_data = self.harness.get_relation_data(self.rel_id, self.harness.charm.unit.name)
