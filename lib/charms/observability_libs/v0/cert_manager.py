@@ -47,6 +47,9 @@ except ImportError:
 from ops.charm import CharmBase
 from ops.model import Relation
 from ops.framework import EventBase, EventSource, Object, ObjectEvents
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 LIBID = "deadbeef"
@@ -84,22 +87,29 @@ class CertManager(Object):
         peer_relation_name: str,
         certificates_relation_name: str = "certificates",
         cert_subject: Optional[str] = None,
+        extra_sans_dns: Optional[List[str]] = None,
         key: str = "cert-manager",  # TODO what to put here?
     ):
         """
         Args:
             cert_subject: Custom subject. Name collisions are under the caller's responsibility.
+            extra_sans_dns: Any additional DNS names apart from FQDN.
         """
         super().__init__(charm, key)
 
         self.charm = charm
         self.cert_subject = cert_subject or charm.unit.name
         self.cert_subject = charm.unit.name if not cert_subject else cert_subject
+        self.extra_sans_dns = list(filter(None, extra_sans_dns or []))  # drop empty list items
         self.peer_relation_name = peer_relation_name
         self.certificates_relation_name = certificates_relation_name
 
         self.certificates = TLSCertificatesRequiresV2(self.charm, self.certificates_relation_name)
 
+        self.framework.observe(
+            self.charm.on.config_changed,
+            self._on_config_changed,
+        )
         self.framework.observe(
             self.charm.on.certificates_relation_joined,  # pyright: ignore
             self._on_certificates_relation_joined,
@@ -159,6 +169,16 @@ class CertManager(Object):
 
         self._generate_csr()
 
+    def _on_config_changed(self, _):
+        # FIXME on config changed, the web_external_url may or may not change. But because every
+        #  call to `generate_csr` appends a uuid, CSRs cannot be easily compared to one another.
+        #  so for now, will be overwriting the CSR (and cert) every config change. This is not
+        #  great. We could avoid this problem if we drop the web_external_url from the list of
+        #  SANs.
+        # Generate a CSR only of the necessary relations are already in place.
+        if self._peer_relation and self.charm.model.get_relation(self.certificates_relation_name):
+            self._generate_csr(renew=True)
+
     def _generate_csr(self, overwrite: bool = False, renew: bool = False, clear_cert: bool = False):
         """Request a CSR "creation" if renew is False, otherwise request a renewal.
 
@@ -177,7 +197,7 @@ class CertManager(Object):
             csr = generate_csr(
                 private_key=self._private_key.encode(),
                 subject=self.cert_subject,
-                sans_dns=[socket.getfqdn()]
+                sans_dns=[socket.getfqdn()] + self.extra_sans_dns
             )
 
             if renew:
@@ -190,7 +210,8 @@ class CertManager(Object):
 
             # Note: CSR is being replaced with a new one, so until we get the new cert, we'd have
             # a mismatch between the CSR and the cert.
-            self._csr = csr.decode()
+            # For some reason the csr contains a trailing '\n'. TODO figure out why
+            self._csr = csr.decode().strip()
 
         if clear_cert:
             self._ca_cert = ""
@@ -209,6 +230,11 @@ class CertManager(Object):
         # relation-changed. If that is not the case, we would need more guards and more paths.
 
         # Process the cert only if it belongs to the unit that requested it (this unit)
+        logger.info("unit's csr: %s", self._csr)
+        logger.info("unit's csr: %s", self._csr.encode())
+        logger.info("event's csr: %s", event.certificate_signing_request)
+        logger.info("event's csr: %s", event.certificate_signing_request.encode())
+        logger.info("unit's csr == event's csr: %s", event.certificate_signing_request == self._csr)
         if event.certificate_signing_request == self._csr:
             self._ca_cert = event.ca
             self._server_cert = event.certificate

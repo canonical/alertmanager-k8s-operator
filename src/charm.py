@@ -96,7 +96,15 @@ class AlertmanagerCharm(CharmBase):
         super().__init__(*args)
         self._stored.set_default(config_hash=None, launched_with_peers=False)
 
-        self.server_cert = CertManager(self, peer_relation_name="replicas")
+        if url := self.model.config.get("web_external_url"):
+            extra_sans_dns = [cast(str, urlparse(url).netloc)]
+        else:
+            extra_sans_dns = None
+        self.server_cert = CertManager(
+            self,
+            peer_relation_name="replicas",
+            extra_sans_dns=extra_sans_dns,
+        )
         self.framework.observe(
             self.server_cert.on.cert_changed,  # pyright: ignore
             self._on_server_cert_changed,
