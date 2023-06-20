@@ -173,9 +173,10 @@ class CertManager(Object):
         # FIXME on config changed, the web_external_url may or may not change. But because every
         #  call to `generate_csr` appends a uuid, CSRs cannot be easily compared to one another.
         #  so for now, will be overwriting the CSR (and cert) every config change. This is not
-        #  great. We could avoid this problem if we drop the web_external_url from the list of
-        #  SANs.
-        # Generate a CSR only of the necessary relations are already in place.
+        #  great. We could avoid this problem if:
+        #  - we extract the external_url from the existing cert and compare to current; or
+        #  - we drop the web_external_url from the list of SANs.
+        # Generate a CSR only if the necessary relations are already in place.
         if self._peer_relation and self.charm.model.get_relation(self.certificates_relation_name):
             self._generate_csr(renew=True)
 
