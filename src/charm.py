@@ -628,6 +628,7 @@ class AlertmanagerCharm(CharmBase):
         self.karma_provider.target = self._external_url
 
         # Update config file
+        self._push_tls_files()
         try:
             self._update_config()
         except ConfigUpdateFailure as e:
@@ -647,6 +648,9 @@ class AlertmanagerCharm(CharmBase):
         self.unit.status = ActiveStatus()
 
     def _on_server_cert_changed(self, _):
+        self._common_exit_hook()
+
+    def _push_tls_files(self):
         if key := self.server_cert.key:
             self.container.push(self._key_path, key, make_dirs=True)
         else:
@@ -655,8 +659,6 @@ class AlertmanagerCharm(CharmBase):
             self.container.push(self._server_cert_path, cert, make_dirs=True)
         else:
             self.container.remove_path(self._server_cert_path, recursive=True)
-
-        self._common_exit_hook()
 
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
