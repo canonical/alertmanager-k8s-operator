@@ -44,7 +44,7 @@ except ImportError:
     raise ImportError(
         "charms.tls_certificates_interface.v2.tls_certificates is missing; please get it through charmcraft fetch-lib"
     )
-from ops.charm import CharmBase
+from ops.charm import CharmBase, RelationBrokenEvent
 from ops.model import Relation
 from ops.framework import EventBase, EventSource, Object, ObjectEvents
 import logging
@@ -129,6 +129,10 @@ class CertManager(Object):
         self.framework.observe(
             self.certificates.on.all_certificates_invalidated,  # pyright: ignore
             self._on_all_certificates_invalidated,
+        )
+        self.framework.observe(
+            self.charm.on.certificates_relation_broken, # pyright: ignore
+            self._on_certificates_relation_broken
         )
 
         # Peer relation events
@@ -337,3 +341,8 @@ class CertManager(Object):
         # Note: assuming "limit: 1" in metadata
         self._generate_csr(overwrite=True, clear_cert=True)
         self.on.cert_changed.emit()  # pyright: ignore
+
+    def _on_certificates_relation_broken(self, event: RelationBrokenEvent) -> None:
+        """Clear the certificates data when removing the relation."""
+        if self._peer_relation:
+            pass # TODO clear/delete the peer relation
