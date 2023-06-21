@@ -445,6 +445,7 @@ class AlertmanagerCharm(CharmBase):
         Raises:
           ConfigUpdateFailure, if failed to update configuration file.
         """
+        clear: List[str] = []  # list of dir paths to (recursively) clean up before we push
         pending: List[Tuple[str, str]] = []  # list of (path, contents) tuples to push
 
         # update amtool config file
@@ -499,16 +500,47 @@ class AlertmanagerCharm(CharmBase):
         config_yaml = yaml.safe_dump(config)
         pending.append((self._config_path, config_yaml))
 
+        # TLS config
+        if self.server_cert.cert:
+            web_config = {
+                # https://prometheus.io/docs/prometheus/latest/configuration/https/
+                "tls_server_config": {
+                    # Certificate and key files for server to use to authenticate to client.
+                    "cert_file": self._server_cert_path,
+                    "key_file": self._key_path,
+                },
+            }
+            pending.append((self._web_config_path, yaml.safe_dump(web_config)))
+        else:
+            clear.append(self._web_config_path)
+
         # Calculate hash of all the contents of the pending files.
         config_hash = sha256("".join(config[1] for config in pending))
 
-        if config_hash == self._stored.config_hash:  # pyright: ignore
-            logger.debug("no change in config")
-            return
+        changed = config_hash != self._stored.config_hash  # pyright: ignore
 
-        logger.debug("config changed")
-        self._push_config(pending)
-        self._stored.config_hash = config_hash
+        if changed:
+            logger.debug("config changed")
+
+            if clear:
+                self._clear_config(clear)
+            self._push_config(pending)
+
+            self._stored.config_hash = config_hash
+
+        else:
+            logger.debug("no change in config")
+
+    def _clear_config(self, paths: List[str], recursive: bool = True):  # noqa: C901
+        """Recursively delete paths inside the container."""
+        for path in paths:
+            try:
+                self.container.remove_path(path, recursive=recursive)
+            except ConnectionError as e:
+                raise ConfigUpdateFailure(
+                    f"Failed to clear config file '{path}' into container: {e}"
+                )
+        self._validate_config()
 
     def _push_config(self, pending_config: List[Tuple[str, str]]):  # noqa: C901
         """Push config into workload container.
@@ -527,26 +559,18 @@ class AlertmanagerCharm(CharmBase):
                     f"Failed to push config file '{path}' into container: {e}"
                 )
 
+        self._validate_config()
+
+    def _validate_config(self):
+        """Validate the configuration.
+
+        Raise ConfigUpdateFailure if config is invalid.
+        """
         _, err = self._check_config()
         if err:
             raise ConfigUpdateFailure(
                 f"Failed to validate config (run check-config action): {err}"
             )
-
-        # FIXME `_push_config` is called only if there's a change in config hash, but TLS configs
-        #  are not yet included in the hash calculation. Should probably refactor the entire thing.
-        if self.server_cert.cert:
-            web_config = {
-                # https://prometheus.io/docs/prometheus/latest/configuration/https/
-                "tls_server_config": {
-                    # Certificate and key files for server to use to authenticate to client.
-                    "cert_file": self._server_cert_path,
-                    "key_file": self._key_path,
-                },
-            }
-            self.container.push(self._web_config_path, yaml.safe_dump(web_config), make_dirs=True)
-        else:
-            self.container.remove_path(self._web_config_path, recursive=True)
 
     def _reload(self) -> None:
         """Trigger a hot-reload of the configuration (or service restart).
