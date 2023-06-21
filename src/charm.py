@@ -533,6 +533,8 @@ class AlertmanagerCharm(CharmBase):
                 f"Failed to validate config (run check-config action): {err}"
             )
 
+        # FIXME `_push_config` is called only if there's a change in config hash, but TLS configs
+        #  are not yet included in the hash calculation. Should probably refactor the entire thing.
         if self.server_cert.cert:
             web_config = {
                 # https://prometheus.io/docs/prometheus/latest/configuration/https/
