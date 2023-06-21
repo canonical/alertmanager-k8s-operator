@@ -4,12 +4,11 @@
 
 """A Juju charm for alertmanager."""
 
-import hashlib
 import logging
 import re
 import socket
 from types import SimpleNamespace
-from typing import List, Optional, Tuple, cast
+from typing import Any, List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
@@ -35,6 +34,7 @@ from charms.observability_libs.v1.kubernetes_service_patch import (
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
+from config_utils import ConfigFileSystemState, apply
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -48,13 +48,6 @@ from ops.model import (
 from ops.pebble import ChangeError, ExecError, Layer, PathError, ProtocolError  # type: ignore
 
 logger = logging.getLogger(__name__)
-
-
-def sha256(hashable) -> str:
-    """Use instead of the builtin hash() for repeatable values."""
-    if isinstance(hashable, str):
-        hashable = hashable.encode("utf-8")
-    return hashlib.sha256(hashable).hexdigest()
 
 
 class ConfigUpdateFailure(RuntimeError):
@@ -82,11 +75,14 @@ class AlertmanagerCharm(CharmBase):
     # the amalgamated templates file goes in the same folder as the main configuration file
     _config_path = "/etc/alertmanager/alertmanager.yml"
     _web_config_path = "/etc/alertmanager/alertmanager-web-config.yml"
+    _amtool_config_path = "/etc/amtool/config.yml"
+    _templates_path = "/etc/alertmanager/templates.tmpl"
+
     _server_cert_path = "/etc/alertmanager/alertmanager.cert.pem"
     _key_path = "/etc/alertmanager/alertmanager.key.pem"
-    _templates_path = "/etc/alertmanager/templates.tmpl"
-    _amtool_config_path = "/etc/amtool/config.yml"
 
+    # Yaml config file paths in the container filesystem.
+    _config_paths = [_config_path, _web_config_path, _amtool_config_path]
     # path, inside the workload container for alertmanager data, e.g. 'nflogs', 'silences'.
     _storage_path = "/alertmanager"
 
@@ -436,37 +432,31 @@ class AlertmanagerCharm(CharmBase):
             ],
         }
 
-    def _update_config(self) -> None:
-        """Update alertmanager.yml config file to reflect changes in configuration.
-
-        After pushing a new config, a hot-reload is attempted. If hot-reload fails, the service is
-        restarted.
-
-        Raises:
-          ConfigUpdateFailure, if failed to update configuration file.
-        """
-        clear: List[str] = []  # list of dir paths to (recursively) clean up before we push
-        pending: List[Tuple[str, str]] = []  # list of (path, contents) tuples to push
-
-        # update amtool config file
+    def _config_amtool(self, config_state: ConfigFileSystemState):
+        """Update amtool config file."""
         amtool_config = yaml.safe_dump(
             {"alertmanager.url": f"http://localhost:{self.api_port}" + self.web_route_prefix}
         )
-        pending.append((self._amtool_config_path, amtool_config))
+        config_state.add_file(self._amtool_config_path, amtool_config)
 
-        # block if multiple config sources configured
-        if self._get_remote_config() and self._get_local_config():
-            logger.error("unable to use config from config_file and relation at the same time")
-            raise ConfigUpdateFailure("Multiple configs detected")
-        # if no config provided, use default config with a dummy receiver
-        if compound_config := self._get_remote_config():
-            config, templates = compound_config
-        elif compound_config := self._get_local_config():
-            config, templates = compound_config
+    def _config_alertmanager_tls(self, config_state: ConfigFileSystemState):
+        """Update with alertmanager tls configuration."""
+        if self.server_cert.cert:
+            web_config = {
+                # https://prometheus.io/docs/prometheus/latest/configuration/https/
+                "tls_server_config": {
+                    # Certificate and key files for server to use to authenticate to client.
+                    "cert_file": self._server_cert_path,
+                    "key_file": self._key_path,
+                },
+            }
+            config_state.add_file(self._web_config_path, yaml.safe_dump(web_config))
         else:
-            config = self._default_config
-            templates = None
+            config_state.delete_file(self._web_config_path)
 
+    @staticmethod
+    def _validate_raw_config(config: Any):
+        """Validate raw config."""
         # `yaml.safe_load`'s return type changes based on input. For example, it returns `str`
         # for "foo" but `dict` for "foo: bar". Error out if type is not dict.
         # This preliminary and rudimentary validity check is needed here to before any `.get()`
@@ -483,10 +473,24 @@ class AlertmanagerCharm(CharmBase):
                 "Invalid config file: use charm's 'templates' config option instead"
             )
 
-        # add templates, if any
+    def _get_raw_config_and_templates(self) -> Tuple[Any, str]:  # todo: better typing
+        # block if multiple config sources configured
+        if self._get_remote_config() and self._get_local_config():
+            logger.error("unable to use config from config_file and relation at the same time")
+            raise ConfigUpdateFailure("Multiple configs detected")
+        # if no config provided, use default config with a dummy receiver
+        if compound_config := self._get_remote_config():
+            config, templates = compound_config
+        elif compound_config := self._get_local_config():
+            config, templates = compound_config
+        else:
+            config = self._default_config
+            templates = None
+
+        self._validate_raw_config(config)
+
         if templates:
             config["templates"] = [f"{self._templates_path}"]
-            pending.append((self._templates_path, templates))
 
         # add juju topology to "group_by"
         route = cast(dict, config.get("route", {}))
@@ -496,69 +500,47 @@ class AlertmanagerCharm(CharmBase):
             )
         )
         config["route"] = route
+        return config, templates
+
+    def _config_alertmanager(self, config_state: ConfigFileSystemState):
+        """Update alertmanager configuration proper."""
+        config, templates = self._get_raw_config_and_templates()
+
+        # add templates, if any
+        if templates:
+            config_state.add_file(self._templates_path, templates)
 
         config_yaml = yaml.safe_dump(config)
-        pending.append((self._config_path, config_yaml))
+        config_state.add_file(self._config_path, config_yaml)
 
-        # TLS config
-        if self.server_cert.cert:
-            web_config = {
-                # https://prometheus.io/docs/prometheus/latest/configuration/https/
-                "tls_server_config": {
-                    # Certificate and key files for server to use to authenticate to client.
-                    "cert_file": self._server_cert_path,
-                    "key_file": self._key_path,
-                },
-            }
-            pending.append((self._web_config_path, yaml.safe_dump(web_config)))
-        else:
-            clear.append(self._web_config_path)
+        self._config_alertmanager_tls(config_state)
 
-        # Calculate hash of all the contents of the pending files.
-        config_hash = sha256("".join(config[1] for config in pending))
+    def _update_config(self) -> None:
+        """Update alertmanager.yml config file to reflect changes in configuration.
 
+        After pushing a new config, a hot-reload is attempted. If hot-reload fails, the service is
+        restarted.
+
+        Raises:
+          ConfigUpdateFailure, if failed to update configuration file.
+        """
+        config_state = ConfigFileSystemState()
+        self._config_amtool(config_state)
+        self._config_alertmanager(config_state)
+
+        config_hash = hash(config_state)
         changed = config_hash != self._stored.config_hash  # pyright: ignore
 
         if changed:
-            logger.debug("config changed")
-
-            if clear:
-                self._clear_config(clear)
-            self._push_config(pending)
-
+            logger.debug("applying config changes")
+            for instruction in config_state.instructions:
+                apply(instruction, self.container)
             self._stored.config_hash = config_hash
 
         else:
             logger.debug("no change in config")
 
-    def _clear_config(self, paths: List[str], recursive: bool = True):  # noqa: C901
-        """Recursively delete paths inside the container."""
-        for path in paths:
-            try:
-                self.container.remove_path(path, recursive=recursive)
-            except ConnectionError as e:
-                raise ConfigUpdateFailure(
-                    f"Failed to clear config file '{path}' into container: {e}"
-                )
-        self._validate_config()
-
-    def _push_config(self, pending_config: List[Tuple[str, str]]):  # noqa: C901
-        """Push config into workload container.
-
-        Args:
-            pending_config: a list of (path, contents) tuples to push into the workload container.
-
-        Raises:
-            ConfigUpdateFailure, if config update fails.
-        """
-        for path, contents in pending_config:
-            try:
-                self.container.push(path, contents, make_dirs=True)
-            except ConnectionError as e:
-                raise ConfigUpdateFailure(
-                    f"Failed to push config file '{path}' into container: {e}"
-                )
-
+        # validate and raise if bad
         self._validate_config()
 
     def _validate_config(self):
@@ -740,13 +722,29 @@ class AlertmanagerCharm(CharmBase):
         # before an IP address was ready, leaving UpdateStatue as the last resort.
         self._common_exit_hook()
 
+    def _calculate_current_config_hash(self):
+        # When restoring the charm on upgrade, we need to calculate the stored config hash based on
+        #  the actual container fs contents.
+
+        def _normalize(raw_yaml_str):
+            # to remove possible whitespace inconsistencies, deserialize and reserialize
+            # todo: since we own the files and (should) control when they're
+            #  written, is this really necessary?
+            return yaml.safe_dump(yaml.safe_load(raw_yaml_str))
+
+        config_state = ConfigFileSystemState()
+        # add all configuration paths to the state
+        for path in self._config_paths:
+            content = _normalize(self.container.pull(self._config_path))
+            config_state.add_file(path, content)
+
+        return hash(config_state)
+
     def _on_upgrade_charm(self, _):
         """Event handler for replica's UpgradeCharmEvent."""
         # update config hash
         self._stored.config_hash = (
-            ""
-            if not self.container.can_connect()
-            else sha256(yaml.safe_dump(yaml.safe_load(self.container.pull(self._config_path))))
+            "" if not self.container.can_connect() else self._calculate_current_config_hash()
         )
 
         # After upgrade (refresh), the unit ip address is not guaranteed to remain the same, and
