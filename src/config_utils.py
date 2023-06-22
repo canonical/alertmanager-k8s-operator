@@ -12,7 +12,7 @@ from typing import List, Union
 from ops.model import Container
 
 
-def _sha256(hashable) -> int:
+def _sha256(hashable: Union[str, bytes]) -> int:
     """Use instead of the builtin hash() for repeatable values."""
     if isinstance(hashable, str):
         hashable = hashable.encode("utf-8")

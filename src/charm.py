@@ -92,10 +92,8 @@ class AlertmanagerCharm(CharmBase):
         super().__init__(*args)
         self._stored.set_default(config_hash=None, launched_with_peers=False)
 
-        if url := self.model.config.get("web_external_url"):
-            extra_sans_dns = [cast(str, urlparse(url).netloc)]
-        else:
-            extra_sans_dns = None
+        url = self.model.config.get("web_external_url")
+        extra_sans_dns = [cast(str, urlparse(url).netloc)] if url else None
         self.server_cert = CertManager(
             self,
             peer_relation_name="replicas",
@@ -640,7 +638,7 @@ class AlertmanagerCharm(CharmBase):
         self.karma_provider.target = self._external_url
 
         # Update config file
-        self._push_tls_files()
+        self._update_tls_files()
         try:
             self._update_config()
         except ConfigUpdateFailure as e:
@@ -662,7 +660,7 @@ class AlertmanagerCharm(CharmBase):
     def _on_server_cert_changed(self, _):
         self._common_exit_hook()
 
-    def _push_tls_files(self):
+    def _update_tls_files(self):
         if key := self.server_cert.key:
             self.container.push(self._key_path, key, make_dirs=True)
         else:
