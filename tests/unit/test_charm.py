@@ -35,7 +35,6 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.set_leader(True)
 
         self.harness.begin_with_initial_hooks()
-        self.harness.container_pebble_ready(self.container_name)
 
     def test_num_peers(self):
         self.assertEqual(0, len(self.harness.charm.peer_relation.units))  # type: ignore

@@ -43,7 +43,6 @@ class TestExternalUrl(unittest.TestCase):
         self.harness.add_relation_unit(self.rel_id, "otherapp/0")
 
         self.harness.begin_with_initial_hooks()
-        self.harness.container_pebble_ready(CONTAINER_NAME)
         self.fqdn_url = f"http://fqdn:{self.harness.charm.api_port}"
 
     def get_url_cli_arg(self) -> str:

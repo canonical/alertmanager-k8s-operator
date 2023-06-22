@@ -43,7 +43,6 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
         self.app_name = "alertmanager-k8s"
         self.peer_rel_id = self.harness.add_relation("replicas", self.app_name)
         self.harness.begin_with_initial_hooks()
-        self.harness.container_pebble_ready(CONTAINER_NAME)
 
     @given(st.booleans())
     def test_single_unit_cluster(self, is_leader):
@@ -128,7 +127,6 @@ class TestInvalidConfig(unittest.TestCase):
         # GIVEN an invalid config file (mocked above)
         # WHEN the charm starts
         self.harness.begin_with_initial_hooks()
-        self.harness.container_pebble_ready(CONTAINER_NAME)
 
         # THEN the charm goes into blocked status
         self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
@@ -143,7 +141,6 @@ class TestInvalidConfig(unittest.TestCase):
         with patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", "")):
             # WHEN the charm starts
             self.harness.begin_with_initial_hooks()
-            self.harness.container_pebble_ready(CONTAINER_NAME)
 
             # THEN the charm goes into active status
             self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
