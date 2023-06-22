@@ -340,8 +340,10 @@ class CertManager(Object):
     def _on_certificates_relation_broken(self, event: RelationBrokenEvent) -> None:
         """Clear the certificates data when removing the relation."""
         if self._peer_relation:
-            if private_key := self._private_key:  # preserve the private key
-                self._peer_relation.data[self.charm.unit].clear()
+            private_key = self._private_key
+            # This is a workaround for https://bugs.launchpad.net/juju/+bug/2024583
+            self._peer_relation.data[self.charm.unit].clear()
+            if private_key:
                 self._peer_relation.data[self.charm.unit].update({"private_key": private_key})
-                self.on.cert_changed.emit()  # pyright: ignore
 
+        self.on.cert_changed.emit()  # pyright: ignore

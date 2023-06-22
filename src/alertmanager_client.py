@@ -39,7 +39,7 @@ class Alertmanager:
         self.timeout = timeout
 
     def reload(self) -> bool:
-        """Send a POST request to to hot-reload the config.
+        """Send a POST request to hot-reload the config.
 
         This reduces down-time compared to restarting the service.
 
