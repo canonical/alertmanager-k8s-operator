@@ -21,6 +21,7 @@ ops.testing.SIMULATE_CAN_CONNECT = True
 CONTAINER_NAME = "alertmanager"
 
 
+@patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("0.0.0", ""))
 class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
     """Feature: Push config to workload on startup.
 
@@ -28,7 +29,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
     """
 
     @patch.object(Alertmanager, "reload", tautology)
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("0.0.0", ""))
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
