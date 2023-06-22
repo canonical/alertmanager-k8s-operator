@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Union
 
-from ops import Container
+from ops.model import Container
 
 
 def _sha256(hashable) -> int:
