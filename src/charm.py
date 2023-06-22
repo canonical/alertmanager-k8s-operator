@@ -8,7 +8,7 @@ import logging
 import re
 import socket
 from types import SimpleNamespace
-from typing import Any, List, Optional, Tuple, cast, Dict
+from typing import Any, Dict, List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
@@ -473,7 +473,9 @@ class AlertmanagerCharm(CharmBase):
                 "Invalid config file: use charm's 'templates' config option instead"
             )
 
-    def _get_raw_config_and_templates(self) -> Tuple[Dict[str, Any], Optional[str]]:  # todo: better typing
+    def _get_raw_config_and_templates(
+        self,
+    ) -> Tuple[Dict[str, Any], Optional[str]]:  # todo: better typing
         # block if multiple config sources configured
         if self._get_remote_config() and self._get_local_config():
             logger.error("unable to use config from config_file and relation at the same time")
