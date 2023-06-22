@@ -478,7 +478,7 @@ class AlertmanagerCharm(CharmBase):
         if self._get_remote_config() and self._get_local_config():
             logger.error("unable to use config from config_file and relation at the same time")
             raise ConfigUpdateFailure("Multiple configs detected")
-        # if no config provided, use default config with a dummy receiver
+        # if no config provided, use default config with a placeholder receiver
         if compound_config := self._get_remote_config():
             config, templates = compound_config
         elif compound_config := self._get_local_config():

@@ -110,3 +110,14 @@ async def test_https_reachable(ops_test: OpsTest, temp_dir):
             mock_url=f"https://{am.hostname}:9093/-/ready",
         )
         assert "OK" in response
+
+
+@pytest.mark.abort_on_fail
+async def test_https_still_reachable_after_refresh(ops_test: OpsTest, charm_under_test, temp_dir):
+    """Make sure alertmanager's https endpoint is still reachable after an upgrade."""
+    await ops_test.model.applications[am.name].refresh(path=charm_under_test)
+    await ops_test.model.wait_for_idle(
+        status="active", raise_on_error=False, timeout=600, idle_period=30
+    )
+    await ops_test.model.wait_for_idle(status="active")
+    await test_https_reachable(ops_test, temp_dir)
