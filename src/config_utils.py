@@ -5,9 +5,7 @@
 """Configuration diffing utils."""
 
 import hashlib
-from dataclasses import dataclass
-from enum import Enum
-from typing import List, Union
+from typing import Dict, Optional, Union
 
 from ops.model import Container
 
@@ -20,50 +18,36 @@ def _sha256(hashable: Union[str, bytes]) -> int:
     return int(hex, 16)
 
 
-class InstructionApplyError(RuntimeError):
-    """Raised when ``Instruction.apply`` fails for whatever reason."""
-
-
-class _ContentFlags(str, Enum):
-    """Flags for Instruction.content."""
-
-    DELETE_RECURSIVE = "<RECURSIVELY DELETED>"
-    """Recursively delete the path."""
-
-
-@dataclass
-class Instruction:
-    """Configuration filesystem instruction."""
-
-    path: str
-    content: Union[str, _ContentFlags]
-
-
-def apply(instruction: Instruction, container: Container):
-    """Apply this instruction onto a container."""
-    try:
-        if instruction.content is _ContentFlags.DELETE_RECURSIVE:
-            container.remove_path(instruction.path, recursive=True)
-        else:  # str
-            container.push(instruction.path, instruction.content, make_dirs=True)
-    except Exception as e:
-        raise InstructionApplyError from e
-
-
 class ConfigFileSystemState:
     """Class representing the configuration state in a filesystem."""
 
-    def __init__(self):
-        self.instructions: List[Instruction] = []
+    def __init__(self, manifest: Optional[Dict[str, Optional[str]]] = None):
+        self._manifest = manifest.copy() if manifest else {}
+
+    @property
+    def manifest(self) -> Dict[str, Optional[str]]:
+        """Return a copy of the planned manifest."""
+        return self._manifest.copy()
 
     def add_file(self, path: str, content: str):
         """Add a file to the configuration."""
-        self.instructions.append(Instruction(path, content))
+        # `None` means it needs to be removed (if present). If paths changed across an upgrade,
+        # to prevent stale files from remaining (if were previously written to persistent
+        # storage), hard-code the old paths to None to guarantee their removal.
+        self._manifest[path] = content
 
     def delete_file(self, path: str):
         """Add a file to the configuration."""
-        self.instructions.append(Instruction(path, _ContentFlags.DELETE_RECURSIVE))
+        self._manifest[path] = None
 
     def __hash__(self):
         """Hash this."""
-        return _sha256("".join(instruction.content for instruction in self.instructions))
+        return _sha256(str(self._manifest))
+
+    def apply(self, container: Container):
+        """Apply this manifest onto a container."""
+        for filepath, content in self._manifest.items():
+            if content is None:
+                container.remove_path(filepath, recursive=True)
+            else:
+                container.push(filepath, content, make_dirs=True)

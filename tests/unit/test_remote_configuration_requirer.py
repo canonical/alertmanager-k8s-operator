@@ -5,7 +5,7 @@ import json
 import logging
 import unittest
 from typing import cast
-from unittest.mock import Mock, PropertyMock, patch
+from unittest.mock import Mock, patch
 
 import yaml
 from charm import AlertmanagerCharm
@@ -116,16 +116,14 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         )
 
     @patch("ops.model.Container.exec")
-    @patch("charm.AlertmanagerCharm._default_config", new_callable=PropertyMock)
+    @patch("config_builder.default_config", yaml.safe_load(TEST_ALERTMANAGER_DEFAULT_CONFIG))
     @k8s_resource_multipatch
     def test_invalid_config_pushed_to_the_relation_data_bag_does_not_update_alertmanager_config(
-        self, patched_default_config, patched_exec
+        self, patched_exec
     ):
         patched_exec_mock = Mock()
         patched_exec_mock.wait_output.return_value = ("whatever", "")
         patched_exec.return_value = patched_exec_mock
-        default_config = yaml.safe_load(TEST_ALERTMANAGER_DEFAULT_CONFIG)
-        patched_default_config.return_value = default_config
         invalid_config = yaml.safe_load("some: invalid_config")
 
         self.harness.update_relation_data(
@@ -135,7 +133,7 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         )
         config = self.harness.charm.container.pull(self.harness.charm._config_path)
 
-        self.assertEqual(yaml.safe_load(config.read()), default_config)
+        self.assertNotIn("invalid_config", yaml.safe_load(config.read()))
 
     @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
