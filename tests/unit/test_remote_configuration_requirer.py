@@ -12,6 +12,7 @@ from charm import AlertmanagerCharm
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     DEFAULT_RELATION_NAME,
 )
+from config_utils import WorkloadManager
 from deepdiff import DeepDiff  # type: ignore[import]
 from helpers import k8s_resource_multipatch
 from ops import testing
@@ -41,7 +42,7 @@ route:
 
 class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient")
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @k8s_resource_multipatch
     def setUp(self, _) -> None:
@@ -56,7 +57,7 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         # In ops 2.0.0+, we need to mock the version, as begin_with_initial_hooks() now triggers
         # pebble-ready, which attempts to obtain the workload version.
         patcher = patch.object(
-            AlertmanagerCharm, "_alertmanager_version", property(lambda *_: "0.0.0")
+            WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0")
         )
         self.mock_version = patcher.start()
         self.addCleanup(patcher.stop)
@@ -99,7 +100,7 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         )
 
     @k8s_resource_multipatch
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     def test_configs_available_from_both_relation_data_bag_and_charm_config_block_charm(
         self,
     ):
@@ -135,7 +136,7 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
 
         self.assertNotIn("invalid_config", yaml.safe_load(config.read()))
 
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
     def test_templates_pushed_to_relation_data_bag_are_saved_to_templates_file_in_alertmanager(
         self,

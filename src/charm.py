@@ -5,7 +5,6 @@
 """A Juju charm for alertmanager."""
 
 import logging
-import re
 import socket
 from types import SimpleNamespace
 from typing import List, Optional, Tuple, cast
@@ -35,7 +34,7 @@ from charms.observability_libs.v1.kubernetes_service_patch import (
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
 from config_builder import ConfigBuilder, ConfigError
-from config_utils import ConfigFileSystemState
+from config_utils import ConfigFileSystemState, ConfigUpdateFailure, WorkloadManager
 from ops.charm import ActionEvent, CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -46,13 +45,9 @@ from ops.model import (
     Relation,
     WaitingStatus,
 )
-from ops.pebble import ChangeError, ExecError, Layer, PathError, ProtocolError  # type: ignore
+from ops.pebble import PathError, ProtocolError  # type: ignore
 
 logger = logging.getLogger(__name__)
-
-
-class ConfigUpdateFailure(RuntimeError):
-    """Custom exception for failed config updates."""
 
 
 class AlertmanagerCharm(CharmBase):
@@ -63,10 +58,10 @@ class AlertmanagerCharm(CharmBase):
                 server
     """
 
-    # Container name is automatically determined from charm name
+    # Container name must match metadata.yaml
     # Layer name is used for the layer label argument in container.add_layer
     # Service name matches charm name for consistency
-    _container_name = _layer_name = _service_name = _exe_name = "alertmanager"
+    _container_name = _service_name = "alertmanager"
     _relations = SimpleNamespace(
         alerting="alerting", peer="replicas", remote_config="remote_configuration"
     )
@@ -82,14 +77,11 @@ class AlertmanagerCharm(CharmBase):
     _server_cert_path = "/etc/alertmanager/alertmanager.cert.pem"
     _key_path = "/etc/alertmanager/alertmanager.key.pem"
 
-    # path, inside the workload container for alertmanager data, e.g. 'nflogs', 'silences'.
-    _storage_path = "/alertmanager"
-
     _stored = StoredState()
 
     def __init__(self, *args):
         super().__init__(*args)
-        self._stored.set_default(config_hash=None, launched_with_peers=False)
+        self._stored.set_default(config_hash=None)
 
         url = self.model.config.get("web_external_url")
         extra_sans_dns = [cast(str, urlparse(url).netloc)] if url else None
@@ -186,8 +178,25 @@ class AlertmanagerCharm(CharmBase):
 
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+
+        self.alertmanager_workload = WorkloadManager(
+            self,
+            container_name=self._container_name,
+            peer_addresses=self._get_peer_addresses(),
+            web_route_prefix=self.web_route_prefix,
+            api_port=self.api_port,
+            ha_port=self._ports.ha,
+            external_url=self._external_url,  # TODO does it have to be a callable?
+            config_path=self._config_path,
+            web_config_path=self._web_config_path,
+            tls_enabled=bool(self.server_cert.cert),
+        )
         self.framework.observe(
-            self.on.alertmanager_pebble_ready, self._on_pebble_ready  # pyright: ignore
+            # The workload manager too observes pebble ready, but still need this here because
+            # of the common exit hook (otherwise would need to pass the common exit hook as
+            # a callback).
+            self.on.alertmanager_pebble_ready,  # pyright: ignore
+            self._on_pebble_ready,
         )
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
@@ -245,24 +254,9 @@ class AlertmanagerCharm(CharmBase):
             logger.info("Ingress revoked.")
         self._common_exit_hook()
 
-    def _check_config(self) -> Tuple[Optional[str], Optional[str]]:
-        container = self.unit.get_container(self._container_name)
-
-        if not container.can_connect():
-            return "", "Error: cannot check config: alertmanager workload container not ready"
-        proc = container.exec(["/usr/bin/amtool", "check-config", self._config_path])
-        try:
-            output, err = proc.wait_output()
-        except ChangeError as e:
-            output, err = "", e.err
-        except ExecError as e:
-            output, err = str(e.stdout), str(e.stderr)
-
-        return output, err
-
     def _on_check_config(self, event: ActionEvent) -> None:
         """Runs `amtool check-config` inside the workload."""
-        output, err = self._check_config()
+        output, err = self.alertmanager_workload.check_config()
         if not output and err:
             event.fail(err)
             return
@@ -293,7 +287,7 @@ class AlertmanagerCharm(CharmBase):
                 {
                     "path": self._config_path,
                     "content": str(content.read()),
-                    # This already includes the above, but keeping both for backwards compatibility.
+                    # This already includes the above, but keeping both for backwards compat.
                     "configs": str(results),
                 }
             )
@@ -313,107 +307,6 @@ class AlertmanagerCharm(CharmBase):
         (NOTE: would return None if called too early, e.g. during install).
         """
         return self.model.get_relation(self._relations.peer)
-
-    def _alertmanager_layer(self) -> Layer:
-        """Returns Pebble configuration layer for alertmanager."""
-
-        def _command():
-            """Returns full command line to start alertmanager."""
-            peer_addresses = self._get_peer_addresses()
-
-            # cluster listen address - empty string disables HA mode
-            listen_address_arg = "" if len(peer_addresses) == 0 else f"0.0.0.0:{self._ports.ha}"
-
-            # The chosen port in the cluster.listen-address flag is the port that needs to be
-            # specified in the cluster.peer flag of the other peers.
-            # Assuming all replicas use the same port.
-            # Sorting for repeatability in comparing between service layers.
-            peer_cmd_args = " ".join(
-                sorted([f"--cluster.peer={address}" for address in peer_addresses])
-            )
-            web_config_arg = (
-                f"--web.config.file={self._web_config_path} " if self.server_cert.cert else ""
-            )
-            return (
-                f"{self._exe_name} "
-                f"--config.file={self._config_path} "
-                f"--storage.path={self._storage_path} "
-                f"--web.listen-address=:{self._ports.api} "
-                f"--cluster.listen-address={listen_address_arg} "
-                f"--web.external-url={self._external_url} "
-                f"{web_config_arg}"
-                f"{peer_cmd_args}"
-            )
-
-        return Layer(
-            {
-                "summary": "alertmanager layer",
-                "description": "pebble config layer for alertmanager",
-                "services": {
-                    self._service_name: {
-                        "override": "replace",
-                        "summary": "alertmanager service",
-                        "command": _command(),
-                        "startup": "enabled",
-                    }
-                },
-            }
-        )
-
-    def _restart_service(self) -> bool:
-        """Helper function for restarting the underlying service.
-
-        Returns:
-            True if restart succeeded; False otherwise.
-        """
-        logger.info("Restarting service %s", self._service_name)
-
-        if not self.container.can_connect():
-            logger.error("Cannot (re)start service: container is not ready.")
-            return False
-
-        # Check if service exists, to avoid ModelError from being raised when the service does
-        # not exist,
-        if not self.container.get_plan().services.get(self._service_name):
-            logger.error("Cannot (re)start service: service does not (yet) exist.")
-            return False
-
-        self.container.restart(self._service_name)
-
-        # Update "launched with peers" flag.
-        # The service should be restarted when peers joined if this is False.
-        plan = self.container.get_plan()
-        service = plan.services[self._service_name]
-        self._stored.launched_with_peers = "--cluster.peer" in service.command
-
-        return True
-
-    def _update_layer(self) -> bool:
-        """Update service layer to reflect changes in peers (replicas).
-
-        Returns:
-          True if anything changed; False otherwise
-        """
-        overlay = self._alertmanager_layer()
-        plan = self.container.get_plan()
-
-        if self._service_name not in plan.services or overlay.services != plan.services:
-            self.container.add_layer(self._layer_name, overlay, combine=True)
-            try:
-                # If a config is invalid then alertmanager would exit immediately.
-                # This would be caught by pebble (default timeout is 30 sec) and a ChangeError
-                # would be raised.
-                self.container.replan()
-                return True
-            except ChangeError as e:
-                logger.error(
-                    "Failed to replan; pebble plan: %s; %s",
-                    self.container.get_plan().to_dict(),
-                    str(e),
-                )
-                return False
-
-        return False
 
     def _get_remote_config(self) -> Optional[Tuple[Optional[dict], Optional[str]]]:
         remote_config, remote_templates = self.remote_configuration.config()
@@ -502,57 +395,11 @@ class AlertmanagerCharm(CharmBase):
 
         Raise ConfigUpdateFailure if config is invalid.
         """
-        _, err = self._check_config()
+        _, err = self.alertmanager_workload.check_config()
         if err:
             raise ConfigUpdateFailure(
                 f"Failed to validate config (run check-config action): {err}"
             )
-
-    def _reload(self) -> None:
-        """Trigger a hot-reload of the configuration (or service restart).
-
-        Raises:
-            ConfigUpdateFailure, if the reload (or restart) fails.
-        """
-        # Obtain a "before" snapshot of the config from the server.
-        # This is different from `config` above because alertmanager adds in a bunch of details
-        # such as:
-        #
-        #   smtp_hello: localhost
-        #   smtp_require_tls: true
-        #   pagerduty_url: https://events.pagerduty.com/v2/enqueue
-        #   opsgenie_api_url: https://api.opsgenie.com/
-        #   wechat_api_url: https://qyapi.weixin.qq.com/cgi-bin/
-        #   victorops_api_url: https://alert.victorops.com/integrations/generic/20131114/alert/
-        #
-        # The snapshot is needed to determine if reloading took place.
-        try:
-            config_from_server_before = self.api.config()
-        except AlertmanagerBadResponse:
-            config_from_server_before = None
-
-        # Send an HTTP POST to alertmanager to hot-reload the config.
-        # This reduces down-time compared to restarting the service.
-        try:
-            self.api.reload()
-        except AlertmanagerBadResponse as e:
-            logger.warning("config reload via HTTP POST failed: %s", str(e))
-            # hot-reload failed so attempting a service restart
-            if not self._restart_service():
-                raise ConfigUpdateFailure(
-                    "Is config valid? hot reload and service restart failed."
-                )
-
-        # Obtain an "after" snapshot of the config from the server.
-        try:
-            config_from_server_after = self.api.config()
-        except AlertmanagerBadResponse:
-            config_from_server_after = None
-
-        if config_from_server_before is None or config_from_server_after is None:
-            logger.warning("cannot determine if reload succeeded")
-        elif config_from_server_before == config_from_server_after:
-            logger.warning("config remained the same after a reload")
 
     def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
@@ -590,19 +437,18 @@ class AlertmanagerCharm(CharmBase):
         self.karma_provider.target = self._external_url
 
         # Update config file
-        self._update_tls_files()
         try:
-            self._update_config()
+            self._update_config()  # TODO: move into WorkloadManager?
         except (ConfigUpdateFailure, ConfigError) as e:
             self.unit.status = BlockedStatus(str(e))
             return
 
         # Update pebble layer
-        self._update_layer()
+        self.alertmanager_workload.update_layer()
 
         # Reload or restart the service
         try:
-            self._reload()
+            self.alertmanager_workload.reload()
         except ConfigUpdateFailure as e:
             self.unit.status = BlockedStatus(str(e))
             return
@@ -612,25 +458,9 @@ class AlertmanagerCharm(CharmBase):
     def _on_server_cert_changed(self, _):
         self._common_exit_hook()
 
-    def _update_tls_files(self):
-        if key := self.server_cert.key:
-            self.container.push(self._key_path, key, make_dirs=True)
-        else:
-            self.container.remove_path(self._key_path, recursive=True)
-        if cert := self.server_cert.cert:
-            self.container.push(self._server_cert_path, cert, make_dirs=True)
-        else:
-            self.container.remove_path(self._server_cert_path, recursive=True)
-
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
         self._common_exit_hook()
-        if version := self._alertmanager_version:
-            self.unit.set_workload_version(version)
-        else:
-            logger.debug(
-                "Cannot set workload version at this time: could not get Alertmanager version."
-            )
 
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent."""
@@ -739,24 +569,6 @@ class AlertmanagerCharm(CharmBase):
     def _external_url(self) -> str:
         """Return the externally-reachable (public) address of the alertmanager api server."""
         return self.model.config.get("web_external_url") or self.ingress.url or self._internal_url
-
-    @property
-    def _alertmanager_version(self) -> Optional[str]:
-        """Returns the version of Alertmanager.
-
-        Returns:
-            A string equal to the Alertmanager version.
-        """
-        container = self.unit.get_container(self._container_name)
-        if not container.can_connect():
-            return None
-        version_output, _ = container.exec([self._exe_name, "--version"]).wait_output()
-        # Output looks like this:
-        # alertmanager, version 0.23.0 (branch: HEAD, ...
-        result = re.search(r"version (\d*\.\d*\.\d*)", version_output)
-        if result is None:
-            return result
-        return result.group(1)
 
 
 if __name__ == "__main__":

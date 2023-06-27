@@ -9,6 +9,7 @@ from unittest.mock import patch
 import ops
 import yaml
 from charm import Alertmanager, AlertmanagerCharm
+from config_utils import WorkloadManager
 from helpers import FakeProcessVersionCheck, cli_arg, k8s_resource_multipatch, tautology
 from ops.model import ActiveStatus, BlockedStatus, Container
 from ops.testing import Harness
@@ -22,7 +23,7 @@ SERVICE_NAME = AlertmanagerCharm._service_name
 
 class TestExternalUrl(unittest.TestCase):
     @patch.object(Alertmanager, "reload", tautology)
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
@@ -61,7 +62,7 @@ class TestExternalUrl(unittest.TestCase):
         service = self.harness.model.unit.get_container(CONTAINER_NAME).get_service(SERVICE_NAME)
         return service.is_running()
 
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
     def test_config_option_overrides_fqdn(self):
@@ -87,7 +88,7 @@ class TestExternalUrl(unittest.TestCase):
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
         self.assertTrue(self.is_service_running())
 
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
     def test_config_option_overrides_traefik(self):
@@ -144,7 +145,7 @@ class TestExternalUrl(unittest.TestCase):
         # THEN the fqdn is used as external url
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
 
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
     def test_web_route_prefix(self):
@@ -179,7 +180,7 @@ class TestExternalUrl(unittest.TestCase):
             f"http://localhost:{self.harness.charm._ports.api}/path/to/alertmanager/",
         )
 
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn-0")
     @k8s_resource_multipatch
     def test_cluster_addresses(self, *_):
@@ -220,7 +221,7 @@ class TestExternalUrl(unittest.TestCase):
             cluster_args, ["fqdn-1:9094/path/to/alertmanager", "fqdn-2:9094/path/to/alertmanager"]
         )
 
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
     def test_netloc_without_port(self):
@@ -237,7 +238,7 @@ class TestExternalUrl(unittest.TestCase):
         rel = self.harness.charm.framework.model.get_relation("alerting", self.rel_id)
         self.assertEqual(expected_rel_data, rel.data[self.harness.charm.unit])
 
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
     def test_invalid_web_route_prefix(self):

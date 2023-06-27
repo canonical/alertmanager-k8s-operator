@@ -11,6 +11,7 @@ import ops
 import validators
 import yaml
 from charm import Alertmanager, AlertmanagerCharm
+from config_utils import WorkloadManager
 from helpers import FakeProcessVersionCheck, k8s_resource_multipatch, tautology
 from hypothesis import given
 from ops.model import ActiveStatus, BlockedStatus, Container
@@ -21,7 +22,7 @@ ops.testing.SIMULATE_CAN_CONNECT = True
 CONTAINER_NAME = "alertmanager"
 
 
-@patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("0.0.0", ""))
+@patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("0.0.0", ""))
 class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
     """Feature: Push config to workload on startup.
 
@@ -29,7 +30,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
     """
 
     @patch.object(Alertmanager, "reload", tautology)
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("0.0.0", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("0.0.0", ""))
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
@@ -118,7 +119,7 @@ class TestInvalidConfig(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
 
     @patch.object(Alertmanager, "reload", tautology)
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("", "some error"))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("", "some error"))
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
@@ -138,7 +139,7 @@ class TestInvalidConfig(unittest.TestCase):
     @patch.object(Container, "exec", new=FakeProcessVersionCheck)
     def test_charm_blocks_on_invalid_config_changed(self, *_):
         # GIVEN a valid configuration (mocked below)
-        with patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", "")):
+        with patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", "")):
             # WHEN the charm starts
             self.harness.begin_with_initial_hooks()
 
@@ -146,7 +147,7 @@ class TestInvalidConfig(unittest.TestCase):
             self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
 
         # AND WHEN the config is updated and invalid (mocked below)
-        with patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("", "some error")):
+        with patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("", "some error")):
             self.harness.update_config({"config_file": "foo: bar"})
 
             # THEN the charm goes into blocked status
