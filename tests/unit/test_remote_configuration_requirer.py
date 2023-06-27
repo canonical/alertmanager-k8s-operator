@@ -24,9 +24,9 @@ testing.SIMULATE_CAN_CONNECT = True
 
 TEST_ALERTMANAGER_CONFIG_FILE = "/test/rules/dir/config_file.yml"
 TEST_ALERTMANAGER_DEFAULT_CONFIG = """route:
-  receiver: dummy
+  receiver: placeholder
 receivers:
-- name: dummy
+- name: placeholder
 """
 TEST_ALERTMANAGER_REMOTE_CONFIG = """receivers:
 - name: test_receiver
@@ -104,11 +104,11 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
     def test_configs_available_from_both_relation_data_bag_and_charm_config_block_charm(
         self,
     ):
-        dummy_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
+        sample_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
         self.harness.update_relation_data(
             relation_id=self.relation_id,
             app_or_unit="remote-config-provider",
-            key_values={"alertmanager_config": json.dumps(dummy_remote_config)},
+            key_values={"alertmanager_config": json.dumps(sample_remote_config)},
         )
         self.harness.update_config({"config_file": TEST_ALERTMANAGER_DEFAULT_CONFIG})
 
@@ -141,14 +141,14 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
     def test_templates_pushed_to_relation_data_bag_are_saved_to_templates_file_in_alertmanager(
         self,
     ):
-        dummy_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
+        sample_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
         test_template = '{{define "myTemplate"}}do something{{end}}'
 
         self.harness.update_relation_data(
             relation_id=self.relation_id,
             app_or_unit="remote-config-provider",
             key_values={
-                "alertmanager_config": json.dumps(dummy_remote_config),
+                "alertmanager_config": json.dumps(sample_remote_config),
                 "alertmanager_templates": json.dumps([test_template]),
             },
         )

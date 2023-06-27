@@ -137,7 +137,7 @@ class Alertmanager:
           wechat_api_url: https://qyapi.weixin.qq.com/cgi-bin/
           victorops_api_url: https://alert.victorops.com/integrations/generic/20131114/alert/
         route:
-          receiver: dummy
+          receiver: placeholder
           group_by:
             - juju_application
             - juju_model
@@ -146,7 +146,7 @@ class Alertmanager:
           group_interval: 5m
           repeat_interval: 1h
         receivers:
-          - name: dummy
+          - name: placeholder
             webhook_configs:
               - send_resolved: true
                 http_config:

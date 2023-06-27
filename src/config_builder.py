@@ -22,9 +22,9 @@ default_config = {
         "group_wait": "30s",
         "group_interval": "5m",
         "repeat_interval": "1h",
-        "receiver": "dummy",
+        "receiver": "placeholder",
     },
-    "receivers": [{"name": "dummy", "webhook_configs": [{"url": "http://127.0.0.1:5001/"}]}],
+    "receivers": [{"name": "placeholder", "webhook_configs": [{"url": "http://127.0.0.1:5001/"}]}],
 }
 
 
