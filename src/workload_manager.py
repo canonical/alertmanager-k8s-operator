@@ -51,8 +51,16 @@ class ConfigFileSystemState:
                 container.push(filepath, content, make_dirs=True)
 
 
-class ConfigUpdateFailure(RuntimeError):
+class WorkloadManagerError(RuntimeError):
+    """Base class for exceptions raised by WorkloadManager."""
+
+
+class ConfigUpdateFailure(WorkloadManagerError):
     """Custom exception for failed config updates."""
+
+
+class ContainerNotReady(WorkloadManagerError):
+    """Raised when an operation is run that presumes the container being ready.."""
 
 
 class WorkloadManager(Object):
@@ -84,6 +92,7 @@ class WorkloadManager(Object):
 
         self._service_name = self._container_name = container_name
         self._container = charm.unit.get_container(container_name)
+
         self._peer_addresses = peer_addresses
 
         self._api_port = api_port
@@ -97,9 +106,14 @@ class WorkloadManager(Object):
         # turn the container name to a valid Python identifier
         snake_case_container_name = self._container_name.replace("-", "_")
         charm.framework.observe(
-            getattr(charm.on, "{}_pebble_ready".format(snake_case_container_name)),
+            charm.on[snake_case_container_name].pebble_ready,
             self._on_pebble_ready,
         )
+
+    @property
+    def is_ready(self):
+        """Is the workload ready to be interacted with?"""
+        return self._container.can_connect()
 
     def _on_pebble_ready(self, _):
         if version := self._alertmanager_version:
@@ -116,7 +130,7 @@ class WorkloadManager(Object):
         Returns:
             A string equal to the Alertmanager version.
         """
-        if not self._container.can_connect():
+        if not self.is_ready:
             return None
         version_output, _ = self._container.exec([self._exe_name, "--version"]).wait_output()
         # Output looks like this:
@@ -126,18 +140,21 @@ class WorkloadManager(Object):
             return result
         return result.group(1)
 
-    def check_config(self) -> Tuple[Optional[str], Optional[str]]:
-        """Check config with amtool."""
-        if not self._container.can_connect():
-            return "", "Error: cannot check config: alertmanager workload container not ready"
+    def check_config(self) -> Tuple[str, str]:
+        """Check config with amtool.
+
+        Returns stdout, stderr.
+        """
+        if not self.is_ready:
+            raise ContainerNotReady(
+                "cannot check config: alertmanager workload container not ready"
+            )
         proc = self._container.exec(["/usr/bin/amtool", "check-config", self._config_path])
         try:
             output, err = proc.wait_output()
-        except ChangeError as e:
-            output, err = "", e.err
         except ExecError as e:
             output, err = str(e.stdout), str(e.stderr)
-
+        # let ChangeError raise
         return output, err
 
     def _alertmanager_layer(self) -> Layer:
@@ -192,6 +209,9 @@ class WorkloadManager(Object):
         Returns:
           True if anything changed; False otherwise
         """
+        if not self.is_ready:
+            raise ContainerNotReady("cannot update layer")
+
         overlay = self._alertmanager_layer()
         plan = self._container.get_plan()
 
@@ -222,15 +242,17 @@ class WorkloadManager(Object):
         Raises:
           ConfigUpdateFailure, if failed to update configuration file.
         """
+        if not self.is_ready:
+            raise ContainerNotReady("cannot update config")
+
         logger.debug("applying config changes")
         manifest.apply(self._container)
 
         # Validate with amtool and raise if bad
-        _, err = self.check_config()
-        if err:
-            raise ConfigUpdateFailure(
-                f"Failed to validate config (run check-config action): {err}"
-            )
+        try:
+            self.check_config()
+        except WorkloadManagerError as e:
+            raise ConfigUpdateFailure("Failed to validate config (run check-config action)") from e
 
     def restart_service(self) -> bool:
         """Helper function for restarting the underlying service.
@@ -240,7 +262,7 @@ class WorkloadManager(Object):
         """
         logger.info("Restarting service %s", self._service_name)
 
-        if not self._container.can_connect():
+        if not self.is_ready:
             logger.error("Cannot (re)start service: container is not ready.")
             return False
 
@@ -260,6 +282,9 @@ class WorkloadManager(Object):
         Raises:
             ConfigUpdateFailure, if the reload (or restart) fails.
         """
+        if not self.is_ready:
+            raise ContainerNotReady("cannot reload")
+
         # Obtain a "before" snapshot of the config from the server.
         # This is different from `config` above because alertmanager adds in a bunch of details
         # such as:

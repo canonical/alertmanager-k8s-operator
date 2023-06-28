@@ -44,7 +44,12 @@ from ops.model import (
     WaitingStatus,
 )
 from ops.pebble import PathError, ProtocolError  # type: ignore
-from workload_manager import ConfigFileSystemState, ConfigUpdateFailure, WorkloadManager
+from workload_manager import (
+    ConfigFileSystemState,
+    ConfigUpdateFailure,
+    WorkloadManager,
+    WorkloadManagerError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -252,14 +257,16 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_check_config(self, event: ActionEvent) -> None:
         """Runs `amtool check-config` inside the workload."""
-        output, err = self.alertmanager_workload.check_config()
-        if not output and err:
-            event.fail(err)
-            return
+        try:
+            stdout, stderr = self.alertmanager_workload.check_config()
+        except WorkloadManagerError as e:
+            return event.fail(str(e))
 
-        event.set_results(
-            {"result": output, "error-message": err, "valid": False if err else True}
-        )
+        if not stdout and stderr:
+            return event.fail(stderr)
+
+        event.set_results({"result": stdout, "error-message": stderr, "valid": not stderr})
+        return None
 
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
