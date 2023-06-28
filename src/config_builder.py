@@ -82,7 +82,10 @@ class ConfigBuilder:
     @property
     def _alertmanager_config(self) -> str:
         config = self._config.copy()
-        if "templates" in config:
+
+        # On disk, alertmanager rewrites the config and automatically adds an empty placeholder,
+        # `templates: []`, so `get` is more robust than `if "templates" in config`.
+        if config.get("templates"):
             logger.error(
                 "alertmanager config file must not have a 'templates' section; "
                 "use the 'templates' config option instead."
