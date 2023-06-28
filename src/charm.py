@@ -34,9 +34,7 @@ from charms.observability_libs.v1.kubernetes_service_patch import (
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
 from config_builder import ConfigBuilder, ConfigError
-from config_utils import ConfigFileSystemState, ConfigUpdateFailure, WorkloadManager
 from ops.charm import ActionEvent, CharmBase
-from ops.framework import StoredState
 from ops.main import main
 from ops.model import (
     ActiveStatus,
@@ -46,6 +44,7 @@ from ops.model import (
     WaitingStatus,
 )
 from ops.pebble import PathError, ProtocolError  # type: ignore
+from workload_manager import ConfigFileSystemState, ConfigUpdateFailure, WorkloadManager
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +76,8 @@ class AlertmanagerCharm(CharmBase):
     _server_cert_path = "/etc/alertmanager/alertmanager.cert.pem"
     _key_path = "/etc/alertmanager/alertmanager.key.pem"
 
-    _stored = StoredState()
-
     def __init__(self, *args):
         super().__init__(*args)
-        self._stored.set_default(config_hash=None)
 
         url = self.model.config.get("web_external_url")
         extra_sans_dns = [cast(str, urlparse(url).netloc)] if url else None
@@ -186,7 +182,7 @@ class AlertmanagerCharm(CharmBase):
             web_route_prefix=self.web_route_prefix,
             api_port=self.api_port,
             ha_port=self._ports.ha,
-            external_url=self._external_url,  # TODO does it have to be a callable?
+            external_url=self._external_url,
             config_path=self._config_path,
             web_config_path=self._web_config_path,
             tls_enabled=bool(self.server_cert.cert),
@@ -271,7 +267,7 @@ class AlertmanagerCharm(CharmBase):
         if not self.container.can_connect():
             event.fail("Container not ready")
 
-        filepaths = self._render_config_manifest().manifest.keys()
+        filepaths = self._render_manifest().manifest.keys()
 
         try:
             results = [
@@ -341,19 +337,19 @@ class AlertmanagerCharm(CharmBase):
 
         return config, templates
 
-    def _render_config_manifest(self) -> ConfigFileSystemState:
+    def _render_manifest(self) -> ConfigFileSystemState:
         raw_config, raw_templates = self._get_raw_config_and_templates()
-        config = ConfigBuilder(api_port=self.api_port, web_route_prefix=self.web_route_prefix)
-        if raw_config:
-            config.set_config(yaml.safe_dump(raw_config))
-        if raw_templates:
-            config.set_templates(raw_templates, self._templates_path)
-        if self.server_cert.cert:
-            config.set_tls_server_config(
+
+        # Note: A free function (with many args) would have the same functionality.
+        config_suite = (
+            ConfigBuilder(api_port=self.api_port, web_route_prefix=self.web_route_prefix)
+            .set_config(raw_config)
+            .set_tls_server_config(
                 cert_file_path=self._server_cert_path, key_file_path=self._key_path
             )
-
-        config_suite = config.build()
+            .set_templates(raw_templates, self._templates_path)
+            .build()
+        )
 
         return ConfigFileSystemState(
             {
@@ -365,41 +361,6 @@ class AlertmanagerCharm(CharmBase):
                 self._key_path: self.server_cert.key,
             }
         )
-
-    def _update_config(self) -> None:
-        """Update alertmanager config files to reflect changes in configuration.
-
-        After pushing a new config, a hot-reload is attempted. If hot-reload fails, the service is
-        restarted.
-
-        Raises:
-          ConfigUpdateFailure, if failed to update configuration file.
-        """
-        manifest = self._render_config_manifest()
-        config_hash = hash(manifest)
-        changed = config_hash != self._stored.config_hash  # pyright: ignore
-
-        if changed:
-            logger.debug("applying config changes")
-            manifest.apply(self.container)
-            self._stored.config_hash = config_hash
-
-        else:
-            logger.debug("no change in config")
-
-        # Validate with amtool and raise if bad
-        self._validate_config()
-
-    def _validate_config(self):
-        """Validate the configuration.
-
-        Raise ConfigUpdateFailure if config is invalid.
-        """
-        _, err = self.alertmanager_workload.check_config()
-        if err:
-            raise ConfigUpdateFailure(
-                f"Failed to validate config (run check-config action): {err}"
-            )
 
     def _common_exit_hook(self) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
@@ -438,7 +399,7 @@ class AlertmanagerCharm(CharmBase):
 
         # Update config file
         try:
-            self._update_config()  # TODO: move into WorkloadManager?
+            self.alertmanager_workload.update_config(self._render_manifest())
         except (ConfigUpdateFailure, ConfigError) as e:
             self.unit.status = BlockedStatus(str(e))
             return
@@ -508,10 +469,6 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_upgrade_charm(self, _):
         """Event handler for replica's UpgradeCharmEvent."""
-        # On upgrade, we already experience some downtime for the particular unit, so might as well
-        # just reset the config_hash to have everything pushed again.
-        self._stored.config_hash = ""
-
         # After upgrade (refresh), the unit ip address is not guaranteed to remain the same, and
         # the config may need update. Calling the common hook to update.
         self._common_exit_hook()

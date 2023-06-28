@@ -28,11 +28,10 @@ default_config = {
 }
 
 
-@dataclass
+@dataclass(frozen=True)
 class ConfigSuite:
     """Represents all the configuration files managed by this module, and their contents."""
 
-    # TODO: dataclass, TypedDict, SimpleNamespace or namedtuple?
     alertmanager: str
     web: Optional[str]
     templates: Optional[str]
@@ -61,16 +60,18 @@ class ConfigBuilder:
         self._cert_file_path = None
         self._key_file_path = None
 
-    def set_config(self, config: str):
+    def set_config(self, config: Optional[dict]):
         """Set the main config file contents."""
-        self._config = yaml.safe_load(config)
+        if config is not None:
+            self._config = config
         return self
 
-    def set_templates(self, templates: str, path: Optional[str] = None):
+    def set_templates(self, templates: Optional[str], path: Optional[str] = None):
         """Set templates."""
-        self._templates = templates
-        if path:
-            self._templates_path = path
+        if templates is not None:
+            self._templates = templates
+            if path:
+                self._templates_path = path
         return self
 
     def set_tls_server_config(self, *, cert_file_path: str, key_file_path: str):

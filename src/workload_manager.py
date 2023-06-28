@@ -4,10 +4,9 @@
 
 """Workload manager for grafana agent."""
 
-import hashlib
 import logging
 import re
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from ops.framework import Object
@@ -19,14 +18,6 @@ from ops.pebble import (  # type: ignore
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _sha256(hashable: Union[str, bytes]) -> int:
-    """Use instead of the builtin hash() for repeatable values."""
-    if isinstance(hashable, str):
-        hashable = hashable.encode("utf-8")
-    hex = hashlib.sha256(hashable).hexdigest()
-    return int(hex, 16)
 
 
 class ConfigFileSystemState:
@@ -50,10 +41,6 @@ class ConfigFileSystemState:
     def delete_file(self, path: str):
         """Add a file to the configuration."""
         self._manifest[path] = None
-
-    def __hash__(self):
-        """Hash this."""
-        return _sha256(str(self._manifest))
 
     def apply(self, container: Container):
         """Apply this manifest onto a container."""
@@ -225,6 +212,25 @@ class WorkloadManager(Object):
                 return False
 
         return False
+
+    def update_config(self, manifest: ConfigFileSystemState) -> None:
+        """Update alertmanager config files to reflect changes in configuration.
+
+        After pushing a new config, a hot-reload is attempted. If hot-reload fails, the service is
+        restarted.
+
+        Raises:
+          ConfigUpdateFailure, if failed to update configuration file.
+        """
+        logger.debug("applying config changes")
+        manifest.apply(self._container)
+
+        # Validate with amtool and raise if bad
+        _, err = self.check_config()
+        if err:
+            raise ConfigUpdateFailure(
+                f"Failed to validate config (run check-config action): {err}"
+            )
 
     def restart_service(self) -> bool:
         """Helper function for restarting the underlying service.

@@ -9,10 +9,10 @@ from unittest.mock import patch
 import ops
 import yaml
 from charm import Alertmanager, AlertmanagerCharm
-from config_utils import WorkloadManager
 from helpers import FakeProcessVersionCheck, cli_arg, k8s_resource_multipatch, tautology
 from ops.model import ActiveStatus, BlockedStatus, Container
 from ops.testing import Harness
+from workload_manager import WorkloadManager
 
 logger = logging.getLogger(__name__)
 
