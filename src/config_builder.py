@@ -94,7 +94,7 @@ class ConfigBuilder:
             raise ConfigError("Invalid config file: use charm's 'templates' config option instead")
 
         if self._templates:
-            config["templates"] = [f"{self._templates_path}"]
+            config["templates"] = [self._templates_path]
 
         # add juju topology to "group_by"
         # `route` is a mandatory field so don't need to be too careful
