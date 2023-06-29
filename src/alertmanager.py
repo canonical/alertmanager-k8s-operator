@@ -2,7 +2,7 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Workload manager for grafana agent."""
+"""Workload manager for alertmanaqger."""
 
 import logging
 import re
@@ -51,7 +51,7 @@ class ConfigFileSystemState:
                 container.push(filepath, content, make_dirs=True)
 
 
-class WorkloadManagerError(RuntimeError):
+class WorkloadManagerError(Exception):
     """Base class for exceptions raised by WorkloadManager."""
 
 

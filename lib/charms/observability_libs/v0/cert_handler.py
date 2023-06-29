@@ -2,19 +2,19 @@
 # See LICENSE file for licensing details.
 """## Overview.
 
-This document explains how to use the `CertManager` class to
+This document explains how to use the `CertHandler` class to
 create and manage TLS certificates through the `tls_certificates` interface.
 
-The goal of the CertManager is to provide a wrapper to the `tls_certificates`
+The goal of the CertHandler is to provide a wrapper to the `tls_certificates`
 library functions to make the charm integration smoother.
 
 ## Library Usage
 
-This library should be used to create a `CertManager` object, as per the
+This library should be used to create a `CertHandler` object, as per the
 following example:
 
 ```python
-cert_manager = CertManager(
+cert_handler = CertHandler(
     charm=self,
     peer_relation_name="replicas",
     cert_subject="unit_name",  # Optional
@@ -23,8 +23,7 @@ cert_manager = CertManager(
 ```
 
 This library requires a peer relation to be declared in the requirer's metadata. Peer relation data
-is used to communicate the private key to all units. This is useful for "ingress per app", and is
-required because in juju, only the leader has permissions to read app data. # FIXME is this still true
+is used for "persistent storage" of the private key and certs.
 """
 import socket
 from typing import Optional, Union, List
@@ -61,39 +60,36 @@ class CertChanged(EventBase):
     """Event raised when a cert is changed (becomes available or revoked)."""
 
 
-class CertManagerEvents(ObjectEvents):
+class CertHandlerEvents(ObjectEvents):
     cert_changed = EventSource(CertChanged)
 
 
-class CertManager(Object):
-    """CertManager is used to wrap TLS Certificates management operations for charms.
+class CertHandler(Object):
+    """CertHandler is used to wrap TLS Certificates management operations for charms.
 
-    TODO: figure out if the constructor should take
-        key_path: str,
-        cert_path: str,
-        ca_path: str,
-     instead of charm code pushing & deleting them itself.
-
-    TODO Use some sort of compound status
-
-    CertManager manages one single cert.
+    CerHandler manages one single cert.
     """
-    on = CertManagerEvents()  # pyright: ignore
+    on = CertHandlerEvents()  # pyright: ignore
 
     def __init__(
         self,
         charm: CharmBase,
         *,
+        key: str,
         peer_relation_name: str,
         certificates_relation_name: str = "certificates",
         cert_subject: Optional[str] = None,
         extra_sans_dns: Optional[List[str]] = None,
-        key: str = "cert-manager",  # TODO what to put here?
     ):
         """
         Args:
+            key: A manually-crafted, static, unique identifier used by ops to identify events.
+                 It shouldn't change between one event to another.
+            peer_relation_name: Must match metadata.yaml.
+            certificates_relation_name: Must match metadata.yaml.
             cert_subject: Custom subject. Name collisions are under the caller's responsibility.
             extra_sans_dns: Any additional DNS names apart from FQDN.
+
         """
         super().__init__(charm, key)
 
@@ -315,9 +311,7 @@ class CertManager(Object):
     def _certificate_revoked(self, event) -> None:
         """Remove the certificate from the peer relation and generate a new CSR."""
         # Note: assuming "limit: 1" in metadata
-        # TODO: figure out what should happen with the existing csr after a "revoked"
         if event.certificate == self._server_cert:
-            # FIXME: use a dataclass for peer relation data with a `.clear()` method
             self._generate_csr(overwrite=True, clear_cert=True)
             self.on.cert_changed.emit()  # pyright: ignore
 

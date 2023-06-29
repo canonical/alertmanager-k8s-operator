@@ -11,6 +11,12 @@ from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
+from alertmanager import (
+    ConfigFileSystemState,
+    ConfigUpdateFailure,
+    WorkloadManager,
+    WorkloadManagerError,
+)
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
@@ -20,7 +26,7 @@ from charms.catalogue_k8s.v0.catalogue import CatalogueConsumer, CatalogueItem
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
-from charms.observability_libs.v0.cert_manager import CertManager
+from charms.observability_libs.v0.cert_handler import CertHandler
 from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     K8sResourcePatchFailedEvent,
     KubernetesComputeResourcesPatch,
@@ -44,12 +50,6 @@ from ops.model import (
     WaitingStatus,
 )
 from ops.pebble import PathError, ProtocolError  # type: ignore
-from workload_manager import (
-    ConfigFileSystemState,
-    ConfigUpdateFailure,
-    WorkloadManager,
-    WorkloadManagerError,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +86,9 @@ class AlertmanagerCharm(CharmBase):
 
         url = self.model.config.get("web_external_url")
         extra_sans_dns = [cast(str, urlparse(url).netloc)] if url else None
-        self.server_cert = CertManager(
+        self.server_cert = CertHandler(
             self,
+            key="am-server-cert",
             peer_relation_name="replicas",
             extra_sans_dns=extra_sans_dns,
         )
@@ -271,7 +272,7 @@ class AlertmanagerCharm(CharmBase):
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
         event.log(f"Fetching {self._config_path}")
-        if not self.container.can_connect():
+        if not self.alertmanager_workload.is_ready():
             event.fail("Container not ready")
 
         filepaths = self._render_manifest().manifest.keys()
