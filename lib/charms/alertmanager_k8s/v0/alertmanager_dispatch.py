@@ -42,7 +42,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 8
+LIBPATCH = 7
 
 # Set to match metadata.yaml
 INTERFACE_NAME = "alertmanager_dispatch"
@@ -172,7 +172,6 @@ class AlertmanagerConsumer(RelationManagerBase):
 
     def get_cluster_info(self) -> List[str]:
         """Returns a list of ip addresses of all the alertmanager units."""
-        # FIXME need to tell prometheus that `scheme: https`.
         alertmanagers = []  # type: List[str]
         relation = self.charm.model.get_relation(self.name)
         if not relation:
