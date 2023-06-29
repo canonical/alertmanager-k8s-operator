@@ -119,13 +119,14 @@ class TestInvalidConfig(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
 
     @patch.object(Alertmanager, "reload", tautology)
-    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("", "some error"))
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(Container, "exec", new=FakeProcessVersionCheck)
     def test_charm_blocks_on_invalid_config_on_startup(self, *_):
-        # GIVEN an invalid config file (mocked above)
+        # GIVEN an invalid config file
+        self.harness.update_config({"config_file": "templates: [wrong]"})
+
         # WHEN the charm starts
         self.harness.begin_with_initial_hooks()
 
@@ -138,17 +139,17 @@ class TestInvalidConfig(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(Container, "exec", new=FakeProcessVersionCheck)
     def test_charm_blocks_on_invalid_config_changed(self, *_):
-        # GIVEN a valid configuration (mocked below)
-        with patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", "")):
-            # WHEN the charm starts
-            self.harness.begin_with_initial_hooks()
+        # GIVEN a valid configuration
+        self.harness.update_config({"config_file": "templates: []"})
 
-            # THEN the charm goes into active status
-            self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
+        # WHEN the charm starts
+        self.harness.begin_with_initial_hooks()
+
+        # THEN the charm goes into active status
+        self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
 
         # AND WHEN the config is updated and invalid (mocked below)
-        with patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("", "some error")):
-            self.harness.update_config({"config_file": "foo: bar"})
+        self.harness.update_config({"config_file": "templates: [wrong]"})
 
-            # THEN the charm goes into blocked status
-            self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
+        # THEN the charm goes into blocked status
+        self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
