@@ -47,9 +47,10 @@ from ops.pebble import PathError, ProtocolError  # type: ignore
 from workload_manager import (
     ConfigFileSystemState,
     ConfigUpdateFailure,
-    WorkloadManager,
     WorkloadManagerError,
 )
+
+from src.alertmanager import AlertmanagerWorkloadManager
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +181,7 @@ class AlertmanagerCharm(CharmBase):
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
 
-        self.alertmanager_workload = WorkloadManager(
+        self.alertmanager_workload = AlertmanagerWorkloadManager(
             self,
             container_name=self._container_name,
             peer_addresses=self._get_peer_addresses(),
