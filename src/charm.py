@@ -85,7 +85,7 @@ class AlertmanagerCharm(CharmBase):
         super().__init__(*args)
 
         url = self.model.config.get("web_external_url")
-        extra_sans_dns = [cast(str, urlparse(url).netloc)] if url else None
+        extra_sans_dns = [cast(str, urlparse(url).hostname)] if url else None
         self.server_cert = CertHandler(
             self,
             key="am-server-cert",
