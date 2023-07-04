@@ -133,7 +133,7 @@ async def deploy_literal_bundle(ops_test: OpsTest, bundle: str):
     logger.info(stdout)
 
 
-async def curl(ops_test: OpsTest, *, cert_dir: str, cert_path: str, ip_addr: str, mock_url: str):
+async   def curl(ops_test: OpsTest, *, cert_dir: str, cert_path: str, ip_addr: str, mock_url: str):
     p = urlparse(mock_url)
 
     # Tell curl to resolve the mock url as traefik's IP (to avoid using a custom DNS

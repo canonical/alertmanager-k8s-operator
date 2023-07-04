@@ -75,6 +75,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
         # AND peer clusters cli arg is not present in pebble layer command
         self.assertNotIn("--cluster.peer=", command)
 
+    @unittest.skip("https://github.com/canonical/operator/issues/736")
     @k8s_resource_multipatch
     def test_multi_unit_cluster(self, *_):
         """Scenario: Current unit is a part of a multi-unit cluster."""

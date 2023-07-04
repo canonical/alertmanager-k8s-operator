@@ -62,6 +62,7 @@ class TestExternalUrl(unittest.TestCase):
         service = self.harness.model.unit.get_container(CONTAINER_NAME).get_service(SERVICE_NAME)
         return service.is_running()
 
+    @unittest.skip("https://github.com/canonical/operator/issues/736")
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
@@ -88,6 +89,7 @@ class TestExternalUrl(unittest.TestCase):
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
         self.assertTrue(self.is_service_running())
 
+    @unittest.skip("https://github.com/canonical/operator/issues/736")
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
@@ -145,6 +147,7 @@ class TestExternalUrl(unittest.TestCase):
         # THEN the fqdn is used as external url
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
 
+    @unittest.skip("https://github.com/canonical/operator/issues/736")
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
@@ -180,6 +183,7 @@ class TestExternalUrl(unittest.TestCase):
             f"http://localhost:{self.harness.charm._ports.api}/path/to/alertmanager/",
         )
 
+    @unittest.skip("https://github.com/canonical/operator/issues/736")
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn-0")
     @k8s_resource_multipatch
@@ -221,6 +225,7 @@ class TestExternalUrl(unittest.TestCase):
             cluster_args, ["fqdn-1:9094/path/to/alertmanager", "fqdn-2:9094/path/to/alertmanager"]
         )
 
+    @unittest.skip("https://github.com/canonical/operator/issues/736")
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
