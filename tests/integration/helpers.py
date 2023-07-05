@@ -9,6 +9,7 @@ import json
 import logging
 import urllib.request
 from typing import Dict, Optional, Tuple
+from urllib.parse import urlparse
 
 from pytest_operator.plugin import OpsTest
 
@@ -115,3 +116,45 @@ async def get_alertmanager_config_from_file(
         "ssh", "--container", f"{container_name}", f"{app_name}/0", "cat", f"{config_file_path}"
     )
     return rc, stdout, stderr
+
+
+async def deploy_literal_bundle(ops_test: OpsTest, bundle: str):
+    run_args = [
+        "juju",
+        "deploy",
+        "--trust",
+        "-m",
+        ops_test.model_name,
+        str(ops_test.render_bundle(bundle)),
+    ]
+
+    retcode, stdout, stderr = await ops_test.run(*run_args)
+    assert retcode == 0, f"Deploy failed: {(stderr or stdout).strip()}"
+    logger.info(stdout)
+
+
+async def curl(ops_test: OpsTest, *, cert_dir: str, cert_path: str, ip_addr: str, mock_url: str):
+    p = urlparse(mock_url)
+
+    # Tell curl to resolve the mock url as traefik's IP (to avoid using a custom DNS
+    # server). This is needed because the certificate issued by the CA would have that same
+    # hostname as the subject, and for TLS to succeed, the target url's hostname must match
+    # the one in the certificate.
+    rc, stdout, stderr = await ops_test.run(
+        "curl",
+        "-s",
+        "--fail-with-body",
+        "--resolve",
+        f"{p.hostname}:{p.port or 443}:{ip_addr}",
+        "--capath",
+        cert_dir,
+        "--cacert",
+        cert_path,
+        mock_url,
+    )
+    logger.info("%s: %s", mock_url, (rc, stdout, stderr))
+    assert rc == 0, (
+        f"curl exited with rc={rc} for {mock_url}; "
+        "non-zero return code means curl encountered a >= 400 HTTP code"
+    )
+    return stdout

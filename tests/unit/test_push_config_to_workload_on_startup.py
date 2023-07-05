@@ -10,6 +10,7 @@ import hypothesis.strategies as st
 import ops
 import validators
 import yaml
+from alertmanager import WorkloadManager
 from charm import Alertmanager, AlertmanagerCharm
 from helpers import FakeProcessVersionCheck, k8s_resource_multipatch, tautology
 from hypothesis import given
@@ -21,6 +22,7 @@ ops.testing.SIMULATE_CAN_CONNECT = True
 CONTAINER_NAME = "alertmanager"
 
 
+@patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("0.0.0", ""))
 class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
     """Feature: Push config to workload on startup.
 
@@ -28,7 +30,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
     """
 
     @patch.object(Alertmanager, "reload", tautology)
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("0.0.0", ""))
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
@@ -42,7 +44,6 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
         self.app_name = "alertmanager-k8s"
         self.peer_rel_id = self.harness.add_relation("replicas", self.app_name)
         self.harness.begin_with_initial_hooks()
-        self.harness.container_pebble_ready(CONTAINER_NAME)
 
     @given(st.booleans())
     def test_single_unit_cluster(self, is_leader):
@@ -74,6 +75,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
         # AND peer clusters cli arg is not present in pebble layer command
         self.assertNotIn("--cluster.peer=", command)
 
+    @unittest.skip("https://github.com/canonical/operator/issues/736")
     @k8s_resource_multipatch
     def test_multi_unit_cluster(self, *_):
         """Scenario: Current unit is a part of a multi-unit cluster."""
@@ -118,16 +120,16 @@ class TestInvalidConfig(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
 
     @patch.object(Alertmanager, "reload", tautology)
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("", "some error"))
     @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(Container, "exec", new=FakeProcessVersionCheck)
     def test_charm_blocks_on_invalid_config_on_startup(self, *_):
-        # GIVEN an invalid config file (mocked above)
+        # GIVEN an invalid config file
+        self.harness.update_config({"config_file": "templates: [wrong]"})
+
         # WHEN the charm starts
         self.harness.begin_with_initial_hooks()
-        self.harness.container_pebble_ready(CONTAINER_NAME)
 
         # THEN the charm goes into blocked status
         self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
@@ -138,18 +140,17 @@ class TestInvalidConfig(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(Container, "exec", new=FakeProcessVersionCheck)
     def test_charm_blocks_on_invalid_config_changed(self, *_):
-        # GIVEN a valid configuration (mocked below)
-        with patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", "")):
-            # WHEN the charm starts
-            self.harness.begin_with_initial_hooks()
-            self.harness.container_pebble_ready(CONTAINER_NAME)
+        # GIVEN a valid configuration
+        self.harness.update_config({"config_file": "templates: []"})
 
-            # THEN the charm goes into active status
-            self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
+        # WHEN the charm starts
+        self.harness.begin_with_initial_hooks()
+
+        # THEN the charm goes into active status
+        self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
 
         # AND WHEN the config is updated and invalid (mocked below)
-        with patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("", "some error")):
-            self.harness.update_config({"config_file": "foo: bar"})
+        self.harness.update_config({"config_file": "templates: [wrong]"})
 
-            # THEN the charm goes into blocked status
-            self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
+        # THEN the charm goes into blocked status
+        self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)

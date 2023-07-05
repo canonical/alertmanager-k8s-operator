@@ -14,7 +14,7 @@ from ops.testing import Harness
 ops.testing.SIMULATE_CAN_CONNECT = True
 
 
-class DummyConsumerCharm(CharmBase):
+class SampleConsumerCharm(CharmBase):
     """Mimic bare functionality of AlertmanagerCharm needed to test the consumer."""
 
     # define custom metadata - without this the harness would parse the metadata.yaml in this repo,
@@ -22,7 +22,7 @@ class DummyConsumerCharm(CharmBase):
     # "alertmanager-k8s", which is not what we want in a consumer test
     metadata_yaml = textwrap.dedent(
         """
-        name: DummyConsumerCharm
+        name: SampleConsumerCharm
         containers:
           consumer-charm:
             resource: consumer-charm-image
@@ -57,7 +57,7 @@ class DummyConsumerCharm(CharmBase):
 
 class TestConsumer(unittest.TestCase):
     def setUp(self):
-        self.harness = Harness(DummyConsumerCharm, meta=DummyConsumerCharm.metadata_yaml)
+        self.harness = Harness(SampleConsumerCharm, meta=SampleConsumerCharm.metadata_yaml)
         self.addCleanup(self.harness.cleanup)
         self.harness.set_leader(True)
         self.harness.begin_with_initial_hooks()

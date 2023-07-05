@@ -4,7 +4,7 @@
 # An implementation of the JSON Schema specification
 # Code: https://github.com/python-jsonschema/jsonschema
 # Docs: https://python-jsonschema.readthedocs.io/
-# Deps: traefik_k8s
+# Deps: traefik_k8s, tls_certificates
 jsonschema
 
 # Operator Framework
@@ -25,3 +25,7 @@ PyYAML
 # Deps: observability_libs
 lightkube >= 0.11
 lightkube-models
+
+# Cryptography
+# Deps: tls_certificates
+cryptography

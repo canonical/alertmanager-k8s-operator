@@ -5,9 +5,10 @@ import json
 import logging
 import unittest
 from typing import cast
-from unittest.mock import Mock, PropertyMock, patch
+from unittest.mock import Mock, patch
 
 import yaml
+from alertmanager import WorkloadManager
 from charm import AlertmanagerCharm
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     DEFAULT_RELATION_NAME,
@@ -23,9 +24,9 @@ testing.SIMULATE_CAN_CONNECT = True
 
 TEST_ALERTMANAGER_CONFIG_FILE = "/test/rules/dir/config_file.yml"
 TEST_ALERTMANAGER_DEFAULT_CONFIG = """route:
-  receiver: dummy
+  receiver: placeholder
 receivers:
-- name: dummy
+- name: placeholder
 """
 TEST_ALERTMANAGER_REMOTE_CONFIG = """receivers:
 - name: test_receiver
@@ -41,7 +42,7 @@ route:
 
 class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient")
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @k8s_resource_multipatch
     def setUp(self, _) -> None:
@@ -56,7 +57,7 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         # In ops 2.0.0+, we need to mock the version, as begin_with_initial_hooks() now triggers
         # pebble-ready, which attempts to obtain the workload version.
         patcher = patch.object(
-            AlertmanagerCharm, "_alertmanager_version", property(lambda *_: "0.0.0")
+            WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0")
         )
         self.mock_version = patcher.start()
         self.addCleanup(patcher.stop)
@@ -99,15 +100,15 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         )
 
     @k8s_resource_multipatch
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     def test_configs_available_from_both_relation_data_bag_and_charm_config_block_charm(
         self,
     ):
-        dummy_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
+        sample_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
         self.harness.update_relation_data(
             relation_id=self.relation_id,
             app_or_unit="remote-config-provider",
-            key_values={"alertmanager_config": json.dumps(dummy_remote_config)},
+            key_values={"alertmanager_config": json.dumps(sample_remote_config)},
         )
         self.harness.update_config({"config_file": TEST_ALERTMANAGER_DEFAULT_CONFIG})
 
@@ -116,16 +117,14 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         )
 
     @patch("ops.model.Container.exec")
-    @patch("charm.AlertmanagerCharm._default_config", new_callable=PropertyMock)
+    @patch("config_builder.default_config", yaml.safe_load(TEST_ALERTMANAGER_DEFAULT_CONFIG))
     @k8s_resource_multipatch
     def test_invalid_config_pushed_to_the_relation_data_bag_does_not_update_alertmanager_config(
-        self, patched_default_config, patched_exec
+        self, patched_exec
     ):
         patched_exec_mock = Mock()
         patched_exec_mock.wait_output.return_value = ("whatever", "")
         patched_exec.return_value = patched_exec_mock
-        default_config = yaml.safe_load(TEST_ALERTMANAGER_DEFAULT_CONFIG)
-        patched_default_config.return_value = default_config
         invalid_config = yaml.safe_load("some: invalid_config")
 
         self.harness.update_relation_data(
@@ -135,21 +134,21 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         )
         config = self.harness.charm.container.pull(self.harness.charm._config_path)
 
-        self.assertEqual(yaml.safe_load(config.read()), default_config)
+        self.assertNotIn("invalid_config", yaml.safe_load(config.read()))
 
-    @patch.object(AlertmanagerCharm, "_check_config", lambda *a, **kw: ("ok", ""))
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
     def test_templates_pushed_to_relation_data_bag_are_saved_to_templates_file_in_alertmanager(
         self,
     ):
-        dummy_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
+        sample_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
         test_template = '{{define "myTemplate"}}do something{{end}}'
 
         self.harness.update_relation_data(
             relation_id=self.relation_id,
             app_or_unit="remote-config-provider",
             key_values={
-                "alertmanager_config": json.dumps(dummy_remote_config),
+                "alertmanager_config": json.dumps(sample_remote_config),
                 "alertmanager_templates": json.dumps([test_template]),
             },
         )

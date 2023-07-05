@@ -1,6 +1,6 @@
 just:
   some:
-    dummy: config
+    placeholder: config
 which:
   - is
   - not
