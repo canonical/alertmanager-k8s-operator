@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2021 Canonical Ltd.
+# Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Workload manager for alertmanaqger."""
@@ -70,6 +70,8 @@ class WorkloadManager(Object):
 
     # path, inside the workload container for alertmanager data, e.g. 'nflogs', 'silences'.
     _storage_path = "/alertmanager"
+
+    _amtool_path = "/usr/bin/amtool"
 
     def __init__(
         self,
@@ -149,7 +151,7 @@ class WorkloadManager(Object):
             raise ContainerNotReady(
                 "cannot check config: alertmanager workload container not ready"
             )
-        proc = self._container.exec(["/usr/bin/amtool", "check-config", self._config_path])
+        proc = self._container.exec([self._amtool_path, "check-config", self._config_path])
         try:
             output, err = proc.wait_output()
         except ExecError as e:
