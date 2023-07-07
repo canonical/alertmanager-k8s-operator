@@ -1,4 +1,4 @@
-# Copyright 2022 Canonical Ltd.
+# Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 r"""# Interface Library for ingress.
@@ -54,22 +54,23 @@ class SomeCharm(CharmBase):
 import logging
 import socket
 import typing
-from typing import Any, Dict, Optional, Tuple, Union
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import yaml
 from ops.charm import CharmBase, RelationBrokenEvent, RelationEvent
 from ops.framework import EventSource, Object, ObjectEvents, StoredState
-from ops.model import ModelError, Relation
+from ops.model import ModelError, Relation, Unit
 
 # The unique Charmhub library identifier, never change it
 LIBID = "e6de2a5cd5b34422a204668f3b8f90d2"
 
 # Increment this major API version when introducing breaking changes
-LIBAPI = 1
+LIBAPI = 2
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 14
+LIBPATCH = 1
 
 DEFAULT_RELATION_NAME = "ingress"
 RELATION_INTERFACE = "ingress"
@@ -95,12 +96,20 @@ INGRESS_REQUIRES_APP_SCHEMA = {
     "properties": {
         "model": {"type": "string"},
         "name": {"type": "string"},
-        "host": {"type": "string"},
-        "port": {"type": "string"},
         "strip-prefix": {"type": "string"},
         "redirect-https": {"type": "string"},
+        "scheme": {"type": "string", "pattern": "(http)|(https)"},
     },
-    "required": ["model", "name", "host", "port"],
+    "required": ["model", "name"],
+}
+
+INGRESS_REQUIRES_UNIT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "host": {"type": "string"},
+        "port": {"type": "integer"},
+    },
+    "required": ["host", "port"],
 }
 
 INGRESS_PROVIDES_APP_SCHEMA = {
@@ -112,23 +121,29 @@ INGRESS_PROVIDES_APP_SCHEMA = {
 }
 
 try:
-    from typing import TypedDict
+    from typing import Literal, TypedDict
 except ImportError:
-    from typing_extensions import TypedDict  # py35 compat
+    from typing_extensions import Literal, TypedDict  # py35 compat
 
-# Model of the data a unit implementing the requirer will need to provide.
-RequirerData = TypedDict(
-    "RequirerData",
+
+SchemeLiteral = Literal["http", "https"]
+
+# Model of the application data the requirer will need to provide.
+RequirerAppData = TypedDict(
+    "RequirerAppData",
     {
         "model": str,
         "name": str,
-        "host": str,
-        "port": int,
         "strip-prefix": bool,
         "redirect-https": bool,
+        "scheme": SchemeLiteral,
     },
     total=False,
 )
+
+# Model of the data each requirer unit will need to provide.
+RequirerUnitData = TypedDict("RequirerUnitData", {"host": str, "port": int})
+
 # Provider ingress data model.
 ProviderIngressData = TypedDict("ProviderIngressData", {"url": str})
 # Provider application databag model.
@@ -234,13 +249,13 @@ class _IPAEvent(RelationEvent):
 class IngressPerAppDataProvidedEvent(_IPAEvent):
     """Event representing that ingress data has been provided for an app."""
 
-    __args__ = ("name", "model", "port", "host", "strip_prefix", "redirect_https")
+    __args__ = ("name", "model", "hosts", "strip_prefix", "redirect_https")
 
     if typing.TYPE_CHECKING:
         name: Optional[str] = None
         model: Optional[str] = None
-        port: Optional[str] = None
-        host: Optional[str] = None
+        # sequence of hostname, port dicts
+        hosts: Sequence[RequirerUnitData] = ()
         strip_prefix: bool = False
         redirect_https: bool = False
 
@@ -254,6 +269,18 @@ class IngressPerAppProviderEvents(ObjectEvents):
 
     data_provided = EventSource(IngressPerAppDataProvidedEvent)
     data_removed = EventSource(IngressPerAppDataRemovedEvent)
+
+
+class NotReadyError(RuntimeError):
+    """Raised when a relation is not ready."""
+
+
+@dataclass
+class IngressRequirerData:
+    """Data exposed by the ingress requirer to the provider."""
+
+    app: RequirerAppData
+    units: List[RequirerUnitData]
 
 
 class IngressPerAppProvider(_IngressPerAppBase):
@@ -275,15 +302,14 @@ class IngressPerAppProvider(_IngressPerAppBase):
         # created, joined or changed: if remote side has sent the required data:
         # notify listeners.
         if self.is_ready(event.relation):
-            data = self._get_requirer_data(event.relation)
+            data = self.get_data(event.relation)
             self.on.data_provided.emit(  # type: ignore
                 event.relation,
-                data["name"],
-                data["model"],
-                data["port"],
-                data["host"],
-                data.get("strip-prefix", False),
-                data.get("redirect-https", False),
+                data.app["name"],
+                data.app["model"],
+                data.units,
+                data.app.get("strip-prefix", False),
+                data.app.get("redirect-https", False),
             )
 
     def _handle_relation_broken(self, event):
@@ -303,32 +329,53 @@ class IngressPerAppProvider(_IngressPerAppBase):
             return
         del relation.data[self.app]["ingress"]
 
-    def _get_requirer_data(self, relation: Relation) -> RequirerData:  # type: ignore
+    def _get_requirer_units_data(self, relation: Relation) -> List[RequirerUnitData]:
         """Fetch and validate the requirer's app databag.
 
-        For convenience, we convert 'port' to integer.
+        We cast port to int for convenience.
         """
-        if not relation.app or not relation.app.name:  # type: ignore
-            # Handle edge case where remote app name can be missing, e.g.,
-            # relation_broken events.
-            # FIXME https://github.com/canonical/traefik-k8s-operator/issues/34
-            return {}
+        out: List[RequirerUnitData] = []
 
-        databag = relation.data[relation.app]
-        remote_data: Dict[str, Union[int, str]] = {}
-        for k in ("port", "host", "model", "name", "mode", "strip-prefix", "redirect-https"):
+        unit: Unit
+        for unit in relation.units:
+            databag = relation.data[unit]
+            remote_unit_data: Dict[str, Optional[Union[int, str]]] = {}
+            for key in ("host", "port"):
+                remote_unit_data[key] = databag.get(key)
+            remote_unit_data["port"] = (
+                int(remote_unit_data["port"]) if remote_unit_data["port"] else None
+            )
+            _validate_data(remote_unit_data, INGRESS_REQUIRES_UNIT_SCHEMA)
+            out.append(typing.cast(RequirerUnitData, remote_unit_data))
+        return out
+
+    def _get_requirer_app_data(self, relation: Relation) -> RequirerAppData:
+        """Fetch and validate the requirer's app databag."""
+        app = relation.app
+        if app is None:
+            raise NotReadyError(relation)
+
+        databag = relation.data[app]
+        remote_app_data: Dict[str, Any] = {}
+
+        for k in ("model", "name", "strip-prefix", "redirect-https", "scheme"):
             v = databag.get(k)
             if v is not None:
-                remote_data[k] = v
-        _validate_data(remote_data, INGRESS_REQUIRES_APP_SCHEMA)
-        remote_data["port"] = int(remote_data["port"])
-        remote_data["strip-prefix"] = bool(remote_data.get("strip-prefix", "false") == "true")
-        remote_data["redirect-https"] = bool(remote_data.get("redirect-https", "false") == "true")
-        return typing.cast(RequirerData, remote_data)
+                remote_app_data[k] = v
 
-    def get_data(self, relation: Relation) -> RequirerData:  # type: ignore
-        """Fetch the remote app's databag, i.e. the requirer data."""
-        return self._get_requirer_data(relation)
+        _validate_data(remote_app_data, INGRESS_REQUIRES_APP_SCHEMA)
+
+        # deserialize some strings to more pythonic types
+        remote_app_data["scheme"] = remote_app_data.get("scheme", "http")
+        for key in ["strip-prefix", "redirect-https"]:
+            remote_app_data[key] = bool(remote_app_data.get(key, "false") == "true")
+        return typing.cast(RequirerAppData, remote_app_data)
+
+    def get_data(self, relation: Relation) -> IngressRequirerData:
+        """Fetch the remote (requirer) app and units' databags."""
+        return IngressRequirerData(
+            self._get_requirer_app_data(relation), self._get_requirer_units_data(relation)
+        )
 
     def is_ready(self, relation: Optional[Relation] = None):
         """The Provider is ready if the requirer has sent valid data."""
@@ -336,10 +383,11 @@ class IngressPerAppProvider(_IngressPerAppBase):
             return any(map(self.is_ready, self.relations))
 
         try:
-            return bool(self._get_requirer_data(relation))
+            self.get_data(relation)
         except DataValidationError as e:
-            log.warning("Requirer not ready; validation error encountered: %s" % str(e))
+            log.error("Provider not ready; validation error encountered: %s" % str(e))
             return False
+        return True
 
     def _provided_url(self, relation: Relation) -> ProviderIngressData:  # type: ignore
         """Fetch and validate this app databag; return the ingress url."""
@@ -430,6 +478,7 @@ class IngressPerAppRequirer(_IngressPerAppBase):
         port: Optional[int] = None,
         strip_prefix: bool = False,
         redirect_https: bool = False,
+        scheme: SchemeLiteral = "http",
     ):
         """Constructor for IngressRequirer.
 
@@ -445,7 +494,8 @@ class IngressPerAppRequirer(_IngressPerAppBase):
             host: Hostname to be used by the ingress provider to address the requiring
                 application; if unspecified, the default Kubernetes service name will be used.
             strip_prefix: configure Traefik to strip the path prefix.
-            redirect_https: redirect incoming requests to the HTTPS.
+            redirect_https: redirect incoming requests to HTTPS.
+            scheme: scheme to use when constructing the ingress url.
 
         Request Args:
             port: the port of the service
@@ -455,6 +505,7 @@ class IngressPerAppRequirer(_IngressPerAppBase):
         self.relation_name = relation_name
         self._strip_prefix = strip_prefix
         self._redirect_https = redirect_https
+        self._scheme = scheme
 
         self._stored.set_default(current_url=None)  # type: ignore
 
@@ -494,7 +545,7 @@ class IngressPerAppRequirer(_IngressPerAppBase):
         try:
             return bool(self._get_url_from_relation_data())
         except DataValidationError as e:
-            log.warning("Requirer not ready; validation error encountered: %s" % str(e))
+            log.error("Requirer not ready; validation error encountered: %s" % str(e))
             return False
 
     def _publish_auto_data(self, relation: Relation):
@@ -505,8 +556,6 @@ class IngressPerAppRequirer(_IngressPerAppBase):
     def provide_ingress_requirements(self, *, host: Optional[str] = None, port: int):
         """Publishes the data that Traefik needs to provide ingress.
 
-        NB only the leader unit is supposed to do this.
-
         Args:
             host: Hostname to be used by the ingress provider to address the
              requirer unit; if unspecified, FQDN will be used instead
@@ -515,27 +564,37 @@ class IngressPerAppRequirer(_IngressPerAppBase):
         # get only the leader to publish the data since we only
         # require one unit to publish it -- it will not differ between units,
         # unlike in ingress-per-unit.
-        assert self.unit.is_leader(), "only leaders should do this."
         assert self.relation, "no relation"
+
+        if self.unit.is_leader():
+            app_data = {
+                "model": self.model.name,
+                "name": self.app.name,
+            }
+
+            if self._strip_prefix:
+                app_data["strip-prefix"] = "true"
+
+            if self._redirect_https:
+                app_data["redirect-https"] = "true"
+
+            if self._scheme:
+                app_data["scheme"] = self._scheme
+
+            _validate_data(app_data, INGRESS_REQUIRES_APP_SCHEMA)
+            self.relation.data[self.app].update(app_data)
 
         if not host:
             host = socket.getfqdn()
 
-        data = {
-            "model": self.model.name,
-            "name": self.app.name,
+        unit_data = {
             "host": host,
-            "port": str(port),
+            "port": port,
         }
+        _validate_data(unit_data, INGRESS_REQUIRES_UNIT_SCHEMA)
 
-        if self._strip_prefix:
-            data["strip-prefix"] = "true"
-
-        if self._redirect_https:
-            data["redirect-https"] = "true"
-
-        _validate_data(data, INGRESS_REQUIRES_APP_SCHEMA)
-        self.relation.data[self.app].update(data)
+        unit_data["port"] = str(port)
+        self.relation.data[self.app].update(unit_data)
 
     @property
     def relation(self):

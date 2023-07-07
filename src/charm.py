@@ -32,7 +32,7 @@ from charms.observability_libs.v1.kubernetes_service_patch import (
     ServicePort,
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from charms.traefik_k8s.v1.ingress import IngressPerAppRequirer
+from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
 from config_builder import ConfigBuilder, ConfigError
 from ops.charm import ActionEvent, CharmBase
 from ops.main import main
