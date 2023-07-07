@@ -164,6 +164,7 @@ class AlertmanagerConsumer(RelationManagerBase):
         #   - path_prefix: /model-name-app-name
         #     tls_config:
         #       ca_file: ...
+        #     scheme: http
         #     static_configs:
         #     - targets:
         #       - target1
@@ -200,6 +201,20 @@ class AlertmanagerConsumer(RelationManagerBase):
             address = relation.data[unit].get("public_address")
             if address:
                 alertmanagers.append(address)
+        return sorted(alertmanagers)
+
+    def get_cluster_info_with_scheme(self) -> List[str]:
+        """Returns a list of URLs of all the alertmanager units."""
+        # FIXME: in v1 of the lib, use a dict {"url": ...} so it's extendable
+        if not (relation := self.charm.model.get_relation(self.name)):
+            return []
+
+        alertmanagers: List[str] = []
+        for unit in relation.units:
+            address = relation.data[unit].get("public_address")
+            scheme = relation.data[unit].get("scheme", "http")
+            if address:
+                alertmanagers.append(f"{scheme}://{address}")
         return sorted(alertmanagers)
 
     def _on_relation_departed(self, _):
@@ -258,13 +273,16 @@ class AlertmanagerProvider(RelationManagerBase):
         self,
         charm,
         relation_name: str = "alerting",
-        api_port: int = 9093,
+        api_port: int = 9093,  # TODO: breaking change: drop this arg
         *,
-        external_url: Optional[Callable] = None,
+        external_url: Optional[Callable] = None,  # TODO: breaking change: make this mandatory
     ):
         # TODO: breaking change: force keyword-only args from relation_name onwards
         super().__init__(charm, relation_name, RelationRole.provides)
 
+        # TODO: only use fqdn?
+        # We don't neet to worry about the literal "http" here because the external_url arg is set
+        # by the charm. TODO: drop it after external_url becomes a mandatory arg.
         self._external_url = external_url or (lambda: f"http://{socket.getfqdn()}:{api_port}")
 
         events = self.charm.on[self.name]
@@ -286,9 +304,16 @@ class AlertmanagerProvider(RelationManagerBase):
 
         Addresses are without scheme.
         """
-        # Drop the scheme
+        # FIXME when `_external_url` is an ingress URL, we have a problem: we get the same URL for
+        #  both units, because alertmanager is ingress per unit. On prometheus side we can
+        #  deduplicate so that the config file only has one entry, but ideally the
+        #  "alertmanagers.[].static_configs.targets" section in the prometheus config should list
+        #  all units.
         parsed = urlparse(self._external_url())
-        return {"public_address": f"{parsed.hostname}:{parsed.port or 80}{parsed.path}"}
+        return {
+            "public_address": f"{parsed.hostname}:{parsed.port or 80}{parsed.path}",
+            "scheme": parsed.scheme,
+        }
 
     def update_relation_data(self, event: Optional[RelationEvent] = None):
         """Helper function for updating relation data bags.

@@ -528,7 +528,9 @@ class AlertmanagerCharm(CharmBase):
 
         If an external (public) url is set, add in its path.
         """
-        return f"http://{socket.getfqdn()}:{self._ports.api}{self.web_route_prefix}"
+        tls_enabled = bool(self.server_cert.cert)
+        scheme = "https" if tls_enabled else "http"
+        return f"{scheme}://{socket.getfqdn()}:{self._ports.api}{self.web_route_prefix}"
 
     @property
     def _external_url(self) -> str:
@@ -537,4 +539,4 @@ class AlertmanagerCharm(CharmBase):
 
 
 if __name__ == "__main__":
-    main(AlertmanagerCharm, use_juju_for_storage=True)
+    main(AlertmanagerCharm)
