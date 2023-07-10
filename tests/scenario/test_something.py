@@ -1,4 +1,3 @@
-
 # Feature: Blog
 #     A site where you can publish your articles.
 #
@@ -34,17 +33,18 @@ design to take URL parts rather than a full URL. Prometheus takes URL parts and 
 generate its "alertmanagers" config section differently depending on the scheme.
 """
 
-import pytest
 from unittest.mock import patch
-from scenario import Container, State
+
+import pytest
+from helpers import begin_with_initial_hooks_isolated
 
 
 @pytest.mark.parametrize(
-    ("fqdn", ),
+    ("fqdn",),
     [
-        ("localhost", ),
-        ("foo.bar", ),
-        ("am-0.endpoints.cluster.local", ),
+        ("localhost",),
+        ("foo.bar",),
+        ("am-0.endpoints.cluster.local",),
     ],
 )
 class TestHTTP:
@@ -58,9 +58,8 @@ class TestHTTP:
 
     def test_pebble_layer_is_http(self, context, fqdn):
         with patch("socket.getfqdn", new=lambda *args: fqdn):
-            # TODO why "config_file": "" is needed?
-            state_out = context.run("update-status", State(config={"config_file": ""}, containers=[Container("alertmanager", can_connect=True)]))
-            container = state_out.get_container("alertmanager")
+            state = begin_with_initial_hooks_isolated(context)
+            container = state.get_container("alertmanager")
             command = container.layers["alertmanager"].services["alertmanager"].command
             assert f"--web.external-url=http://{fqdn}:9093" in command
 
