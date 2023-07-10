@@ -11,14 +11,6 @@ def tautology(*_, **__) -> bool:
     return True
 
 
-class FakeProcessVersionCheck:
-    def __init__(self, args):
-        pass
-
-    def wait_output(self):
-        return "version 0.1.0", ""
-
-
 @pytest.fixture
 def alertmanager_charm():
     with patch("charm.KubernetesServicePatch"), patch(
@@ -31,7 +23,7 @@ def alertmanager_charm():
     ), patch.object(
         WorkloadManager, "check_config", lambda *a, **kw: ("ok", "")
     ), patch.object(
-        OpsContainer, "exec", new=FakeProcessVersionCheck
+        WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0")
     ):
         yield AlertmanagerCharm
 
