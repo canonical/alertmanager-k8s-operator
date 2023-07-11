@@ -11,7 +11,7 @@ from alertmanager import WorkloadManager
 from charm import Alertmanager, AlertmanagerCharm
 from helpers import k8s_resource_multipatch, tautology
 from ops import pebble
-from ops.model import ActiveStatus, BlockedStatus, Container
+from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
 ops.testing.SIMULATE_CAN_CONNECT = True

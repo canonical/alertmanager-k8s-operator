@@ -3,7 +3,6 @@ from unittest.mock import patch
 import pytest
 from alertmanager import WorkloadManager
 from charm import AlertmanagerCharm
-from ops.model import Container as OpsContainer
 from scenario import Context
 
 

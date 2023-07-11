@@ -11,7 +11,7 @@ import yaml
 from alertmanager import WorkloadManager
 from charm import Alertmanager, AlertmanagerCharm
 from helpers import cli_arg, k8s_resource_multipatch, tautology
-from ops.model import ActiveStatus, BlockedStatus, Container
+from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
 logger = logging.getLogger(__name__)
