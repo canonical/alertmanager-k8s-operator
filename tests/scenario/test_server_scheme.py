@@ -52,13 +52,12 @@ class TestServerScheme:
         with patch("socket.getfqdn", new=lambda *args: fqdn):
             state = begin_with_initial_hooks_isolated(context, leader=leader)
 
-            # Add 3 relations
-            prom_rels = [Relation("alerting", relation_id=rel_id) for rel_id in (10, 11)]
-            for prom_rel in prom_rels:
-                state.relations.append(prom_rel)
-                state = context.run(prom_rel.created_event, state)
-                state = context.run(prom_rel.joined_event, state)
-                state = context.run(prom_rel.changed_event, state)
+            # Add relation
+            prom_rel = Relation("alerting", relation_id=10)
+            state.relations.append(prom_rel)
+            state = context.run(prom_rel.created_event, state)
+            state = context.run(prom_rel.joined_event, state)
+            state = context.run(prom_rel.changed_event, state)
 
             return state
 
@@ -115,6 +114,6 @@ class TestServerScheme:
         # THEN the "alerting" relation data has 'http' and the correct hostname
         # TODO
 
-    def test_self_monitoring_scrape_job_scheme(self):
+    def test_self_monitoring_scrape_job_scheme(self, fqdn, leader):
         # TODO
         pass

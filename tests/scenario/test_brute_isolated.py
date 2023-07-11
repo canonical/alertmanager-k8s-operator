@@ -29,7 +29,7 @@ class TestAlertingRelationDataUniformity:
         with patch("socket.getfqdn", new=lambda *args: fqdn):
             state = begin_with_initial_hooks_isolated(context, leader=leader)
 
-            # Add several relations
+            # Add several relations TODO: how to obtain the next rel_id automatically?
             prom_rels = [Relation("alerting", relation_id=rel_id) for rel_id in (10, 11, 12)]
             for prom_rel in prom_rels:
                 state.relations.append(prom_rel)
