@@ -81,6 +81,10 @@ def state_with_tls_relation(initial_state, context, is_leader):
                     [
                         {
                             "certificate": "placeholder",
+                            # fixme: the problem is: instead of "placeholder" here we need a forward ref to the
+                            #  CSR that AM will generate on certificates_relation_joined.
+                            #  Otherwise, as it stands, charms/tls_certificates_interface/v2/tls_certificates.py:1336 will not find
+                            #  this csr and ignore it. Hence no handlers are triggered.
                             "certificate_signing_request": "placeholder",
                             "ca": "placeholder",
                             "chain": ["first", "second"],
@@ -102,6 +106,7 @@ def test_initial_state_has_http_scheme_in_pebble_layer(context, initial_state, f
 def test_state_after_tls_added_has_https_scheme(context, state_with_tls_relation, fqdn):
     # WHEN a tls_certificates relation joins
     # TODO figure out why relation-changed observer in tls_certificates is not being called
+    #   ---> see the fix-me above!
 
     # THEN the pebble command has 'https' in the 'web.external-url' arg
     container = state_with_tls_relation.get_container("alertmanager")
