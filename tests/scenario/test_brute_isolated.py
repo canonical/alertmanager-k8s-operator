@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-from helpers import begin_with_initial_hooks_isolated
+from helpers import begin_with_initial_hooks_isolated, add_relation_sequence
 from scenario import Context, Relation, State
 
 """Some brute-force tests, so that other tests can remain focused."""
@@ -9,7 +9,6 @@ from scenario import Context, Relation, State
 
 def test_startup_shutdown_sequence(context: Context):
     state = begin_with_initial_hooks_isolated(context)
-    state = context.run("update-status", state)
     state = context.run("update-status", state)
 
     for peer_rel in state.get_relations("replicas"):
@@ -32,11 +31,7 @@ class TestAlertingRelationDataUniformity:
             # Add several relations TODO: how to obtain the next rel_id automatically?
             prom_rels = [Relation("alerting", relation_id=rel_id) for rel_id in (10, 11, 12)]
             for prom_rel in prom_rels:
-                state.relations.append(prom_rel)
-                state = context.run(prom_rel.created_event, state)
-                state = context.run(prom_rel.joined_event, state)
-                state = context.run(prom_rel.changed_event, state)
-
+                state = add_relation_sequence(context, state, prom_rel)
             return state
 
     def test_relation_data_is_the_same_for_all_related_apps(self, post_startup, fqdn):

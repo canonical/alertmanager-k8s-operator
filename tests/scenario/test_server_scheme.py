@@ -37,8 +37,8 @@ import json
 from unittest.mock import patch
 
 import pytest
-from helpers import begin_with_initial_hooks_isolated
-from scenario import Relation, State
+from helpers import begin_with_initial_hooks_isolated, add_relation_sequence
+from scenario import Relation, State, Context
 
 
 @pytest.mark.parametrize("fqdn", ["localhost", "am-0.endpoints.cluster.local"])
@@ -47,29 +47,26 @@ class TestServerScheme:
     """Scenario: The workload is deployed to operate in HTTP mode, then switched to HTTPS."""
 
     @pytest.fixture
-    def post_startup(self, context, fqdn, leader) -> State:
+    def initial_state(self, context, fqdn, leader) -> State:
+        """This is the initial state for this test class."""
+        # GIVEN an isolated alertmanager charm after the startup sequence is complete
+
         # No "tls-certificates" relation, no config options
         with patch("socket.getfqdn", new=lambda *args: fqdn):
             state = begin_with_initial_hooks_isolated(context, leader=leader)
 
             # Add relation
             prom_rel = Relation("alerting", relation_id=10)
-            state.relations.append(prom_rel)
-            state = context.run(prom_rel.created_event, state)
-            state = context.run(prom_rel.joined_event, state)
-            state = context.run(prom_rel.changed_event, state)
+            state = add_relation_sequence(context, state, prom_rel)
+            yield state  # keep the patch active for so long as this fixture is needed
 
-            return state
-
-    def test_pebble_layer_scheme(self, context, post_startup, fqdn):
-        # GIVEN an isolated alertmanager charm after the startup sequence is complete
-        state = post_startup
-
+    def test_initial_state_has_http_scheme_in_pebble_layer(self, context, initial_state, fqdn):
         # THEN the pebble command has 'http' and the correct hostname in the 'web.external-url' arg
-        container = state.get_container("alertmanager")
+        container = initial_state.get_container("alertmanager")
         command = container.layers["alertmanager"].services["alertmanager"].command
         assert f"--web.external-url=http://{fqdn}:9093" in command
 
+    def test_pebble_layer_scheme_becomes_https_if_tls_relation_added(self, context, initial_state, fqdn):
         # WHEN a tls_certificates relation joins
         ca = Relation(
             "certificates",
@@ -87,11 +84,7 @@ class TestServerScheme:
                 )
             },
         )  # TODO figure out how to easily figure out structure of remote data
-        state.relations.append(ca)
-        # TODO add a context.add_relation() helper?
-        state = context.run(ca.created_event, state)
-        state = context.run(ca.joined_event, state)
-        state = context.run(ca.changed_event, state)
+        state = add_relation_sequence(context, initial_state, ca)
         # TODO figure out why relation-changed observer in tls_certificates is not being called
 
         # THEN the pebble command has 'https' in the 'web.external-url' arg
@@ -99,12 +92,11 @@ class TestServerScheme:
         command = container.layers["alertmanager"].services["alertmanager"].command
         assert f"--web.external-url=https://{fqdn}:9093" in command
 
-    def test_relation_data_scheme(self, post_startup, fqdn):
-        # GIVEN an isolated alertmanager charm after the startup sequence is complete
-        state = post_startup
+    def test_alerting_relation_data_scheme(self, initial_state, fqdn):
+        # FIXME: should rely on interface tests for this kind of test.
 
         # THEN the "alerting" relation data has 'http' and the correct hostname
-        relation = state.get_relations("alerting")[0]
+        relation = initial_state.get_relations("alerting")[0]
         assert relation.local_unit_data["public_address"] == f"{fqdn}:9093"
         assert relation.local_unit_data["scheme"] == "http"
 
