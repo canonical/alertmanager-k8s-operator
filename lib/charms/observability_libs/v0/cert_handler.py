@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 LIBID = "b5cd5cd580f3428fa5f59a8876dcbe6a"
 LIBAPI = 0
-LIBPATCH = 1
+LIBPATCH = 2
 
 
 class CertChanged(EventBase):
@@ -139,13 +139,23 @@ class CertHandler(Object):
             self._on_all_certificates_invalidated,
         )
         self.framework.observe(
-            self.charm.on.certificates_relation_broken,  # pyright: ignore
+            self.charm.on[self.certificates_relation_name].relation_broken,  # pyright: ignore
             self._on_certificates_relation_broken,
         )
 
         # Peer relation events
         self.framework.observe(
             self.charm.on[self.peer_relation_name].relation_created, self._on_peer_relation_created
+        )
+
+    @property
+    def enabled(self) -> bool:
+        """Boolean indicating whether the charm has a tls_certificates relation."""
+        # We need to check for units as a temporary workaround because of https://bugs.launchpad.net/juju/+bug/2024583
+        # This could in theory not work correctly on scale down to 0 but it is necessary for the moment.
+        return (
+            len(self.charm.model.relations[self.certificates_relation_name]) > 0
+            and len(self.charm.model.get_relation(self.certificates_relation_name).units) > 0  # type: ignore
         )
 
     @property
@@ -301,6 +311,11 @@ class CertHandler(Object):
     def cert(self):
         """Return the server cert."""
         return self._server_cert
+
+    @property
+    def ca(self):
+        """Return the CA cert."""
+        return self._ca_cert
 
     @property
     def _server_cert(self) -> Optional[str]:
