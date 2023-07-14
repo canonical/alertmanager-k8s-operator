@@ -97,7 +97,9 @@ class AlertmanagerCharm(CharmBase):
             self._on_server_cert_changed,
         )
 
-        self.ingress = IngressPerAppRequirer(self, port=self.api_port)
+        self.ingress = IngressPerAppRequirer(
+            self, port=self.api_port, scheme=lambda: "https" if self.is_tls_enabled() else "http"
+        )
         self.framework.observe(self.ingress.on.ready, self._handle_ingress)  # pyright: ignore
         self.framework.observe(self.ingress.on.revoked, self._handle_ingress)  # pyright: ignore
 
@@ -426,6 +428,15 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_server_cert_changed(self, _):
         self._common_exit_hook()
+
+        # FIXME:
+        #  For some code ordering issue, when alertmanager is related to a CA, the relation data
+        #  sent over to traefik still has the old schema. Only with this call the schema updates to
+        #  HTTPS. To reproduce:
+        #  - Deploy alertmanager, traefik, self-signed-certificates
+        #  - Relate alertmanager to traefik first, and then to self-signed-certificates
+        #  - Look at alertmanager's app data in juju show-unit traefik/0
+        self.ingress._handle_upgrade_or_leader(None)
 
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
