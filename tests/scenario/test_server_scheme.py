@@ -55,6 +55,10 @@ class TestServerScheme:
                 "certificates": json.dumps(
                     [
                         {
+                            # fixme: the problem is: instead of "placeholder" here we need a forward ref to the
+                            #  CSR that AM will generate on certificates_relation_joined.
+                            #  Otherwise, as it stands, charms/tls_certificates_interface/v2/tls_certificates.py:1336 will not find
+                            #  this csr and ignore it. Hence no handlers are triggered.
                             "certificate": "placeholder",
                             "certificate_signing_request": "placeholder",
                             "ca": "placeholder",
