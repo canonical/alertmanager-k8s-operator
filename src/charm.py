@@ -191,7 +191,7 @@ class AlertmanagerCharm(CharmBase):
             external_url=self._external_url,
             config_path=self._config_path,
             web_config_path=self._web_config_path,
-            tls_enabled=bool(self.server_cert.cert),
+            tls_enabled=self.is_tls_enabled,
         )
         self.framework.observe(
             # The workload manager too observes pebble ready, but still need this here because
@@ -522,13 +522,18 @@ class AlertmanagerCharm(CharmBase):
 
         return path
 
+    def is_tls_enabled(self) -> bool:
+        """Returns True if the workload is to operate / already operates in TLS mode."""
+        return bool(self.server_cert.cert)
+
     @property
     def _internal_url(self) -> str:
         """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server.
 
         If an external (public) url is set, add in its path.
         """
-        return f"http://{socket.getfqdn()}:{self._ports.api}{self.web_route_prefix}"
+        scheme = "https" if self.is_tls_enabled() else "http"
+        return f"{scheme}://{socket.getfqdn()}:{self._ports.api}{self.web_route_prefix}"
 
     @property
     def _external_url(self) -> str:
@@ -537,4 +542,4 @@ class AlertmanagerCharm(CharmBase):
 
 
 if __name__ == "__main__":
-    main(AlertmanagerCharm, use_juju_for_storage=True)
+    main(AlertmanagerCharm)

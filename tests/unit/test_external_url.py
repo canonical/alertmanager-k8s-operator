@@ -10,8 +10,8 @@ import ops
 import yaml
 from alertmanager import WorkloadManager
 from charm import Alertmanager, AlertmanagerCharm
-from helpers import FakeProcessVersionCheck, cli_arg, k8s_resource_multipatch, tautology
-from ops.model import ActiveStatus, BlockedStatus, Container
+from helpers import cli_arg, k8s_resource_multipatch, tautology
+from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ class TestExternalUrl(unittest.TestCase):
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
-    @patch.object(Container, "exec", new=FakeProcessVersionCheck)
+    @patch.object(WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0"))
     def setUp(self, *unused):
         self.harness = Harness(AlertmanagerCharm)
         self.harness.set_model_name(self.__class__.__name__)
