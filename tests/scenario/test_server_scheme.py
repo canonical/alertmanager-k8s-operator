@@ -1,25 +1,3 @@
-# Feature: Blog
-#     A site where you can publish your articles.
-#
-#     Scenario: Publishing the article
-#         Given I'm an author user
-#         And I have an article
-#
-#         When I go to the article page
-#         And I press the publish button
-#
-#         Then I should not see the error message
-#         And the article should be published  # Note: will query the database
-
-
-# https://stackoverflow.com/a/62176555/3516684
-
-
-# | Gherkin element | pytest artifact |
-# |-----------------|-----------------|
-# | Feature         | *.py            |
-# | Scenario        | Class           |
-# | Step            | Method          |
 
 
 """Feature: The workload's scheme is reflected in the pebble command and in relation data.
