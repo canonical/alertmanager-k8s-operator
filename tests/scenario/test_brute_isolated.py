@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-from helpers import begin_with_initial_hooks_isolated, add_relation_sequence
+from helpers import add_relation_sequence, begin_with_initial_hooks_isolated
 from scenario import Context, Relation, State
 
 """Some brute-force tests, so that other tests can remain focused."""

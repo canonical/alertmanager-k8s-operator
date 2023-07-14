@@ -6,7 +6,7 @@
 
 import logging
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Callable
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from ops.framework import Object
@@ -85,7 +85,7 @@ class WorkloadManager(Object):
         external_url: str,
         config_path: str,
         web_config_path: str,
-        tls_enabled: bool,
+        tls_enabled: Callable[[], bool],
     ):
         # Must inherit from ops 'Object' to be able to register events.
         super().__init__(charm, f"{self.__class__.__name__}-{container_name}")
@@ -103,7 +103,7 @@ class WorkloadManager(Object):
         self._external_url = external_url
         self._config_path = config_path
         self._web_config_path = web_config_path
-        self._tls_enabled = tls_enabled
+        self._is_tls_enabled = tls_enabled
 
         # turn the container name to a valid Python identifier
         snake_case_container_name = self._container_name.replace("-", "_")
@@ -177,7 +177,7 @@ class WorkloadManager(Object):
                 sorted([f"--cluster.peer={address}" for address in self._peer_addresses])
             )
             web_config_arg = (
-                f"--web.config.file={self._web_config_path} " if self._tls_enabled else ""
+                f"--web.config.file={self._web_config_path} " if self._is_tls_enabled() else ""
             )
             return (
                 f"{self._exe_name} "
@@ -205,35 +205,25 @@ class WorkloadManager(Object):
             }
         )
 
-    def update_layer(self) -> bool:
-        """Update service layer to reflect changes in peers (replicas).
-
-        Returns:
-          True if anything changed; False otherwise
-        """
+    def update_layer(self) -> None:
+        """Update service layer to reflect changes in peers (replicas)."""
         if not self.is_ready:
             raise ContainerNotReady("cannot update layer")
 
         overlay = self._alertmanager_layer()
-        plan = self._container.get_plan()
 
-        if self._service_name not in plan.services or overlay.services != plan.services:
-            self._container.add_layer(self._layer_name, overlay, combine=True)
-            try:
-                # If a config is invalid then alertmanager would exit immediately.
-                # This would be caught by pebble (default timeout is 30 sec) and a ChangeError
-                # would be raised.
-                self._container.replan()
-                return True
-            except ChangeError as e:
-                logger.error(
-                    "Failed to replan; pebble plan: %s; %s",
-                    self._container.get_plan().to_dict(),
-                    str(e),
-                )
-                return False
-
-        return False
+        self._container.add_layer(self._layer_name, overlay, combine=True)
+        try:
+            # If a config is invalid then alertmanager would exit immediately.
+            # This would be caught by pebble (default timeout is 30 sec) and a ChangeError
+            # would be raised.
+            self._container.replan()
+        except ChangeError as e:
+            logger.error(
+                "Failed to replan; pebble plan: %s; %s",
+                self._container.get_plan().to_dict(),
+                str(e),
+            )
 
     def update_config(self, manifest: ConfigFileSystemState) -> None:
         """Update alertmanager config files to reflect changes in configuration.

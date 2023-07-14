@@ -37,8 +37,8 @@ import json
 from unittest.mock import patch
 
 import pytest
-from helpers import begin_with_initial_hooks_isolated, add_relation_sequence
-from scenario import Relation, State, Context
+from helpers import add_relation_sequence, begin_with_initial_hooks_isolated
+from scenario import Relation
 
 
 @pytest.fixture(params=["localhost", "am-0.endpoints.cluster.local"])
@@ -73,7 +73,9 @@ def state_with_alerting_relation(initial_state, context, is_leader):
 def state_with_tls_relation(initial_state, context, is_leader):
     """Alertmanager after a tls relation has been added."""
     return add_relation_sequence(
-        context, initial_state, Relation(
+        context,
+        initial_state,
+        Relation(
             "certificates",
             relation_id=100,
             remote_app_data={
@@ -92,7 +94,7 @@ def state_with_tls_relation(initial_state, context, is_leader):
                     ]
                 )
             },
-        )  # TODO figure out how to easily figure out the process of figuring out the structure of remote data
+        ),  # TODO figure out how to easily figure out the process of figuring out the structure of remote data
     )
 
 

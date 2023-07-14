@@ -1,4 +1,4 @@
-from scenario import Container, Context, PeerRelation, State, Relation
+from scenario import Container, Context, PeerRelation, Relation, State
 
 
 def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) -> State:
@@ -38,4 +38,3 @@ def add_relation_sequence(context: Context, state: State, relation: Relation):
     state_after_relation_joined = context.run(relation.joined_event, state_after_relation_created)
     state_after_relation_changed = context.run(relation.changed_event, state_after_relation_joined)
     return state_after_relation_changed
-

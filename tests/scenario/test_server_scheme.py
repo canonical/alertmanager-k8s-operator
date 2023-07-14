@@ -37,8 +37,8 @@ import json
 from unittest.mock import patch
 
 import pytest
-from helpers import begin_with_initial_hooks_isolated, add_relation_sequence
-from scenario import Relation, State, Context
+from helpers import add_relation_sequence, begin_with_initial_hooks_isolated
+from scenario import Relation, State
 
 
 @pytest.mark.parametrize("fqdn", ["localhost", "am-0.endpoints.cluster.local"])
@@ -66,7 +66,9 @@ class TestServerScheme:
         command = container.layers["alertmanager"].services["alertmanager"].command
         assert f"--web.external-url=http://{fqdn}:9093" in command
 
-    def test_pebble_layer_scheme_becomes_https_if_tls_relation_added(self, context, initial_state, fqdn):
+    def test_pebble_layer_scheme_becomes_https_if_tls_relation_added(
+        self, context, initial_state, fqdn
+    ):
         # WHEN a tls_certificates relation joins
         ca = Relation(
             "certificates",
