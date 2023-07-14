@@ -55,7 +55,18 @@ import logging
 import socket
 import typing
 from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, MutableMapping, Optional, Sequence, Tuple, Union, Callable
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    MutableMapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import pydantic
 from ops.charm import CharmBase, RelationBrokenEvent, RelationEvent
