@@ -1,4 +1,5 @@
-
+# Copyright 2023 Canonical Ltd.
+# See LICENSE file for licensing details.
 
 """Feature: The workload's scheme is reflected in the pebble command and in relation data.
 
