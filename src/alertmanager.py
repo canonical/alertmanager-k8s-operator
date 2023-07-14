@@ -6,7 +6,7 @@
 
 import logging
 import re
-from typing import Dict, List, Optional, Tuple, Callable
+from typing import Callable, Dict, List, Optional, Tuple
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from ops.framework import Object

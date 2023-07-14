@@ -523,6 +523,7 @@ class AlertmanagerCharm(CharmBase):
         return path
 
     def is_tls_enabled(self) -> bool:
+        """Returns True if the workload is to operate / already operates in TLS mode."""
         return bool(self.server_cert.cert)
 
     @property
@@ -531,7 +532,7 @@ class AlertmanagerCharm(CharmBase):
 
         If an external (public) url is set, add in its path.
         """
-        scheme = "https" if self.is_tls_enabled else "http"
+        scheme = "https" if self.is_tls_enabled() else "http"
         return f"{scheme}://{socket.getfqdn()}:{self._ports.api}{self.web_route_prefix}"
 
     @property
