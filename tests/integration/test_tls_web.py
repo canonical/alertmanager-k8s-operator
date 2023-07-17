@@ -15,7 +15,9 @@ from pytest_operator.plugin import OpsTest
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
-am = SimpleNamespace(name="am", scale=2, hostname="alertmanager.local")
+am = SimpleNamespace(name="am", scale=1, hostname="alertmanager.local")
+# FIXME change scale to 2 once the tls_certificate lib issue is fixed
+# https://github.com/canonical/tls-certificates-interface/issues/57
 
 
 @pytest.mark.abort_on_fail

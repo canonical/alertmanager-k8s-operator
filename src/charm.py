@@ -97,7 +97,9 @@ class AlertmanagerCharm(CharmBase):
             self._on_server_cert_changed,
         )
 
-        self.ingress = IngressPerAppRequirer(self, port=self.api_port)
+        self.ingress = IngressPerAppRequirer(
+            self, port=self.api_port, scheme=lambda: "https" if self.is_tls_enabled() else "http"
+        )
         self.framework.observe(self.ingress.on.ready, self._handle_ingress)  # pyright: ignore
         self.framework.observe(self.ingress.on.revoked, self._handle_ingress)  # pyright: ignore
 
@@ -191,7 +193,7 @@ class AlertmanagerCharm(CharmBase):
             external_url=self._external_url,
             config_path=self._config_path,
             web_config_path=self._web_config_path,
-            tls_enabled=bool(self.server_cert.cert),
+            tls_enabled=self.is_tls_enabled,
         )
         self.framework.observe(
             # The workload manager too observes pebble ready, but still need this here because
@@ -427,6 +429,15 @@ class AlertmanagerCharm(CharmBase):
     def _on_server_cert_changed(self, _):
         self._common_exit_hook()
 
+        # FIXME:
+        #  For some code ordering issue, when alertmanager is related to a CA, the relation data
+        #  sent over to traefik still has the old schema. Only with this call the schema updates to
+        #  HTTPS. To reproduce:
+        #  - Deploy alertmanager, traefik, self-signed-certificates
+        #  - Relate alertmanager to traefik first, and then to self-signed-certificates
+        #  - Look at alertmanager's app data in juju show-unit traefik/0
+        self.ingress._handle_upgrade_or_leader(None)
+
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
         self._common_exit_hook()
@@ -522,13 +533,18 @@ class AlertmanagerCharm(CharmBase):
 
         return path
 
+    def is_tls_enabled(self) -> bool:
+        """Returns True if the workload is to operate / already operates in TLS mode."""
+        return bool(self.server_cert.cert)
+
     @property
     def _internal_url(self) -> str:
         """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server.
 
         If an external (public) url is set, add in its path.
         """
-        return f"http://{socket.getfqdn()}:{self._ports.api}{self.web_route_prefix}"
+        scheme = "https" if self.is_tls_enabled() else "http"
+        return f"{scheme}://{socket.getfqdn()}:{self._ports.api}{self.web_route_prefix}"
 
     @property
     def _external_url(self) -> str:
@@ -537,4 +553,4 @@ class AlertmanagerCharm(CharmBase):
 
 
 if __name__ == "__main__":
-    main(AlertmanagerCharm, use_juju_for_storage=True)
+    main(AlertmanagerCharm)
