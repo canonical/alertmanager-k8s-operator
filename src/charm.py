@@ -98,7 +98,7 @@ class AlertmanagerCharm(CharmBase):
         )
 
         self.ingress = IngressPerAppRequirer(
-            self, port=self.api_port, scheme=lambda: "https" if self.is_tls_enabled() else "http"
+            self, port=self.api_port, use_https_scheme=self.is_tls_enabled()
         )
         self.framework.observe(self.ingress.on.ready, self._handle_ingress)  # pyright: ignore
         self.framework.observe(self.ingress.on.revoked, self._handle_ingress)  # pyright: ignore
