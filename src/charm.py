@@ -228,7 +228,7 @@ class AlertmanagerCharm(CharmBase):
         )
 
     def _ingress_scheme(self):
-        if self.is_tls_enabled:
+        if self.is_tls_enabled():
             return "https"
         return "http"
 
