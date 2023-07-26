@@ -160,7 +160,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 16
+LIBPATCH = 19
 
 logger = logging.getLogger(__name__)
 
@@ -259,7 +259,7 @@ def _validate_relation_by_interface_and_direction(
     relation = charm.meta.relations[relation_name]
 
     actual_relation_interface = relation.interface_name
-    if actual_relation_interface != expected_relation_interface:
+    if actual_relation_interface and actual_relation_interface != expected_relation_interface:
         raise RelationInterfaceMismatchError(
             relation_name, expected_relation_interface, actual_relation_interface
         )
@@ -321,7 +321,7 @@ class GrafanaSourceProvider(Object):
         source_type: str,
         source_port: Optional[str] = "",
         source_url: Optional[str] = "",
-        refresh_event: Optional[BoundEvent] = None,
+        refresh_event: Optional[Union[BoundEvent, List[BoundEvent]]] = None,
         relation_name: str = DEFAULT_RELATION_NAME,
         extra_fields: Optional[dict] = None,
     ) -> None:
@@ -359,7 +359,7 @@ class GrafanaSourceProvider(Object):
                 the default, so that people deploying your charm will have a
                 consistent experience with all other charms that provide
                 Grafana datasources.
-            refresh_event: a :class:`CharmEvents` event on which the IP
+            refresh_event: a :class:`CharmEvents` event (or a list of them) on which the IP
                 address should be refreshed in case of pod or
                 machine/VM restart.
             extra_fields: a :dict: which is used for additional information required
@@ -386,7 +386,11 @@ class GrafanaSourceProvider(Object):
         if not refresh_event:
             if len(self._charm.meta.containers) == 1:
                 container = list(self._charm.meta.containers.values())[0]
-                refresh_event = self._charm.on[container.name.replace("-", "_")].pebble_ready
+                refresh_event = [self._charm.on[container.name.replace("-", "_")].pebble_ready]
+            else:
+                refresh_event = []
+        elif not isinstance(refresh_event, list):
+            refresh_event = [refresh_event]
 
         if source_port and source_url:
             logger.warning(
@@ -394,31 +398,30 @@ class GrafanaSourceProvider(Object):
                 "`source_url` as the address."
             )
 
+        self._source_port = source_port
+        self._source_url = self._sanitize_source_url(source_url)
+
+        self.framework.observe(events.relation_joined, self._set_sources_from_event)
+        for ev in refresh_event:
+            self.framework.observe(ev, self._set_unit_details)
+
+    def _sanitize_source_url(self, source_url: Optional[str]) -> Optional[str]:
         if source_url and not re.match(r"^\w+://", source_url):
             logger.warning(
                 "'source_url' should start with a scheme, such as "
                 "'http://'. Assuming 'http://' since none is present."
             )
             source_url = "http://{}".format(source_url)
-
-        self._source_port = source_port
-        self._source_url = source_url
-
-        self.framework.observe(events.relation_joined, self._set_sources_from_event)
-        if refresh_event:
-            self.framework.observe(refresh_event, self._set_unit_details)
+        return source_url
 
     def update_source(self, source_url: Optional[str] = ""):
         """Trigger the update of relation data."""
-        if source_url:
-            self._source_url = source_url
+        self._source_url = self._sanitize_source_url(source_url)
 
-        rel = self._charm.model.get_relation(self._relation_name)
-
-        if not rel:
-            return
-
-        self._set_sources(rel)
+        for rel in self._charm.model.relations.get(self._relation_name, []):
+            if not rel:
+                continue
+            self._set_sources(rel)
 
     def _set_sources_from_event(self, event: RelationJoinedEvent) -> None:
         """Get a `Relation` object from the event to pass on."""
@@ -457,7 +460,7 @@ class GrafanaSourceProvider(Object):
         unit relation data for the Prometheus consumer.
         """
         for relation in self._charm.model.relations[self._relation_name]:
-            url = self._source_url or "{}:{}".format(socket.getfqdn(), self._source_port)
+            url = self._source_url or "http://{}:{}".format(socket.getfqdn(), self._source_port)
             if self._source_type == "mimir":
                 url = f"{url}/prometheus"
 

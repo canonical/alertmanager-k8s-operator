@@ -59,12 +59,10 @@ from typing import (
     Any,
     Dict,
     List,
-    Literal,
     MutableMapping,
     Optional,
     Sequence,
     Tuple,
-    Union,
 )
 
 import pydantic
@@ -81,13 +79,12 @@ LIBAPI = 2
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 3
 
 PYDEPS = ["pydantic<2.0"]
 
 DEFAULT_RELATION_NAME = "ingress"
 RELATION_INTERFACE = "ingress"
-SchemeLiteral = Literal["http", "https"]
 
 log = logging.getLogger(__name__)
 BUILTIN_JUJU_KEYS = {"ingress-address", "private-address", "egress-subnets"}
@@ -98,6 +95,7 @@ class DatabagModel(BaseModel):
 
     class Config:
         """Pydantic config."""
+
         allow_population_by_field_name = True
         """Allow instantiating this class by field name (instead of forcing alias)."""
         extra = "forbid"
@@ -120,12 +118,15 @@ class DatabagModel(BaseModel):
         try:
             return cls.parse_raw(json.dumps(data))  # type: ignore
         except pydantic.ValidationError as e:
-            msg = f"failed to validate remote unit databag: {databag}"
+            msg = f"failed to validate databag: {databag}"
             log.error(msg, exc_info=True)
             raise DataValidationError(msg) from e
 
-    def dump(self, databag: MutableMapping):
+    def dump(self, databag: Optional[MutableMapping] = None):
         """Write the contents of this model to Juju databag."""
+        if databag is None:
+            databag = {}
+
         if self._NEST_UNDER:
             databag[self._NEST_UNDER] = self.json()
 
@@ -133,6 +134,8 @@ class DatabagModel(BaseModel):
         for key, field in self.__fields__.items():  # type: ignore
             value = dct[key]
             databag[field.alias or key] = json.dumps(value)
+
+        return databag
 
 
 # todo: import these models from charm-relation-interfaces/ingress/v2 instead of redeclaring them
@@ -156,6 +159,7 @@ class ProviderSchema(BaseModel):
 
 class IngressRequirerAppData(DatabagModel):
     """Ingress requirer application databag model."""
+
     model: str = Field(description="The model the application is in.")
     name: str = Field(description="the name of the app requesting ingress.")
     port: int = Field(description="The port the app wishes to be exposed.")
@@ -331,8 +335,11 @@ class IngressRequirerData:
 
 
 class TlsProviderType(typing.Protocol):
+    """Placeholder."""
+
     @property
-    def enabled(self) -> bool: ...
+    def enabled(self) -> bool:  # type: ignore
+        """Placeholder."""
 
 
 class IngressPerAppProvider(_IngressPerAppBase):
@@ -340,7 +347,11 @@ class IngressPerAppProvider(_IngressPerAppBase):
 
     on = IngressPerAppProviderEvents()  # type: ignore
 
-    def __init__(self, charm: CharmBase, relation_name: str = DEFAULT_RELATION_NAME, ):
+    def __init__(
+        self,
+        charm: CharmBase,
+        relation_name: str = DEFAULT_RELATION_NAME,
+    ):
         """Constructor for IngressPerAppProvider.
 
         Args:
@@ -422,7 +433,7 @@ class IngressPerAppProvider(_IngressPerAppBase):
 
         try:
             self.get_data(relation)
-        except DataValidationError as e:
+        except (DataValidationError, NotReadyError) as e:
             log.debug("Provider not ready; validation error encountered: %s" % str(e))
             return False
         return True
@@ -467,12 +478,22 @@ class IngressPerAppProvider(_IngressPerAppBase):
         results = {}
 
         for ingress_relation in self.relations:
-            assert (
-                ingress_relation.app
-            ), "no app in relation (shouldn't happen)"  # for type checker
-            ingress_data = self._published_url(ingress_relation)
+            if not ingress_relation.app:
+                log.warning(
+                    f"no app in relation {ingress_relation} when fetching proxied endpoints: skipping"
+                )
+                continue
+            try:
+                ingress_data = self._published_url(ingress_relation)
+            except NotReadyError:
+                log.warning(
+                    f"no published url found in {ingress_relation}: "
+                    f"traefik didn't publish_url yet to this relation."
+                )
+                continue
 
             if not ingress_data:
+                log.warning(f"relation {ingress_relation} not ready yet: try again in some time.")
                 continue
 
             results[ingress_relation.app.name] = ingress_data.ingress.dict()
@@ -508,17 +529,17 @@ class IngressPerAppRequirer(_IngressPerAppBase):
     _stored = StoredState()
 
     def __init__(
-            self,
-            charm: CharmBase,
-            relation_name: str = DEFAULT_RELATION_NAME,
-            *,
-            host: Optional[str] = None,
-            port: Optional[int] = None,
-            strip_prefix: bool = False,
-            redirect_https: bool = False,
-            # fixme: this is horrible UX.
-            #  shall we switch to manually calling provide_ingress_requirements with all args when ready?
-            scheme: typing.Callable[[], str] = lambda: "http",
+        self,
+        charm: CharmBase,
+        relation_name: str = DEFAULT_RELATION_NAME,
+        *,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        strip_prefix: bool = False,
+        redirect_https: bool = False,
+        # fixme: this is horrible UX.
+        #  shall we switch to manually calling provide_ingress_requirements with all args when ready?
+        scheme: typing.Callable[[], str] = lambda: "http",
     ):
         """Constructor for IngressRequirer.
 
@@ -609,16 +630,14 @@ class IngressPerAppRequirer(_IngressPerAppBase):
         if self.unit.is_leader():
             app_databag = self.relation.data[self.app]
             try:
-                IngressRequirerAppData(
+                IngressRequirerAppData(  # type: ignore  # pyright does not like aliases
                     model=self.model.name,
                     name=self.app.name,
                     scheme=self._get_scheme(),
                     port=port,
-                    strip_prefix=self._strip_prefix,
-                    redirect_https=self._redirect_https,
-                ).dump(
-                    app_databag
-                )
+                    strip_prefix=self._strip_prefix,  # type: ignore  # pyright does not like aliases
+                    redirect_https=self._redirect_https,  # type: ignore  # pyright does not like aliases
+                ).dump(app_databag)
             except pydantic.ValidationError as e:
                 msg = "failed to validate app data"
                 log.info(msg, exc_info=True)  # log to INFO because this might be expected
@@ -671,7 +690,7 @@ class IngressPerAppRequirer(_IngressPerAppBase):
         Returns None if the URL isn't available yet.
         """
         data = (
-                typing.cast(Optional[str], self._stored.current_url)  # type: ignore
-                or self._get_url_from_relation_data()
+            typing.cast(Optional[str], self._stored.current_url)  # type: ignore
+            or self._get_url_from_relation_data()
         )
         return data
