@@ -97,9 +97,7 @@ class AlertmanagerCharm(CharmBase):
             self._on_server_cert_changed,
         )
 
-        self.ingress = IngressPerAppRequirer(
-            self, port=self.api_port, scheme=self._ingress_scheme
-        )
+        self.ingress = IngressPerAppRequirer(self, port=self.api_port, scheme=self._ingress_scheme)
         self.framework.observe(self.ingress.on.ready, self._handle_ingress)  # pyright: ignore
         self.framework.observe(self.ingress.on.revoked, self._handle_ingress)  # pyright: ignore
 
