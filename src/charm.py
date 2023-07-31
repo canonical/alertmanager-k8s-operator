@@ -113,7 +113,12 @@ class AlertmanagerCharm(CharmBase):
             self._ports.api,
             external_url=lambda: AlertmanagerCharm._external_url.fget(self),  # type: ignore
         )
-        self.api = Alertmanager(port=self._ports.api, web_route_prefix=self.web_route_prefix)
+
+        self.api = Alertmanager(
+            port=self._ports.api,
+            web_route_prefix=self.web_route_prefix,
+            scheme=urlparse(self._external_url).scheme,
+        )
 
         self.grafana_dashboard_provider = GrafanaDashboardProvider(charm=self)
         self.grafana_source_provider = GrafanaSourceProvider(

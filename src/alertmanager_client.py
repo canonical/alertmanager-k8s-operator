@@ -32,10 +32,11 @@ class Alertmanager:
         *,
         web_route_prefix: str = "",
         timeout=2,
+        scheme: str = "http",
     ):
         if web_route_prefix and not web_route_prefix.endswith("/"):
             web_route_prefix += "/"
-        self.base_url = urllib.parse.urljoin(f"http://{address}:{port}/", web_route_prefix)
+        self.base_url = urllib.parse.urljoin(f"{scheme}://{address}:{port}/", web_route_prefix)
         self.timeout = timeout
 
     def reload(self) -> bool:
