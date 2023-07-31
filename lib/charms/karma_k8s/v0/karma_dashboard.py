@@ -28,6 +28,7 @@ from typing import Dict, List, Optional
 import ops.charm
 from ops.charm import CharmBase, RelationJoinedEvent, RelationRole
 from ops.framework import EventBase, EventSource, Object, ObjectEvents, StoredState
+from pydantic import BaseModel, field_serializer
 
 # The unique Charmhub library identifier, never change it
 LIBID = "98f9dc00f7ff4b1197895886bdd92037"
@@ -37,7 +38,9 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 5
+LIBPATCH = 6
+
+PYDEPS = ["pydantic > 2"]
 
 # Set to match metadata.yaml
 INTERFACE_NAME = "karma_dashboard"
@@ -45,68 +48,16 @@ INTERFACE_NAME = "karma_dashboard"
 logger = logging.getLogger(__name__)
 
 
-class KarmaAlertmanagerConfig:
-    """A helper class for alertmanager server configuration for Karma.
+class _KarmaDashboardProviderUnitDataV0(BaseModel):
+    name: str
+    uri: str
+    cluster: str = ""
+    proxy: bool = True
 
-    Refer to the Karma documentation for full details:
-    https://github.com/prymitive/karma/blob/main/docs/CONFIGURATION.md#alertmanagers
-    """
-
-    required_fields = {"name", "uri"}
-    optional_fields = {"cluster"}
-    _supported_fields = required_fields | optional_fields
-
-    @staticmethod
-    def is_valid(config: Dict[str, str]) -> bool:
-        """Validate alertmanager server configuration for Karma.
-
-        Args:
-            config: target configuration to be validated.
-
-        Returns:
-            True if all required keys are present and all remaining keys are supported optional
-            fields; False otherwise.
-        """
-        all_required = all(key in config for key in KarmaAlertmanagerConfig.required_fields)
-        all_supported = all(key in KarmaAlertmanagerConfig._supported_fields for key in config)
-        return all_required and all_supported
-
-    @staticmethod
-    def from_dict(data: Dict[str, str]) -> Dict[str, str]:
-        """Generate alertmanager server configuration from the given dict.
-
-        Configuration is constructed by creating a subset of the provided dictionary that contains
-        only the supported fields.
-
-        Args:
-            data: a dict that may contain alertmanager server configuration for Karma.
-
-        Returns:
-            A subset of `data` that contains all the supported fields found in `data`, if the
-            resulting subset makes a valid configuration; False otherwise.
-        """
-        config = {k: data[k] for k in data if k in KarmaAlertmanagerConfig.required_fields}
-        optional_config = {
-            k: data[k] for k in data if data[k] and k in KarmaAlertmanagerConfig.optional_fields
-        }
-        config.update(optional_config)
-        return config if KarmaAlertmanagerConfig.is_valid(config) else {}
-
-    @staticmethod
-    def build(name: str, url: str, *, cluster=None) -> Dict[str, str]:
-        """Build alertmanager server configuration for Karma.
-
-        Args:
-            name: name for the alertmanager unit.
-            url: url of the alertmanager api server (including scheme and port)
-            cluster: name of a cluster to which the alertmanager unit belongs to (optional)
-
-        Returns:
-            Alertmanager server configuration for Karma.
-        """
-        return KarmaAlertmanagerConfig.from_dict(
-            {"name": name, "uri": url, "cluster": cluster}  # pyright: ignore
-        )
+    @field_serializer("proxy")
+    def serialize_proxy(self, proxy: bool) -> str:
+        # We need this because relation data values must be strings, not <class 'bool'>
+        return "true" if proxy else "false"
 
 
 class KarmaAlertmanagerConfigChanged(EventBase):
@@ -246,12 +197,13 @@ class KarmaConsumer(RelationManagerBase):
                 if key is not self.charm.unit and isinstance(
                     key, ops.charm.model.Unit  # pyright: ignore
                 ):
-                    data = relation.data[key]
-                    config = KarmaAlertmanagerConfig.from_dict(data)
+                    data = _KarmaDashboardProviderUnitDataV0(**relation.data[key])
+                    # Now convert relation data into config file format. Luckily it's trivial.
+                    config = dict(data)
                     if config and config not in servers:
                         servers.append(config)
 
-        return servers  # TODO sorted
+        return sorted(servers, key=lambda itm: itm["name"])
 
     def _on_relation_changed(self, _):
         """Event handler for RelationChangedEvent."""
@@ -341,16 +293,6 @@ class KarmaProvider(RelationManagerBase):
         self._update_relation_data(event)
 
     @property
-    def config_valid(self) -> bool:
-        """Check if the current configuration is valid.
-
-        Returns:
-            True if the currently stored configuration for an alertmanager target is valid; False
-            otherwise.
-        """
-        return KarmaAlertmanagerConfig.is_valid(self._stored.config)  # type: ignore
-
-    @property
     def target(self) -> Optional[str]:
         """str: Alertmanager URL to be used by Karma."""
         return self._stored.config.get("uri", None)  # type: ignore
@@ -367,14 +309,13 @@ class KarmaProvider(RelationManagerBase):
         Returns:
             None.
         """
-        name = self.charm.unit.name
-        cluster = "{}_{}".format(self.charm.model.name, self.charm.app.name)
-        config = KarmaAlertmanagerConfig.build(name, url, cluster=cluster)
-        if not config:
-            logger.warning("Invalid config: {%s, %s}", name, url)
-            return
-
-        self._stored.config.update(config)  # type: ignore
+        data = _KarmaDashboardProviderUnitDataV0(
+            name=self.charm.unit.name,
+            uri=url,
+            cluster=f"{self.charm.model.name}_{self.charm.app.name}",
+            proxy=True,
+        )
+        self._stored.config.update(data.model_dump())  # type: ignore
 
         # target changed - must update all relation data
         self._update_relation_data()
