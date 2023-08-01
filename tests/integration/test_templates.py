@@ -127,8 +127,8 @@ async def test_receiver_gets_alert(ops_test: OpsTest, httpserver):
     with httpserver.wait(timeout=120) as waiting:
         # expect an alert to be forwarded to the receiver
         httpserver.expect_oneshot_request("/", method="POST").respond_with_handler(request_handler)
-        client_address = await get_unit_address(ops_test, app_name, 0)
-        amanager = Alertmanager(address=client_address)
+        unit_address = await get_unit_address(ops_test, app_name, 0)
+        amanager = Alertmanager(f"http://{unit_address}:9093")
         amanager.set_alerts(alerts)
 
     # check receiver got an alert

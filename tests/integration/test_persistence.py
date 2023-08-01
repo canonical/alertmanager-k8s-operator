@@ -29,7 +29,8 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
 
     # set a silencer for an alert and check it is set
-    alertmanager = Alertmanager(address=await get_unit_address(ops_test, app_name, 0))
+    unit_address = await get_unit_address(ops_test, app_name, 0)
+    alertmanager = Alertmanager(f"http://{unit_address}:9093")
 
     silence_start = datetime.now(timezone.utc)
     silence_end = silence_start + timedelta(minutes=30)
@@ -88,7 +89,8 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     assert await is_alertmanager_up(ops_test, app_name)
 
     # check silencer is still set
-    alertmanager = Alertmanager(address=await get_unit_address(ops_test, app_name, 0))
+    unit_address = await get_unit_address(ops_test, app_name, 0)
+    alertmanager = Alertmanager(f"http://{unit_address}:9093")
     silences_after = alertmanager.get_silences()
     assert len(silences_after)
 
