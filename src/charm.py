@@ -8,7 +8,7 @@ import logging
 import socket
 from types import SimpleNamespace
 from typing import List, Optional, Tuple, cast
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 import yaml
 from alertmanager import (
@@ -114,7 +114,7 @@ class AlertmanagerCharm(CharmBase):
             external_url=lambda: AlertmanagerCharm._external_url.fget(self),  # type: ignore
         )
 
-        self.api = Alertmanager(endpoint_url=urljoin(self._external_url, self.web_route_prefix))
+        self.api = Alertmanager(endpoint_url=self._external_url)
 
         self.grafana_dashboard_provider = GrafanaDashboardProvider(charm=self)
         self.grafana_source_provider = GrafanaSourceProvider(

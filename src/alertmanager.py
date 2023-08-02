@@ -7,7 +7,6 @@
 import logging
 import re
 from typing import Callable, Dict, List, Optional, Tuple
-from urllib.parse import urljoin
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from ops.framework import Object
@@ -100,7 +99,7 @@ class WorkloadManager(Object):
 
         self._api_port = api_port
         self._ha_port = ha_port
-        self.api = Alertmanager(endpoint_url=urljoin(charm._external_url, charm.web_route_prefix))
+        self.api = Alertmanager(endpoint_url=charm._external_url)
         self._external_url = external_url
         self._config_path = config_path
         self._web_config_path = web_config_path
