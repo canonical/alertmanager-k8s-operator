@@ -30,7 +30,7 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
         applications:
           {am.name}:
             charm: {charm_under_test}
-            series: focal
+            series: jammy
             scale: {am.scale}
             trust: true
             resources:
