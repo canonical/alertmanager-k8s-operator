@@ -5,12 +5,10 @@ type: charm
 bases:
   - build-on:
     - name: "ubuntu"
-      channel: "22.04"
+      channel: "20.04"
     run-on:
     - name: "ubuntu"
-      channel: "22.04"
+      channel: "20.04"
 parts:
   charm:
     charm-binary-python-packages: [ops, PyYAML, cryptography, jsonschema]
-    build-packages:
-    - git
