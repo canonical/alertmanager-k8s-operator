@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional
 import ops.charm
 from ops.charm import CharmBase, RelationJoinedEvent, RelationRole
 from ops.framework import EventBase, EventSource, Object, ObjectEvents, StoredState
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 # The unique Charmhub library identifier, never change it
 LIBID = "98f9dc00f7ff4b1197895886bdd92037"
@@ -38,7 +38,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 7
+LIBPATCH = 8
 
 PYDEPS = ["pydantic < 2"]
 
@@ -203,11 +203,20 @@ class KarmaConsumer(RelationManagerBase):
                     and isinstance(key, ops.charm.model.Unit)  # pyright: ignore
                     and relation.data[key]
                 ):
-                    data = _KarmaDashboardProviderUnitDataV0(**relation.data[key])
-                    # Now convert relation data into config file format. Luckily it's trivial.
-                    config = dict(data)
-                    if config and config not in servers:
-                        servers.append(config)
+                    try:
+                        data = _KarmaDashboardProviderUnitDataV0(**relation.data[key])
+                    except ValidationError:
+                        logger.warning(
+                            "Relation data is invalid or not ready; "
+                            "contents of relation.data[%s]: %s",
+                            key,
+                            relation.data[key],
+                        )
+                    else:
+                        # Now convert relation data into config file format. Luckily it's trivial.
+                        config = data.dict()
+                        if config and config not in servers:
+                            servers.append(config)
 
         return sorted(servers, key=lambda itm: itm["name"])
 
@@ -321,7 +330,12 @@ class KarmaProvider(RelationManagerBase):
             cluster=f"{self.charm.model.name}_{self.charm.app.name}",
             proxy=True,
         )
-        self._stored.config.update(dict(data))  # type: ignore
+        # TODO Use `data.model_dump()` when we switch to pydantic 2
+        as_dict = data.dict()
+        # Replace bool with str, otherwise:
+        # ops.model.RelationDataTypeError: relation data values must be strings, not <class 'bool'>
+        as_dict["proxy"] = "true" if as_dict["proxy"] else "false"
+        self._stored.config.update(as_dict)  # type: ignore
 
         # target changed - must update all relation data
         self._update_relation_data()
