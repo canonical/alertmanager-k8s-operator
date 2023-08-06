@@ -12,5 +12,3 @@ bases:
 parts:
   charm:
     charm-binary-python-packages: [ops, PyYAML, cryptography, jsonschema]
-    build-packages:
-    - git
