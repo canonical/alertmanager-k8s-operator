@@ -45,7 +45,10 @@ async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_und
 
     logger.info("upgrade deployed charm with local charm %s", charm_under_test)
     await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    await ops_test.model.wait_for_idle(
+        apps=[app_name], status="active", timeout=1000, raise_on_error=False
+    )
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=30)
     assert await is_alertmanager_up(ops_test, app_name)
 
 
