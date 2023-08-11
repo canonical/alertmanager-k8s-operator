@@ -6,6 +6,7 @@
 
 import logging
 import socket
+import subprocess
 from types import SimpleNamespace
 from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
@@ -80,6 +81,7 @@ class AlertmanagerCharm(CharmBase):
 
     _server_cert_path = "/etc/alertmanager/alertmanager.cert.pem"
     _key_path = "/etc/alertmanager/alertmanager.key.pem"
+    _ca_cert_path = "/usr/local/share/ca-certificates/cos-ca.crt"
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -373,10 +375,11 @@ class AlertmanagerCharm(CharmBase):
                 self._amtool_config_path: config_suite.amtool,
                 self._server_cert_path: self.server_cert.cert,
                 self._key_path: self.server_cert.key,
+                self._ca_cert_path: self.server_cert.ca,
             }
         )
 
-    def _common_exit_hook(self) -> None:
+    def _common_exit_hook(self, update_ca_certs: bool = False) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self.resources_patch.is_ready():
             if isinstance(self.unit.status, ActiveStatus) or self.unit.status.message == "":
@@ -418,6 +421,12 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = BlockedStatus(str(e))
             return
 
+        try:
+            self._update_ca_certs() if update_ca_certs else None
+        except subprocess.CalledProcessError as e:
+            self.unit.status = BlockedStatus(str(e))
+            return
+
         # Update pebble layer
         self.alertmanager_workload.update_layer()
 
@@ -431,7 +440,7 @@ class AlertmanagerCharm(CharmBase):
         self.unit.status = ActiveStatus()
 
     def _on_server_cert_changed(self, _):
-        self._common_exit_hook()
+        self._common_exit_hook(update_ca_certs=True)
 
         # FIXME:
         #  For some code ordering issue, when alertmanager is related to a CA, the relation data
@@ -495,6 +504,10 @@ class AlertmanagerCharm(CharmBase):
         # After upgrade (refresh), the unit ip address is not guaranteed to remain the same, and
         # the config may need update. Calling the common hook to update.
         self._common_exit_hook()
+
+    def _update_ca_certs(self):
+        self.container.exec(["update-ca-certificates", "--fresh"]).wait()
+        subprocess.run(["update-ca-certificates", "--fresh"], check=True)
 
     def _get_peer_addresses(self) -> List[str]:
         """Create a list of HA addresses of all peer units (all units excluding current).
