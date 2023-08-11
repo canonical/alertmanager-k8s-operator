@@ -206,6 +206,7 @@ class WorkloadManager(Object):
                     else "",
                 }
             )
+            return env
 
         return Layer(
             {
