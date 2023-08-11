@@ -5,6 +5,7 @@
 """Workload manager for alertmanaqger."""
 
 import logging
+import os
 import re
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -190,6 +191,22 @@ class WorkloadManager(Object):
                 f"{peer_cmd_args}"
             )
 
+        def _environment():
+            env = {}
+            env.update(
+                {
+                    "https_proxy": os.environ["JUJU_CHARM_HTTPS_PROXY"]
+                    if "JUJU_CHARM_HTTPS_PROXY" in os.environ
+                    else "",
+                    "http_proxy": os.environ["JUJU_CHARM_HTTP_PROXY"]
+                    if "JUJU_CHARM_HTTP_PROXY" in os.environ
+                    else "",
+                    "no_proxy": os.environ["JUJU_CHARM_NO_PROXY"]
+                    if "JUJU_CHARM_NO_PROXY" in os.environ
+                    else "",
+                }
+            )
+
         return Layer(
             {
                 "summary": "alertmanager layer",
@@ -200,6 +217,7 @@ class WorkloadManager(Object):
                         "summary": "alertmanager service",
                         "command": _command(),
                         "startup": "enabled",
+                        "environment": _environment(),
                     }
                 },
             }
