@@ -56,7 +56,7 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
         amtool_config = yaml.safe_load(
             self.harness.charm.container.pull(self.harness.charm._amtool_config_path)
         )
-        self.assertTrue(validators.url(amtool_config["alertmanager.url"]))
+        self.assertTrue(validators.url(amtool_config["alertmanager.url"], simple_host=True))
 
         # AND alertmanager config is rendered
         am_config = yaml.safe_load(
