@@ -42,7 +42,8 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
 
 async def test_update_config(ops_test: OpsTest):
     # Obtain a "before" snapshot of the config from the server.
-    client = Alertmanager(await get_unit_address(ops_test, app_name, 0))
+    unit_address = await get_unit_address(ops_test, app_name, 0)
+    client = Alertmanager(f"http://{unit_address}:9093")
     config_from_server_before = client.config()
     # Make sure the defaults is what we expect them to be (this is only a partial check, but an
     # easy one).

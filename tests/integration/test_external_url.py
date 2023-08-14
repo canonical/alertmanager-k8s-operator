@@ -65,7 +65,8 @@ async def test_units_can_communicate_to_form_a_cluster(ops_test: OpsTest):
     await ops_test.model.wait_for_idle(
         status="active", timeout=deploy_timeout, wait_for_exact_units=3
     )
-    client = Alertmanager(await get_unit_address(ops_test, app_name, 0))
+    unit_address = await get_unit_address(ops_test, app_name, 0)
+    client = Alertmanager(f"http://{unit_address}:9093")
     assert len(client.status()["cluster"]["peers"]) == 3
 
 
@@ -79,8 +80,8 @@ async def test_workload_is_locally_reachable_with_external_url_with_path(ops_tes
     await ops_test.model.wait_for_idle(status="active", timeout=config_timeout)
 
     # Workload must be reachable from the host via the unit's IP.
-    address = await get_unit_address(ops_test, app_name, 0)
-    client = Alertmanager(address, web_route_prefix=web_route_prefix)
+    unit_address = await get_unit_address(ops_test, app_name, 0)
+    client = Alertmanager(f"http://{unit_address}:9093")
     assert "uptime" in client.status()
 
     # Workload must be reachable from the charm container via cluster dns.

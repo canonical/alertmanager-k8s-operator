@@ -27,15 +27,10 @@ class Alertmanager:
 
     def __init__(
         self,
-        address: str = "localhost",
-        port: int = 9093,
-        *,
-        web_route_prefix: str = "",
+        endpoint_url: str = "http://localhost:9093",
         timeout=2,
     ):
-        if web_route_prefix and not web_route_prefix.endswith("/"):
-            web_route_prefix += "/"
-        self.base_url = urllib.parse.urljoin(f"http://{address}:{port}/", web_route_prefix)
+        self.base_url = endpoint_url.rstrip("/")
         self.timeout = timeout
 
     def reload(self) -> bool:
