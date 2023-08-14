@@ -34,10 +34,6 @@ from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     ResourceRequirements,
     adjust_resource_requirements,
 )
-from charms.observability_libs.v1.kubernetes_service_patch import (
-    KubernetesServicePatch,
-    ServicePort,
-)
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
 from config_builder import ConfigBuilder, ConfigError
@@ -47,6 +43,7 @@ from ops.model import (
     ActiveStatus,
     BlockedStatus,
     MaintenanceStatus,
+    OpenedPort,
     Relation,
     WaitingStatus,
 )
@@ -131,13 +128,8 @@ class AlertmanagerCharm(CharmBase):
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
         self.remote_configuration = RemoteConfigurationRequirer(self)
 
-        api = ServicePort(self._ports.api, name=f"{self.app.name}")
-        ha = ServicePort(self._ports.ha, name=f"{self.app.name}-ha")
-        self.service_patcher = KubernetesServicePatch(
-            charm=self,
-            service_type="ClusterIP",
-            ports=[api, ha],
-        )
+        self.set_ports()
+
         self.resources_patch = KubernetesComputeResourcesPatch(
             self,
             self._container_name,
@@ -230,6 +222,23 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(
             self.on.check_config_action, self._on_check_config  # pyright: ignore
         )
+
+    def set_ports(self):
+        """Open necessary (and close no longer needed) workload ports."""
+        planned_ports = {
+            OpenedPort("tcp", self._ports.api),
+            OpenedPort("tcp", self._ports.ha),
+        }
+        actual_ports = self.unit.opened_ports()
+
+        # Ports may change across an upgrade, so need to sync
+        ports_to_close = actual_ports.difference(planned_ports)
+        for p in ports_to_close:
+            self.unit.close_port(p.protocol, p.port)
+
+        new_ports_to_open = planned_ports.difference(actual_ports)
+        for p in new_ports_to_open:
+            self.unit.open_port(p.protocol, p.port)
 
     def _ingress_scheme(self):
         if self.is_tls_enabled():

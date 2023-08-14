@@ -23,7 +23,6 @@ SERVICE_NAME = AlertmanagerCharm._service_name
 class TestExternalUrl(unittest.TestCase):
     @patch.object(Alertmanager, "reload", tautology)
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")

@@ -31,7 +31,6 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
 
     @patch.object(Alertmanager, "reload", tautology)
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("0.0.0", ""))
-    @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0"))
@@ -120,7 +119,6 @@ class TestInvalidConfig(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
 
     @patch.object(Alertmanager, "reload", tautology)
-    @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0"))
@@ -135,7 +133,6 @@ class TestInvalidConfig(unittest.TestCase):
         self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
 
     @patch.object(Alertmanager, "reload", tautology)
-    @patch("charm.KubernetesServicePatch", lambda *a, **kw: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0"))
