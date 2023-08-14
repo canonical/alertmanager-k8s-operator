@@ -35,8 +35,6 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
             trust: true
             resources:
               alertmanager-image: {METADATA["resources"]["alertmanager-image"]["upstream-source"]}
-            options:
-              web_external_url: https://{am.hostname}
           ca:
             charm: self-signed-certificates
             channel: edge
@@ -104,12 +102,13 @@ async def test_https_reachable(ops_test: OpsTest, temp_dir):
 
         # Confirm alertmanager TLS endpoint reachable
         # curl --fail-with-body --capath /tmp --cacert /tmp/cacert.pem https://alertmanager.local:9093/-/ready
+        ip_addr = await get_unit_address(ops_test, am.name, i)
         response = await curl(
             ops_test,
             cert_dir=temp_dir,
             cert_path=cert_path,
-            ip_addr=await get_unit_address(ops_test, am.name, i),
-            mock_url=f"https://{am.hostname}:9093/-/ready",
+            ip_addr=ip_addr,
+            mock_url=f"https://{ip_addr}:9093/-/ready",
         )
         assert "OK" in response
 

@@ -23,6 +23,8 @@ options:
     type: string
     default: ""
     description: |
+      DEPRECATED. This config option is no longer used, in favor of "skipPrefix".
+
       The URL under which Alertmanager is externally reachable (for example, if
       Alertmanager is served via a manually configured ingress).
 

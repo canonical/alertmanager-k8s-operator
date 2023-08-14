@@ -8,7 +8,7 @@ import logging
 import socket
 import subprocess
 from types import SimpleNamespace
-from typing import List, Optional, Tuple, cast
+from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
 import yaml
@@ -86,20 +86,24 @@ class AlertmanagerCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
-        url = self.model.config.get("web_external_url")
-        extra_sans_dns = [cast(str, urlparse(url).hostname)] if url else None
         self.server_cert = CertHandler(
             self,
             key="am-server-cert",
             peer_relation_name="replicas",
-            extra_sans_dns=extra_sans_dns,
+            extra_sans_dns=[socket.getfqdn()],
         )
         self.framework.observe(
             self.server_cert.on.cert_changed,  # pyright: ignore
             self._on_server_cert_changed,
         )
 
-        self.ingress = IngressPerAppRequirer(self, port=self.api_port, scheme=self._ingress_scheme)
+        self.ingress = IngressPerAppRequirer(
+            self,
+            port=self.api_port,
+            scheme=self._ingress_scheme,
+            strip_prefix=True,
+            redirect_https=True,
+        )
         self.framework.observe(self.ingress.on.ready, self._handle_ingress)  # pyright: ignore
         self.framework.observe(self.ingress.on.revoked, self._handle_ingress)  # pyright: ignore
 
@@ -165,7 +169,7 @@ class AlertmanagerCharm(CharmBase):
                 self.ingress.on.revoked,  # pyright: ignore
                 self.on["ingress"].relation_changed,
                 self.on.update_status,
-                self.on.config_changed,  # web_external_url; also covers upgrade-charm
+                self.on.config_changed,  # also covers upgrade-charm
             ],
             item=CatalogueItem(
                 name="Alertmanager",
@@ -188,7 +192,6 @@ class AlertmanagerCharm(CharmBase):
             self,
             container_name=self._container_name,
             peer_addresses=self._get_peer_addresses(),
-            web_route_prefix=self.web_route_prefix,
             api_port=self.api_port,
             ha_port=self._ports.ha,
             external_url=self._external_url,
@@ -358,7 +361,7 @@ class AlertmanagerCharm(CharmBase):
 
         # Note: A free function (with many args) would have the same functionality.
         config_suite = (
-            ConfigBuilder(api_port=self.api_port, web_route_prefix=self.web_route_prefix)
+            ConfigBuilder(api_port=self.api_port)
             .set_config(raw_config)
             .set_tls_server_config(
                 cert_file_path=self._server_cert_path, key_file_path=self._key_path
@@ -530,23 +533,6 @@ class AlertmanagerCharm(CharmBase):
 
         return addresses
 
-    @property
-    def web_route_prefix(self) -> str:
-        """Return the web route prefix with both a leading and a trailing separator.
-
-        The prefix is determined from the external (public) URL, with the config option
-        "web_external_url" taking precedence over the ingress one.
-        """
-        url = self.model.config.get("web_external_url") or self.ingress.url or ""
-        path = urlparse(url).path
-        if path and not path.endswith("/"):
-            # urlparse("http://a.b/c").path returns 'c' without "/"
-            # urljoin will drop the part of the url that does not end with a '/'.
-            # Need to make sure it's in place.
-            path += "/"
-
-        return path
-
     def is_tls_enabled(self) -> bool:
         """Returns True if the workload is to operate / already operates in TLS mode."""
         return bool(self.server_cert.cert)
@@ -558,12 +544,12 @@ class AlertmanagerCharm(CharmBase):
         If an external (public) url is set, add in its path.
         """
         scheme = "https" if self.is_tls_enabled() else "http"
-        return f"{scheme}://{socket.getfqdn()}:{self._ports.api}{self.web_route_prefix}"
+        return f"{scheme}://{socket.getfqdn()}:{self._ports.api}"
 
     @property
     def _external_url(self) -> str:
         """Return the externally-reachable (public) address of the alertmanager api server."""
-        return self.model.config.get("web_external_url") or self.ingress.url or self._internal_url
+        return self.ingress.url or self._internal_url
 
 
 if __name__ == "__main__":
