@@ -421,11 +421,8 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = BlockedStatus(str(e))
             return
 
-        try:
-            self._update_ca_certs() if update_ca_certs else None
-        except subprocess.CalledProcessError as e:
-            self.unit.status = BlockedStatus(str(e))
-            return
+        if update_ca_certs:
+            self._update_ca_certs()
 
         # Update pebble layer
         self.alertmanager_workload.update_layer()
