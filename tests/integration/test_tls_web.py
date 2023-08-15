@@ -79,7 +79,8 @@ async def test_server_cert(ops_test: OpsTest):
             f"echo | openssl s_client -showcerts -servername {am_ip}:9093 -connect {am_ip}:9093 2>/dev/null | openssl x509 -inform pem -noout -text",
         ]
         retcode, stdout, stderr = await ops_test.run(*cmd)
-        assert am_ip in stdout
+        fqdn = f"{am.name}-0.{am.name}-endpoints.{ops_test.model_name}.svc.cluster.local"
+        assert fqdn in stdout
 
 
 @pytest.mark.abort_on_fail
@@ -103,12 +104,13 @@ async def test_https_reachable(ops_test: OpsTest, temp_dir):
         # Confirm alertmanager TLS endpoint reachable
         # curl --fail-with-body --capath /tmp --cacert /tmp/cacert.pem https://alertmanager.local:9093/-/ready
         ip_addr = await get_unit_address(ops_test, am.name, i)
+        fqdn = f"{am.name}-0.{am.name}-endpoints.{ops_test.model_name}.svc.cluster.local"
         response = await curl(
             ops_test,
             cert_dir=temp_dir,
             cert_path=cert_path,
             ip_addr=ip_addr,
-            mock_url=f"https://{ip_addr}:9093/-/ready",
+            mock_url=f"https://{fqdn}:9093/-/ready",
         )
         assert "OK" in response
 
