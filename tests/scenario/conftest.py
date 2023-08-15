@@ -15,16 +15,12 @@ def tautology(*_, **__) -> bool:
 
 @pytest.fixture
 def alertmanager_charm():
-    with patch("charm.KubernetesServicePatch"), patch(
-        "lightkube.core.client.GenericSyncClient"
-    ), patch.multiple(
+    with patch("lightkube.core.client.GenericSyncClient"), patch.multiple(
         "charm.KubernetesComputeResourcesPatch",
         _namespace="test-namespace",
         _patch=tautology,
         is_ready=tautology,
-    ), patch.object(
-        WorkloadManager, "check_config", lambda *a, **kw: ("ok", "")
-    ), patch.object(
+    ), patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", "")), patch.object(
         WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0")
     ):
         yield AlertmanagerCharm

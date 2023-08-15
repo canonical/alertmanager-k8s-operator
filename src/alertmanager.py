@@ -81,7 +81,6 @@ class WorkloadManager(Object):
         peer_addresses: List[str],
         api_port: int,
         ha_port: int,
-        web_route_prefix: str,
         external_url: str,
         config_path: str,
         web_config_path: str,

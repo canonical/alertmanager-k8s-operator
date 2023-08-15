@@ -22,7 +22,6 @@ class TestWithInitialHooks(unittest.TestCase):
 
     @patch.object(Alertmanager, "reload", tautology)
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
@@ -153,7 +152,6 @@ class TestWithoutInitialHooks(unittest.TestCase):
 
     @patch.object(Alertmanager, "reload", tautology)
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
     def setUp(self, *unused):

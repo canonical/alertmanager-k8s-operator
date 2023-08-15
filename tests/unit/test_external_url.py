@@ -11,7 +11,6 @@ import yaml
 from alertmanager import WorkloadManager
 from charm import Alertmanager, AlertmanagerCharm
 from helpers import cli_arg, k8s_resource_multipatch, tautology
-from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,6 @@ SERVICE_NAME = AlertmanagerCharm._service_name
 class TestExternalUrl(unittest.TestCase):
     @patch.object(Alertmanager, "reload", tautology)
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
@@ -66,34 +64,7 @@ class TestExternalUrl(unittest.TestCase):
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
-    def test_config_option_overrides_fqdn(self):
-        """The config option for external url must override all other external urls."""
-        # GIVEN a charm with the fqdn as its external URL
-        self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
-        self.assertTrue(self.is_service_running())
-        self.assertEqual(self.fqdn_url, self.harness.charm._external_url)
-
-        # WHEN the web_external_url config option is set
-        external_url = "http://foo.bar:8080/path/to/alertmanager"
-        self.harness.update_config({"web_external_url": external_url})
-        self.assertEqual(external_url, self.harness.charm._external_url)
-
-        # THEN it is used as the cli arg instead of the fqdn
-        self.assertEqual(self.get_url_cli_arg(), external_url)
-        self.assertTrue(self.is_service_running())
-
-        # WHEN the web_external_url config option is cleared
-        self.harness.update_config(unset=["web_external_url"])
-
-        # THEN the cli arg is reverted to the fqdn
-        self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
-        self.assertTrue(self.is_service_running())
-
-    @unittest.skip("https://github.com/canonical/operator/issues/736")
-    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    @patch("socket.getfqdn", new=lambda *args: "fqdn")
-    @k8s_resource_multipatch
-    def test_config_option_overrides_traefik(self):
+    def test_traefik_overrides_fqdn(self):
         """The config option for external url must override all other external urls."""
         # GIVEN a charm with the fqdn as its external URL
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
@@ -118,21 +89,6 @@ class TestExternalUrl(unittest.TestCase):
         self.assertEqual(self.get_url_cli_arg(), external_url_ingress)
         self.assertTrue(self.is_service_running())
 
-        # WHEN the web_external_url config option is set
-        external_url_config = "http://foo.bar.config:8080/path/to/alertmanager"
-        self.harness.update_config({"web_external_url": external_url_config})
-
-        # THEN it is used as the cli arg instead of the ingress
-        self.assertEqual(self.get_url_cli_arg(), external_url_config)
-        self.assertTrue(self.is_service_running())
-
-        # AND WHEN the web_external_url config option is cleared
-        self.harness.update_config(unset=["web_external_url"])
-
-        # THEN the cli arg is reverted to the ingress
-        self.assertEqual(self.get_url_cli_arg(), external_url_ingress)
-        self.assertTrue(self.is_service_running())
-
         # NOTE intentionally not emptying out relation data manually
         # FIXME: figure out if we do or do not need to manually empty out relation-data
         #   before relation-broken is emitted.
@@ -146,42 +102,6 @@ class TestExternalUrl(unittest.TestCase):
 
         # THEN the fqdn is used as external url
         self.assertEqual(self.get_url_cli_arg(), self.fqdn_url)
-
-    @unittest.skip("https://github.com/canonical/operator/issues/736")
-    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    @patch("socket.getfqdn", new=lambda *args: "fqdn")
-    @k8s_resource_multipatch
-    def test_web_route_prefix(self):
-        # GIVEN a charm with an external web route prefix
-        external_url = "http://foo.bar:8080/path/to/alertmanager/"
-
-        self.harness.update_config({"web_external_url": external_url})
-
-        self.assertEqual(self.get_url_cli_arg(), external_url)
-        self.assertTrue(self.is_service_running())
-
-        # THEN peer relation data is updated with the web route prefix
-        peer_data = self.harness.get_relation_data(self.peer_rel_id, self.harness.charm.unit.name)
-        url_data = peer_data["private_address"]
-        self.assertEqual(url_data, "http://fqdn:9093/path/to/alertmanager/")
-
-        # AND the "alerting" relation data is updated with the external url's route prefix (path)
-        regular_data = self.harness.get_relation_data(self.rel_id, self.harness.charm.unit.name)
-        self.assertEqual(
-            regular_data,
-            {
-                "public_address": "foo.bar:8080/path/to/alertmanager/",
-            },
-        )
-
-        # AND amtool config file is updated with the web route prefix
-        am_config = yaml.safe_load(
-            self.harness.charm.container.pull(self.harness.charm._amtool_config_path)
-        )
-        self.assertEqual(
-            am_config["alertmanager.url"],
-            f"http://localhost:{self.harness.charm._ports.api}/path/to/alertmanager/",
-        )
 
     @unittest.skip("https://github.com/canonical/operator/issues/736")
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
@@ -199,67 +119,3 @@ class TestExternalUrl(unittest.TestCase):
         # THEN the `--cluster.peer` args are made up of the hostname and HA port
         cluster_args = self.get_cluster_args()
         self.assertEqual(cluster_args, ["fqdn-1:9094", "fqdn-2:9094"])  # cluster is on ha-port
-
-        # WHEN an external url without a path is set
-        self.harness.update_config({"web_external_url": "http://foo.bar:8080/"})
-
-        # THEN the `--cluster.peer` args are made up of the hostname and HA port
-        cluster_args = self.get_cluster_args()
-        self.assertEqual(cluster_args, ["fqdn-1:9094", "fqdn-2:9094"])
-
-        # WHEN an external url with a path is set
-        self.harness.update_config(
-            {"web_external_url": "http://foo.bar:8080/path/to/alertmanager"}
-        )
-        for u in [1, 2]:
-            unit_name = self.app_name + f"/{u}"
-            self.harness.update_relation_data(
-                self.peer_rel_id,
-                unit_name,
-                {"private_address": f"http://fqdn-{u}:9093/path/to/alertmanager"},
-            )
-
-        # THEN the `--cluster.peer` args are made up of the hostname, the HA port and the path
-        cluster_args = self.get_cluster_args()
-        self.assertEqual(
-            cluster_args, ["fqdn-1:9094/path/to/alertmanager", "fqdn-2:9094/path/to/alertmanager"]
-        )
-
-    @unittest.skip("https://github.com/canonical/operator/issues/736")
-    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    @patch("socket.getfqdn", new=lambda *args: "fqdn")
-    @k8s_resource_multipatch
-    def test_netloc_without_port(self):
-        # WHEN the external url config option is set without a port
-        self.harness.update_config({"web_external_url": "http://demo.site"})
-
-        # THEN the pebble command is rendered with the config option as-is
-        self.assertEqual(self.get_url_cli_arg(), "http://demo.site")
-
-        # BUT the cluster relation data is rendered with port 80 (and without scheme)
-        expected_rel_data = {
-            "public_address": "demo.site:80",
-        }
-        rel = self.harness.charm.framework.model.get_relation("alerting", self.rel_id)
-        self.assertEqual(expected_rel_data, rel.data[self.harness.charm.unit])
-
-    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    @patch("socket.getfqdn", new=lambda *args: "fqdn")
-    @k8s_resource_multipatch
-    def test_invalid_web_route_prefix(self):
-        for invalid_url in ["htp://foo.bar", "foo.bar"]:
-            with self.subTest(url=invalid_url):
-                # WHEN the external url config option is invalid
-                self.harness.update_config({"web_external_url": invalid_url})
-
-                # THEN the unit is blocked
-                self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
-
-                # AND the pebble command arg is unchanged
-                self.assertEqual(self.get_url_cli_arg(), "http://fqdn:9093")
-
-                # WHEN the invalid option in cleared
-                self.harness.update_config(unset=["web_external_url"])
-
-                # THEN the unit is active
-                self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
