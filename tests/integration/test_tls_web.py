@@ -15,7 +15,7 @@ from pytest_operator.plugin import OpsTest
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
-am = SimpleNamespace(name="am", scale=1, hostname="alertmanager.local")
+am = SimpleNamespace(name="am", scale=1)
 # FIXME change scale to 2 once the tls_certificate lib issue is fixed
 # https://github.com/canonical/tls-certificates-interface/issues/57
 
@@ -79,7 +79,7 @@ async def test_server_cert(ops_test: OpsTest):
             f"echo | openssl s_client -showcerts -servername {am_ip}:9093 -connect {am_ip}:9093 2>/dev/null | openssl x509 -inform pem -noout -text",
         ]
         retcode, stdout, stderr = await ops_test.run(*cmd)
-        assert am.hostname in stdout
+        assert am_ip in stdout
 
 
 @pytest.mark.abort_on_fail
