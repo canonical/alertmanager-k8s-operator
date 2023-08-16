@@ -186,7 +186,7 @@ class AlertmanagerCharm(CharmBase):
             peer_addresses=self._get_peer_addresses(),
             api_port=self.api_port,
             ha_port=self._ports.ha,
-            external_url=self._external_url,
+            web_external_url=self._internal_url,
             config_path=self._config_path,
             web_config_path=self._web_config_path,
             tls_enabled=self.is_tls_enabled,

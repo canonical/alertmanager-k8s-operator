@@ -81,7 +81,7 @@ class WorkloadManager(Object):
         peer_addresses: List[str],
         api_port: int,
         ha_port: int,
-        external_url: str,
+        web_external_url: str,
         config_path: str,
         web_config_path: str,
         tls_enabled: Callable[[], bool],
@@ -99,7 +99,7 @@ class WorkloadManager(Object):
         self._api_port = api_port
         self._ha_port = ha_port
         self.api = Alertmanager(endpoint_url=charm._external_url)
-        self._external_url = external_url
+        self._web_external_url = web_external_url
         self._config_path = config_path
         self._web_config_path = web_config_path
         self._is_tls_enabled = tls_enabled
@@ -184,7 +184,7 @@ class WorkloadManager(Object):
                 f"--storage.path={self._storage_path} "
                 f"--web.listen-address=:{self._api_port} "
                 f"--cluster.listen-address={listen_address_arg} "
-                f"--web.external-url={self._external_url} "
+                f"--web.external-url={self._web_external_url} "
                 f"{web_config_arg}"
                 f"{peer_cmd_args}"
             )
