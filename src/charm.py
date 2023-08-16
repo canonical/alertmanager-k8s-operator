@@ -249,11 +249,15 @@ class AlertmanagerCharm(CharmBase):
     def self_scraping_job(self):
         """The self-monitoring scrape job."""
         external_url = urlparse(self._external_url)
+        metrics_path = f"{external_url.path.rstrip('/')}/metrics"
+        target = (
+            f"{external_url.hostname}{':'+str(external_url.port) if external_url.port else ''}"
+        )
         job = {
-            "metrics_path": f"{external_url.path}/metrics",
-            "static_configs": [{"targets": [f"{external_url.hostname}:{external_url.port}"]}],
+            "metrics_path": metrics_path,
+            "static_configs": [{"targets": [target]}],
         }
-        if self.server_cert.cert:
+        if external_url.scheme == "https":
             job["scheme"] = "https"
 
         return [job]
@@ -459,6 +463,7 @@ class AlertmanagerCharm(CharmBase):
         #  - Relate alertmanager to traefik first, and then to self-signed-certificates
         #  - Look at alertmanager's app data in juju show-unit traefik/0
         self.ingress._handle_upgrade_or_leader(None)
+        self._scraping.update_scrape_job_spec(self.self_scraping_job)
 
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
