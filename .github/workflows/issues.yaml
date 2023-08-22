@@ -7,3 +7,5 @@ jobs:
     name: Update Issue
     uses: canonical/observability/.github/workflows/issues.yaml@main
     secrets: inherit
+    with:
+      component: alertmanager
