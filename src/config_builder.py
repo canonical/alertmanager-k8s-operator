@@ -17,7 +17,7 @@ class ConfigError(Exception):
 
 
 default_config = {
-    "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
+    "global": {"http_config": {"tls_config": {"insecure_skip_verify": False}}},
     "route": {
         "group_wait": "30s",
         "group_interval": "5m",
