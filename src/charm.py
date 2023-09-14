@@ -246,10 +246,10 @@ class AlertmanagerCharm(CharmBase):
         # This assumption is necessary because the local CA signs CSRs with FQDN as the SAN DNS.
         # If prometheus were to scrape an ingress URL instead, it would error out with:
         # x509: cannot validate certificate.
-        metrics_endpoint = urlparse(self._external_url.rstrip("/") + "/metrics")
+        metrics_endpoint = urlparse(self._internal_url.rstrip("/") + "/metrics")
         metrics_path = metrics_endpoint.path
-        # Render a ':port' section only if it is explicit (e.g. 9093). With ingress in place, the
-        # port is no longer needed (deduced from scheme).
+        # Render a ':port' section only if it is explicit (e.g. 9093; without a port, the port is
+        # deduced from scheme).
         port_str = (":" + str(metrics_endpoint.port)) if metrics_endpoint.port else ""
         target = f"{metrics_endpoint.hostname}{port_str}"
         config = {
