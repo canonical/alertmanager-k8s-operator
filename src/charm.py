@@ -248,9 +248,9 @@ class AlertmanagerCharm(CharmBase):
         # x509: cannot validate certificate.
         metrics_endpoint = urlparse(self._internal_url.rstrip("/") + "/metrics")
         metrics_path = metrics_endpoint.path
-        # Render a ':port' section only if it is explicit (e.g. 9093; without a port, the port is
-        # deduced from scheme).
-        port_str = (":" + str(metrics_endpoint.port)) if metrics_endpoint.port else ""
+        # Render a ':port' section only if it is explicit (e.g. 9093; without an explicit port, the
+        # port is deduced from the scheme).
+        port_str = (":" + str(metrics_endpoint.port)) if metrics_endpoint.port is not None else ""
         target = f"{metrics_endpoint.hostname}{port_str}"
         config = {
             "scheme": metrics_endpoint.scheme,
