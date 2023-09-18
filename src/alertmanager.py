@@ -110,6 +110,7 @@ class WorkloadManager(Object):
             charm.on[snake_case_container_name].pebble_ready,
             self._on_pebble_ready,
         )
+        charm.framework.observe(charm.on.stop, self._on_stop)
 
     @property
     def is_ready(self):
@@ -123,6 +124,9 @@ class WorkloadManager(Object):
             logger.debug(
                 "Cannot set workload version at this time: could not get Alertmanager version."
             )
+
+    def _on_stop(self, _):
+        self._unit.set_workload_version("")
 
     @property
     def _alertmanager_version(self) -> Optional[str]:

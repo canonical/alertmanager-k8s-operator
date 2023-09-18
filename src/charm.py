@@ -82,6 +82,7 @@ class AlertmanagerCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+        self.container = self.unit.get_container(self._container_name)
 
         self.server_cert = CertHandler(
             self,
@@ -97,7 +98,7 @@ class AlertmanagerCharm(CharmBase):
         self.ingress = IngressPerAppRequirer(
             self,
             port=self.api_port,
-            scheme=self._ingress_scheme,
+            scheme=lambda: urlparse(self._internal_url).scheme,
             strip_prefix=True,
             redirect_https=True,
         )
@@ -175,8 +176,6 @@ class AlertmanagerCharm(CharmBase):
             ),
         )
 
-        self.container = self.unit.get_container(self._container_name)
-
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
 
@@ -189,7 +188,7 @@ class AlertmanagerCharm(CharmBase):
             web_external_url=self._internal_url,
             config_path=self._config_path,
             web_config_path=self._web_config_path,
-            tls_enabled=self.is_tls_enabled,
+            tls_enabled=self._is_tls_ready,
         )
         self.framework.observe(
             # The workload manager too observes pebble ready, but still need this here because
@@ -240,27 +239,26 @@ class AlertmanagerCharm(CharmBase):
         for p in new_ports_to_open:
             self.unit.open_port(p.protocol, p.port)
 
-    def _ingress_scheme(self):
-        if self.is_tls_enabled():
-            return "https"
-        return "http"
-
     @property
     def self_scraping_job(self):
         """The self-monitoring scrape job."""
-        external_url = urlparse(self._external_url)
-        metrics_path = f"{external_url.path.rstrip('/')}/metrics"
-        target = (
-            f"{external_url.hostname}{':'+str(external_url.port) if external_url.port else ''}"
-        )
-        job = {
+        # We assume that scraping, especially self-monitoring, is in-cluster.
+        # This assumption is necessary because the local CA signs CSRs with FQDN as the SAN DNS.
+        # If prometheus were to scrape an ingress URL instead, it would error out with:
+        # x509: cannot validate certificate.
+        metrics_endpoint = urlparse(self._internal_url.rstrip("/") + "/metrics")
+        metrics_path = metrics_endpoint.path
+        # Render a ':port' section only if it is explicit (e.g. 9093; without an explicit port, the
+        # port is deduced from the scheme).
+        port_str = (":" + str(metrics_endpoint.port)) if metrics_endpoint.port is not None else ""
+        target = f"{metrics_endpoint.hostname}{port_str}"
+        config = {
+            "scheme": metrics_endpoint.scheme,
             "metrics_path": metrics_path,
             "static_configs": [{"targets": [target]}],
         }
-        if external_url.scheme == "https":
-            job["scheme"] = "https"
 
-        return [job]
+        return [config]
 
     def _resource_reqs_from_config(self) -> ResourceRequirements:
         limits = {
@@ -422,6 +420,11 @@ class AlertmanagerCharm(CharmBase):
 
         self.alertmanager_provider.update_relation_data()
 
+        self.ingress.provide_ingress_requirements(
+            scheme=urlparse(self._internal_url).scheme, port=self.api_port
+        )
+        self._scraping.update_scrape_job_spec(self.self_scraping_job)
+
         if self.peer_relation:
             # Could have simply used `socket.getfqdn()` here and add the path when reading this
             # relation data, but this way it is more future-proof in case we change from ingress
@@ -454,16 +457,6 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_server_cert_changed(self, _):
         self._common_exit_hook(update_ca_certs=True)
-
-        # FIXME:
-        #  For some code ordering issue, when alertmanager is related to a CA, the relation data
-        #  sent over to traefik still has the old schema. Only with this call the schema updates to
-        #  HTTPS. To reproduce:
-        #  - Deploy alertmanager, traefik, self-signed-certificates
-        #  - Relate alertmanager to traefik first, and then to self-signed-certificates
-        #  - Look at alertmanager's app data in juju show-unit traefik/0
-        self.ingress._handle_upgrade_or_leader(None)
-        self._scraping.update_scrape_job_spec(self.self_scraping_job)
 
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
@@ -547,9 +540,14 @@ class AlertmanagerCharm(CharmBase):
 
         return addresses
 
-    def is_tls_enabled(self) -> bool:
-        """Returns True if the workload is to operate / already operates in TLS mode."""
-        return bool(self.server_cert.cert)
+    def _is_tls_ready(self) -> bool:
+        """Returns True if the workload is ready to operate in TLS mode."""
+        return (
+            self.container.can_connect()
+            and self.container.exists(self._server_cert_path)
+            and self.container.exists(self._key_path)
+            and self.container.exists(self._ca_cert_path)
+        )
 
     @property
     def _internal_url(self) -> str:
@@ -557,7 +555,7 @@ class AlertmanagerCharm(CharmBase):
 
         If an external (public) url is set, add in its path.
         """
-        scheme = "https" if self.is_tls_enabled() else "http"
+        scheme = "https" if self._is_tls_ready() else "http"
         return f"{scheme}://{socket.getfqdn()}:{self._ports.api}"
 
     @property
