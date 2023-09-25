@@ -19,10 +19,10 @@ from alertmanager import (
     WorkloadManagerError,
 )
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
-from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
+from charms.alertmanager_k8s.v1.alertmanager_dispatch import AlertmanagerProvider
 from charms.catalogue_k8s.v0.catalogue import CatalogueConsumer, CatalogueItem
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
@@ -105,17 +105,10 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(self.ingress.on.ready, self._handle_ingress)  # pyright: ignore
         self.framework.observe(self.ingress.on.revoked, self._handle_ingress)  # pyright: ignore
 
-        # The `_external_url` property is passed as a callable so that the charm library code
-        # always uses up-to-date context.
-        # This arg is needed because in case of a custom event (e.g. ingress ready) or a re-emit,
-        # the charm won't be re-initialized with an updated external url.
-        # Also, coincidentally, unit tests would otherwise fail because harness doesn't
-        # reinitialize the charm between core events.
         self.alertmanager_provider = AlertmanagerProvider(
             self,
-            self._relations.alerting,
-            self._ports.api,
-            external_url=lambda: AlertmanagerCharm._external_url.fget(self),  # type: ignore
+            relation_name=self._relations.alerting,
+            external_url=self._internal_url,  # TODO See 'TODO' below, about external_url
         )
 
         self.api = Alertmanager(endpoint_url=self._external_url)
@@ -418,7 +411,11 @@ class AlertmanagerCharm(CharmBase):
                 )
                 return
 
-        self.alertmanager_provider.update_relation_data()
+        # TODO Conditionally update with the external URL if it's a CMR, or rely on "recv-ca-cert"
+        #  on the prometheus side.
+        #  - https://github.com/canonical/operator/issues/970
+        #  - https://github.com/canonical/prometheus-k8s-operator/issues/530,
+        self.alertmanager_provider.update(external_url=self._internal_url)
 
         self.ingress.provide_ingress_requirements(
             scheme=urlparse(self._internal_url).scheme, port=self.api_port

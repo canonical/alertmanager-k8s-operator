@@ -25,8 +25,7 @@ class SomeApplication(CharmBase):
 ```
 """
 import logging
-import socket
-from typing import Callable, List, Optional, Set
+from typing import List, Optional, Set
 from urllib.parse import urlparse
 
 import ops
@@ -38,11 +37,11 @@ from ops.model import Relation
 LIBID = "37f1ca6f8fe84e3092ebbf6dc2885310"
 
 # Increment this major API version when introducing breaking changes
-LIBAPI = 0
+LIBAPI = 1
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 8
+LIBPATCH = 0
 
 # Set to match metadata.yaml
 INTERFACE_NAME = "alertmanager_dispatch"
@@ -266,29 +265,20 @@ class AlertmanagerProvider(RelationManagerBase):
     This provider auto-registers relation events on behalf of the main Alertmanager charm.
 
     Arguments:
-            charm (CharmBase): consumer charm
-            relation_name (str): relation name (not interface name)
-            api_port (int): alertmanager server's api port; this is needed here to avoid accessing
-                            charm constructs directly
-
-    Attributes:
-            charm (CharmBase): the Alertmanager charm
+            charm: consumer charm
+            external_url: URL for this unit's workload API endpoint
+            relation_name: relation name (not interface name)
     """
 
     def __init__(
         self,
-        charm,
-        relation_name: str = "alerting",
-        api_port: int = 9093,  # TODO: breaking change: drop this arg
+        charm: CharmBase,
         *,
-        external_url: Optional[Callable] = None,  # TODO: breaking change: make this mandatory
+        external_url: str,
+        relation_name: str = "alerting",
     ):
-        # TODO: breaking change: force keyword-only args from relation_name onwards
         super().__init__(charm, relation_name, RelationRole.provides)
-
-        # We don't need to worry about the literal "http" here because the external_url arg is set
-        # by the charm. TODO: drop it after external_url becomes a mandatory arg.
-        self._external_url = external_url or (lambda: f"http://{socket.getfqdn()}:{api_port}")
+        self._external_url = external_url
 
         events = self.charm.on[self.name]
 
@@ -302,7 +292,7 @@ class AlertmanagerProvider(RelationManagerBase):
         This is needed for consumers such as prometheus, which should be aware of all alertmanager
         instances.
         """
-        self.update_relation_data(event)
+        self._update_relation_data(event)
 
     def _generate_relation_data(self, relation: Relation):
         """Helper function to generate relation data in the correct format.
@@ -314,13 +304,14 @@ class AlertmanagerProvider(RelationManagerBase):
         #  deduplicate so that the config file only has one entry, but ideally the
         #  "alertmanagers.[].static_configs.targets" section in the prometheus config should list
         #  all units.
-        parsed = urlparse(self._external_url())
+        parsed = urlparse(self._external_url)
+        port = ":" + str(parsed.port) if parsed.port else ""
         return {
-            "public_address": f"{parsed.hostname}:{parsed.port or 80}{parsed.path}",
+            "public_address": f"{parsed.hostname}{port}{parsed.path}",
             "scheme": parsed.scheme,
         }
 
-    def update_relation_data(self, event: Optional[RelationEvent] = None):
+    def _update_relation_data(self, event: Optional[RelationEvent] = None):
         """Helper function for updating relation data bags.
 
         This function can be used in two different ways:
@@ -346,3 +337,8 @@ class AlertmanagerProvider(RelationManagerBase):
             event.relation.data[self.charm.unit].update(
                 self._generate_relation_data(event.relation)
             )
+
+    def update(self, *, external_url: str):
+        """Update data pertaining to this relation manager (similar args to __init__)."""
+        self._external_url = external_url
+        self._update_relation_data()
