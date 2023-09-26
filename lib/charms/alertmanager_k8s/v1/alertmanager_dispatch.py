@@ -233,12 +233,18 @@ class AlertmanagerConsumer(RelationManagerBase):
         alertmanagers: Set[str] = set()
         for unit in relation.units:
             if rel_data := relation.data[unit]:
-                try:
-                    data = _ProviderSchemaV0(**rel_data)
-                except pydantic.ValidationError as e:
-                    logger.warning("Relation data failed validation: %s", e)
+                try:  # v1
+                    data = _ProviderSchemaV1(**rel_data)
+                except pydantic.ValidationError as ev1:
+                    try:  # v0
+                        data = _ProviderSchemaV0(**rel_data)
+                    except pydantic.ValidationError as ev0:
+                        logger.warning("Relation data failed validation for v1: %s", ev1)
+                        logger.warning("Relation data failed validation for v0: %s", ev0)
+                    else:
+                        alertmanagers.add(f"{data.scheme}://{data.public_address}")
                 else:
-                    alertmanagers.add(f"{data.scheme}://{data.public_address}")
+                    alertmanagers.add(data.url)
         return alertmanagers
 
     def _on_relation_departed(self, _):
