@@ -52,12 +52,32 @@ INTERFACE_NAME = "alertmanager_dispatch"
 logger = logging.getLogger(__name__)
 
 
-class _ProviderSchema(pydantic.BaseModel):
-    # Currently, the provider splits the URL and the consumer merges.
-    # TODO Define v0 and v1, where v1 only has 'url', and the legacy v0 fields are auto derived
-    #  from the url.
+class _ProviderSchemaV0(pydantic.BaseModel):
+    # Currently, the provider splits the URL and the consumer merges. That's why we switched to v1.
     public_address: str
     scheme: str = "http"
+
+
+class _ProviderSchemaV1(pydantic.BaseModel):
+    url: str
+
+    # The following are v0 fields that are continued to be populated for backwards compatibility.
+    # TODO: when we switch to pydantic 2+, use computed_field instead of the following fields, and
+    #  also drop the __init__.
+    #  https://docs.pydantic.dev/latest/api/fields/#pydantic.fields.computed_field
+    public_address: Optional[str]  # v0 relic
+    scheme: Optional[str]  # v0 relic
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        parsed = urlparse(kwargs["url"])
+        port = ":" + str(parsed.port) if parsed.port else ""
+        public_address = f"{parsed.hostname}{port}{parsed.path}"
+
+        # Derive v0 fields from v1 field
+        self.public_address = public_address
+        self.scheme = parsed.scheme
 
 
 class ClusterChanged(EventBase):
@@ -214,7 +234,7 @@ class AlertmanagerConsumer(RelationManagerBase):
         for unit in relation.units:
             if rel_data := relation.data[unit]:
                 try:
-                    data = _ProviderSchema(**rel_data)
+                    data = _ProviderSchemaV0(**rel_data)
                 except pydantic.ValidationError as e:
                     logger.warning("Relation data failed validation: %s", e)
                 else:
@@ -303,12 +323,7 @@ class AlertmanagerProvider(RelationManagerBase):
         #  deduplicate so that the config file only has one entry, but ideally the
         #  "alertmanagers.[].static_configs.targets" section in the prometheus config should list
         #  all units.
-        parsed = urlparse(self._external_url)
-        port = ":" + str(parsed.port) if parsed.port else ""
-        data = _ProviderSchema(
-            public_address=f"{parsed.hostname}{port}{parsed.path}",
-            scheme=parsed.scheme,
-        )
+        data = _ProviderSchemaV1(url=self._external_url)
         return data.dict()
 
     def _update_relation_data(self, event: Optional[RelationEvent] = None):
