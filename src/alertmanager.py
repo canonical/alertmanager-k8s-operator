@@ -7,7 +7,7 @@
 import logging
 import re
 from typing import Callable, Dict, List, Optional, Tuple
-
+import os
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from ops.framework import Object
 from ops.model import Container
@@ -193,6 +193,13 @@ class WorkloadManager(Object):
                 f"{peer_cmd_args}"
             )
 
+        def _environment():
+            return {
+                "https_proxy": os.environ.get("JUJU_CHARM_HTTPS_PROXY", ""),
+                "http_proxy": os.environ.get("JUJU_CHARM_HTTP_PROXY", ""),
+                "no_proxy": os.environ.get("JUJU_CHARM_NO_PROXY", ""),
+            }
+
         return Layer(
             {
                 "summary": "alertmanager layer",
@@ -203,6 +210,7 @@ class WorkloadManager(Object):
                         "summary": "alertmanager service",
                         "command": _command(),
                         "startup": "enabled",
+                        "environment": _environment(),
                     }
                 },
             }
