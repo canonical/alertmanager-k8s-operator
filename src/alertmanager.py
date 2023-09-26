@@ -5,9 +5,10 @@
 """Workload manager for alertmanaqger."""
 
 import logging
+import os
 import re
 from typing import Callable, Dict, List, Optional, Tuple
-import os
+
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from ops.framework import Object
 from ops.model import Container

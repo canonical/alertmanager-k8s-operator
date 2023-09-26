@@ -25,7 +25,7 @@ class SomeApplication(CharmBase):
 ```
 """
 import logging
-from typing import List, Optional, Set
+from typing import Optional, Set
 from urllib.parse import urlparse
 
 import ops
@@ -194,25 +194,12 @@ class AlertmanagerConsumer(RelationManagerBase):
             # inform consumer about the change
             self.on.cluster_changed.emit()  # pyright: ignore
 
-    def get_cluster_info(self) -> List[str]:
-        """Returns a list of addresses of all the alertmanager units."""
-        if not (relation := self.charm.model.get_relation(self.name)):
-            return []
-
-        alertmanagers: List[str] = []
-        for unit in relation.units:
-            address = relation.data[unit].get("public_address")
-            if address:
-                alertmanagers.append(address)
-        return sorted(alertmanagers)
-
-    def get_cluster_info_with_scheme(self) -> List[str]:
-        """Returns a list of URLs of all the alertmanager units."""
+    def get_cluster_info(self) -> Set[str]:
+        """Returns a list of URLs of all alertmanager units."""
         # FIXME: in v1 of the lib:
         #  - use a dict {"url": ...} so it's extendable
-        #  - change return value to Set[str]
         if not (relation := self.charm.model.get_relation(self.name)):
-            return []
+            return set()
 
         alertmanagers: Set[str] = set()
         for unit in relation.units:
@@ -220,7 +207,7 @@ class AlertmanagerConsumer(RelationManagerBase):
             scheme = relation.data[unit].get("scheme", "http")
             if address:
                 alertmanagers.add(f"{scheme}://{address}")
-        return sorted(alertmanagers)
+        return alertmanagers
 
     def _on_relation_departed(self, _):
         """This hook notifies the charm that there may have been changes to the cluster."""
