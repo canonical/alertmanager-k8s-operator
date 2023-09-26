@@ -25,10 +25,11 @@ class SomeApplication(CharmBase):
 ```
 """
 import logging
-from typing import Optional, Set
+from typing import Dict, Optional, Set
 from urllib.parse import urlparse
 
 import ops
+import pydantic
 from ops.charm import CharmBase, RelationEvent, RelationJoinedEvent, RelationRole
 from ops.framework import EventBase, EventSource, Object, ObjectEvents
 from ops.model import Relation
@@ -43,10 +44,20 @@ LIBAPI = 1
 # to 0 if you are raising the major API version
 LIBPATCH = 0
 
+PYDEPS = ["pydantic"]
+
 # Set to match metadata.yaml
 INTERFACE_NAME = "alertmanager_dispatch"
 
 logger = logging.getLogger(__name__)
+
+
+class _ProviderSchema(pydantic.BaseModel):
+    # Currently, the provider splits the URL and the consumer merges.
+    # TODO Define v0 and v1, where v1 only has 'url', and the legacy v0 fields are auto derived
+    #  from the url.
+    public_address: str
+    scheme: str = "http"
 
 
 class ClusterChanged(EventBase):
@@ -196,17 +207,18 @@ class AlertmanagerConsumer(RelationManagerBase):
 
     def get_cluster_info(self) -> Set[str]:
         """Returns a list of URLs of all alertmanager units."""
-        # FIXME: in v1 of the lib:
-        #  - use a dict {"url": ...} so it's extendable
         if not (relation := self.charm.model.get_relation(self.name)):
             return set()
 
         alertmanagers: Set[str] = set()
         for unit in relation.units:
-            address = relation.data[unit].get("public_address")
-            scheme = relation.data[unit].get("scheme", "http")
-            if address:
-                alertmanagers.add(f"{scheme}://{address}")
+            if rel_data := relation.data[unit]:
+                try:
+                    data = _ProviderSchema(**rel_data)
+                except pydantic.ValidationError as e:
+                    logger.warning("Relation data failed validation: %s", e)
+                else:
+                    alertmanagers.add(f"{data.scheme}://{data.public_address}")
         return alertmanagers
 
     def _on_relation_departed(self, _):
@@ -281,7 +293,7 @@ class AlertmanagerProvider(RelationManagerBase):
         """
         self._update_relation_data(event)
 
-    def _generate_relation_data(self, relation: Relation):
+    def _generate_relation_data(self, relation: Relation) -> Dict[str, str]:
         """Helper function to generate relation data in the correct format.
 
         Addresses are without scheme.
@@ -293,10 +305,11 @@ class AlertmanagerProvider(RelationManagerBase):
         #  all units.
         parsed = urlparse(self._external_url)
         port = ":" + str(parsed.port) if parsed.port else ""
-        return {
-            "public_address": f"{parsed.hostname}{port}{parsed.path}",
-            "scheme": parsed.scheme,
-        }
+        data = _ProviderSchema(
+            public_address=f"{parsed.hostname}{port}{parsed.path}",
+            scheme=parsed.scheme,
+        )
+        return data.dict()
 
     def _update_relation_data(self, event: Optional[RelationEvent] = None):
         """Helper function for updating relation data bags.
