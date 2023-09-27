@@ -15,7 +15,7 @@ A typical example of including this library might be:
 
 ```python
 # ...
-from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerConsumer
+from charms.alertmanager_k8s.v1.alertmanager_dispatch import AlertmanagerConsumer
 
 class SomeApplication(CharmBase):
   def __init__(self, *args):
@@ -42,7 +42,7 @@ LIBAPI = 1
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 0
+LIBPATCH = 1
 
 PYDEPS = ["pydantic"]
 
@@ -149,7 +149,7 @@ class AlertmanagerConsumer(RelationManagerBase):
     A typical example of importing this library might be
 
     ```python
-    from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerConsumer
+    from charms.alertmanager_k8s.v1.alertmanager_dispatch import AlertmanagerConsumer
     ```
 
     In your charm's `__init__` method:
@@ -180,7 +180,7 @@ class AlertmanagerConsumer(RelationManagerBase):
 
     on = AlertmanagerConsumerEvents()  # pyright: ignore
 
-    def __init__(self, charm: CharmBase, relation_name: str = "alerting"):
+    def __init__(self, charm: CharmBase, *, relation_name: str = "alerting"):
         super().__init__(charm, relation_name, RelationRole.requires)
 
         self.framework.observe(
@@ -272,19 +272,21 @@ class AlertmanagerProvider(RelationManagerBase):
     A typical example of importing this library might be
 
     ```python
-    from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerProvider
+    from charms.alertmanager_k8s.v1.alertmanager_dispatch import AlertmanagerProvider
     ```
 
     In your charm's `__init__` method:
 
     ```python
-    self.alertmanager_provider = AlertmanagerProvider(self, self._relation_name, self._api_port)
+    self.alertmanager_provider = AlertmanagerProvider(
+        self, relation_name=self._relation_name, external_url=f"http://{socket.getfqdn()}:9093"
+    )
     ```
 
     Then inform consumers on any update to alertmanager cluster data via
 
     ```python
-    self.alertmanager_provider.update_relation_data()
+    self.alertmanager_provider.update(external_url=self.ingress.url)
     ```
 
     This provider auto-registers relation events on behalf of the main Alertmanager charm.
