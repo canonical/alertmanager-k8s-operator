@@ -73,6 +73,7 @@ class TestWithInitialHooks(unittest.TestCase):
         assert rel is not None  # for static checker
         expected_address = "fqdn:{}".format(self.harness.charm.api_port)
         expected_rel_data = {
+            "url": "http://fqdn:9093",
             "public_address": expected_address,
             "scheme": "http",
         }

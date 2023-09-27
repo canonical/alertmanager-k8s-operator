@@ -6,7 +6,7 @@ import textwrap
 import unittest
 
 import ops
-from charms.alertmanager_k8s.v0.alertmanager_dispatch import AlertmanagerConsumer
+from charms.alertmanager_k8s.v1.alertmanager_dispatch import AlertmanagerConsumer
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.testing import Harness
@@ -79,7 +79,7 @@ class TestConsumer(unittest.TestCase):
 
     def test_cluster_updated_after_alertmanager_units_join(self):
         # before
-        self.assertEqual([], self.harness.charm.alertmanager_lib.get_cluster_info())
+        self.assertEqual(set(), self.harness.charm.alertmanager_lib.get_cluster_info())
         num_events = self.harness.charm._stored.cluster_changed_emitted
 
         # add relation
@@ -88,8 +88,9 @@ class TestConsumer(unittest.TestCase):
 
         # after
         self.assertGreater(self.harness.charm._stored.cluster_changed_emitted, num_events)
-        self.assertListEqual(
-            ["10.20.30.0", "10.20.30.1"], self.harness.charm.alertmanager_lib.get_cluster_info()
+        self.assertSetEqual(
+            {"http://10.20.30.0", "http://10.20.30.1"},
+            self.harness.charm.alertmanager_lib.get_cluster_info(),
         )
 
         num_events = self.harness.charm._stored.cluster_changed_emitted
@@ -97,8 +98,8 @@ class TestConsumer(unittest.TestCase):
         # add another unit
         self._add_alertmanager_units(rel_id, num_units=1, start_with=2)
         self.assertGreater(self.harness.charm._stored.cluster_changed_emitted, num_events)
-        self.assertListEqual(
-            ["10.20.30.0", "10.20.30.1", "10.20.30.2"],
+        self.assertSetEqual(
+            {"http://10.20.30.0", "http://10.20.30.1", "http://10.20.30.2"},
             self.harness.charm.alertmanager_lib.get_cluster_info(),
         )
 
@@ -119,7 +120,7 @@ class TestConsumer(unittest.TestCase):
         self.harness.remove_relation_unit(rel_id, "am/2")
         self.assertGreater(self.harness.charm._stored.cluster_changed_emitted, num_events)
         after = self.harness.charm.alertmanager_lib.get_cluster_info()
-        self.assertListEqual(after, ["10.20.30.0", "10.20.30.1"])
+        self.assertSetEqual(after, {"http://10.20.30.0", "http://10.20.30.1"})
 
         num_events = self.harness.charm._stored.cluster_changed_emitted
 
@@ -129,7 +130,7 @@ class TestConsumer(unittest.TestCase):
         self.assertGreater(self.harness.charm._stored.cluster_changed_emitted, num_events)
         after = self.harness.charm.alertmanager_lib.get_cluster_info()
         self.assertGreater(self.harness.charm._stored.cluster_changed_emitted, num_events)
-        self.assertListEqual(after, [])
+        self.assertSetEqual(after, set())
 
     def test_cluster_is_empty_after_relation_breaks(self):
         # add relation
@@ -144,7 +145,7 @@ class TestConsumer(unittest.TestCase):
         self.harness.remove_relation(rel_id)
         after = self.harness.charm.alertmanager_lib.get_cluster_info()
         self.assertGreater(self.harness.charm._stored.cluster_changed_emitted, num_events)
-        self.assertListEqual([], after)
+        self.assertSetEqual(set(), after)
 
     def test_relation_changed(self):
         # add relation
@@ -153,6 +154,7 @@ class TestConsumer(unittest.TestCase):
 
         # update remote unit's relation data (emulates upgrade-charm)
         self.harness.update_relation_data(rel_id, "am/1", {"public_address": "90.80.70.60"})
-        self.assertListEqual(
-            ["10.20.30.0", "90.80.70.60"], self.harness.charm.alertmanager_lib.get_cluster_info()
+        self.assertSetEqual(
+            {"http://10.20.30.0", "http://90.80.70.60"},
+            self.harness.charm.alertmanager_lib.get_cluster_info(),
         )

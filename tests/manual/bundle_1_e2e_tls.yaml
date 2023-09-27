@@ -12,6 +12,16 @@ applications:
     channel: edge
     scale: 1
     trust: true
+  avalanche:
+    # The avalanche charm has always-firing alerts that can be used to verify prometheus is able to
+    # post alerts to alertmanager.
+    charm: avalanche-k8s
+    channel: edge
+    scale: 1
+    trust: true
+    options:
+      metric_count: 10
+      series_count: 2
   local-ca:
     charm: self-signed-certificates
     channel: edge
@@ -42,4 +52,6 @@ relations:
 - - traefik:ingress-per-unit
   - prometheus:ingress
 - - alertmanager:self-metrics-endpoint
+  - prometheus:metrics-endpoint
+- - avalanche:metrics-endpoint
   - prometheus:metrics-endpoint
