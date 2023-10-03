@@ -40,7 +40,7 @@ resources:
       OCI image for alertmanager. This charms makes the following assumptions about the image:
       - location of executable "alertmanager" is in the path
       - has `update-ca-certificates`
-    upstream-source: ghcr.io/canonical/alertmanager:0.25.0
+    upstream-source: ubuntu/alertmanager:0.25.0-22.04_stable
 
 provides:
   alerting:
