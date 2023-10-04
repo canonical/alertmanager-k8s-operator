@@ -148,6 +148,27 @@ class AlertmanagerCharm(CharmBase):
             ],
         )
 
+        self.catalog = CatalogueConsumer(
+            charm=self,
+            refresh_event=[
+                self.ingress.on.ready,  # pyright: ignore
+                self.ingress.on.revoked,  # pyright: ignore
+                self.on["ingress"].relation_changed,
+                self.on.update_status,
+                self.on.config_changed,  # also covers upgrade-charm
+            ],
+            item=CatalogueItem(
+                name="Alertmanager",
+                icon="bell-alert",
+                url=self._external_url,
+                description=(
+                    "Alertmanager receives alerts from supporting applications, such as "
+                    "Prometheus or Loki, then deduplicates, groups and routes them to "
+                    "the configured receiver(s)."
+                ),
+            ),
+        )
+
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
 
@@ -428,24 +449,6 @@ class AlertmanagerCharm(CharmBase):
         except ConfigUpdateFailure as e:
             self.unit.status = BlockedStatus(str(e))
             return
-
-        # Update the catalogue entry here, as part of the common-exit-hook, because CatalogueItem
-        # doesn't take a callable for the URL.
-        # https://github.com/canonical/catalogue-k8s-operator/issues/41
-        # Which is totally ok, because we don't need this object for anything else.
-        CatalogueConsumer(
-            charm=self,
-            item=CatalogueItem(
-                name="Alertmanager",
-                icon="bell-alert",
-                url=self._external_url,
-                description=(
-                    "Alertmanager receives alerts from supporting applications, such as "
-                    "Prometheus or Loki, then deduplicates, groups and routes them to "
-                    "the configured receiver(s)."
-                ),
-            ),
-        )
 
         self.unit.status = ActiveStatus()
 
