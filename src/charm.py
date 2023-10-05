@@ -23,7 +23,7 @@ from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
 from charms.alertmanager_k8s.v1.alertmanager_dispatch import AlertmanagerProvider
-from charms.catalogue_k8s.v0.catalogue import CatalogueConsumer, CatalogueItem
+from charms.catalogue_k8s.v1.catalogue import CatalogueConsumer, CatalogueItem
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
@@ -148,26 +148,7 @@ class AlertmanagerCharm(CharmBase):
             ],
         )
 
-        self.catalog = CatalogueConsumer(
-            charm=self,
-            refresh_event=[
-                self.ingress.on.ready,  # pyright: ignore
-                self.ingress.on.revoked,  # pyright: ignore
-                self.on["ingress"].relation_changed,
-                self.on.update_status,
-                self.on.config_changed,  # also covers upgrade-charm
-            ],
-            item=CatalogueItem(
-                name="Alertmanager",
-                icon="bell-alert",
-                url=self._external_url,
-                description=(
-                    "Alertmanager receives alerts from supporting applications, such as "
-                    "Prometheus or Loki, then deduplicates, groups and routes them to "
-                    "the configured receiver(s)."
-                ),
-            ),
-        )
+        self.catalog = CatalogueConsumer(charm=self, item=self._catalogue_item)
 
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
@@ -231,6 +212,19 @@ class AlertmanagerCharm(CharmBase):
         new_ports_to_open = planned_ports.difference(actual_ports)
         for p in new_ports_to_open:
             self.unit.open_port(p.protocol, p.port)
+
+    @property
+    def _catalogue_item(self) -> CatalogueItem:
+        return CatalogueItem(
+            name="Alertmanager",
+            icon="bell-alert",
+            url=self._external_url,
+            description=(
+                "Alertmanager receives alerts from supporting applications, such as "
+                "Prometheus or Loki, then deduplicates, groups and routes them to "
+                "the configured receiver(s)."
+            ),
+        )
 
     @property
     def self_scraping_job(self):
@@ -449,6 +443,8 @@ class AlertmanagerCharm(CharmBase):
         except ConfigUpdateFailure as e:
             self.unit.status = BlockedStatus(str(e))
             return
+
+        self.catalog.update_item(item=self._catalogue_item)
 
         self.unit.status = ActiveStatus()
 
