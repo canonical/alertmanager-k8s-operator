@@ -8,7 +8,7 @@ from unittest.mock import patch
 import ops
 import yaml
 from alertmanager import WorkloadManager
-from charm import Alertmanager, AlertmanagerCharm
+from charm import PORTS, Alertmanager, AlertmanagerCharm
 from helpers import k8s_resource_multipatch, tautology
 from ops import pebble
 from ops.model import ActiveStatus, BlockedStatus
@@ -71,7 +71,7 @@ class TestWithInitialHooks(unittest.TestCase):
 
         rel = model.get_relation("alerting", self.relation_id)
         assert rel is not None  # for static checker
-        expected_address = "fqdn:{}".format(self.harness.charm.api_port)
+        expected_address = f"fqdn:{PORTS['api'].port}"
         expected_rel_data = {
             "url": "http://fqdn:9093",
             "public_address": expected_address,

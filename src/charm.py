@@ -29,7 +29,6 @@ from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from charms.observability_libs.v0.cert_handler import CertHandler
 from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
-    K8sResourcePatchFailedEvent,
     KubernetesComputeResourcesPatch,
     ResourceRequirements,
     adjust_resource_requirements,
@@ -131,9 +130,6 @@ class AlertmanagerCharm(CharmBase):
             self._container_name,
             resource_reqs_func=self._resource_reqs_from_config,
         )
-        self.framework.observe(
-            self.resources_patch.on.patch_failed, self._on_k8s_patch_failed  # pyright: ignore
-        )
 
         # Self-monitoring
         self._scraping = MetricsEndpointProvider(
@@ -159,8 +155,8 @@ class AlertmanagerCharm(CharmBase):
             self,
             container_name=self._container_name,
             peer_addresses=self._get_peer_addresses(),
-            api_port=PORTS["api"].port,
-            ha_port=PORTS["ha"].port,
+            api_port=PORTS["api"].port,  # pyright: ignore (operator/1045)
+            ha_port=PORTS["ha"].port,  # pyright: ignore (operator/1045)
             web_external_url=self._internal_url,
             config_path=self._config_path,
             web_config_path=self._web_config_path,
@@ -205,6 +201,16 @@ class AlertmanagerCharm(CharmBase):
         if self.unit.opened_ports() != set(PORTS.values()):
             event.add_status(WaitingStatus(f'Opening {", ".join(PORTS.keys())} ports'))
 
+        # TODO move this check into workload manager
+        if not self.container.can_connect():
+            event.add_status(
+                MaintenanceStatus(f"Waiting for '{self.container.name}' container to become ready")
+            )
+
+        # TODO move this check into CertHandler?
+        if self.server_cert.enabled and not self._is_tls_ready():
+            event.add_status(MaintenanceStatus("Waiting for TLS ready"))
+
     @property
     def _catalogue_item(self) -> CatalogueItem:
         return CatalogueItem(
@@ -246,9 +252,6 @@ class AlertmanagerCharm(CharmBase):
         }
         requests = {"cpu": "0.25", "memory": "200Mi"}
         return adjust_resource_requirements(limits, requests, adhere_to_requests=True)
-
-    def _on_k8s_patch_failed(self, event: K8sResourcePatchFailedEvent):
-        self.unit.status = BlockedStatus(str(event.message))
 
     def _handle_ingress(self, _):
         if url := self.ingress.url:
@@ -346,7 +349,7 @@ class AlertmanagerCharm(CharmBase):
 
         # Note: A free function (with many args) would have the same functionality.
         config_suite = (
-            ConfigBuilder(api_port=PORTS["api"].port)
+            ConfigBuilder(api_port=PORTS["api"].port)  # pyright: ignore (operator/1045)
             .set_config(raw_config)
             .set_tls_server_config(
                 cert_file_path=self._server_cert_path, key_file_path=self._key_path
@@ -399,7 +402,8 @@ class AlertmanagerCharm(CharmBase):
         self.alertmanager_provider.update(external_url=self._internal_url)
 
         self.ingress.provide_ingress_requirements(
-            scheme=urlparse(self._internal_url).scheme, port=PORTS["api"].port
+            scheme=urlparse(self._internal_url).scheme,
+            port=PORTS["api"].port,  # pyright: ignore (operator/1045)
         )
         self._scraping.update_scrape_job_spec(self.self_scraping_job)
 

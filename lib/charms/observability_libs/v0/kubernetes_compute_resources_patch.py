@@ -122,6 +122,8 @@ from lightkube.types import PatchType
 from lightkube.utils.quantity import equals_canonically, parse_quantity
 from ops.charm import CharmBase
 from ops.framework import BoundEvent, EventBase, EventSource, Object, ObjectEvents
+from ops import CollectStatusEvent
+from ops.model import BlockedStatus, StatusBase
 
 logger = logging.getLogger(__name__)
 
@@ -133,8 +135,11 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 4
+LIBPATCH = 5
 
+PYDEPS = [
+    "ops>=2.5",  # collect_status
+]
 
 _Decimal = Union[Decimal, float, str, int]  # types that are potentially convertible to Decimal
 
@@ -464,6 +469,13 @@ class KubernetesComputeResourcesPatch(Object):
         for ev in refresh_event:
             self.framework.observe(ev, self._on_config_changed)
 
+        self.last_error: Optional[StatusBase] = None
+        self.framework.observe(charm.on.collect_unit_status, self._on_collect_unit_status)
+
+    def _on_collect_unit_status(self, event: CollectStatusEvent):
+        if self.last_error:
+            event.add_status(BlockedStatus(f"[resource patch] {self.last_error}"))
+
     def _on_config_changed(self, _):
         self._patch()
 
@@ -476,6 +488,7 @@ class KubernetesComputeResourcesPatch(Object):
         except ValueError as e:
             msg = f"Failed obtaining resource limit spec: {e}"
             logger.error(msg)
+            self.last_error = msg
             self.on.patch_failed.emit(message=msg)
             return
 
@@ -483,6 +496,7 @@ class KubernetesComputeResourcesPatch(Object):
             if not is_valid_spec(spec):
                 msg = f"Invalid resource limit spec: {spec}"
                 logger.error(msg)
+                self.last_error = msg
                 self.on.patch_failed.emit(message=msg)
                 return
 
@@ -497,6 +511,7 @@ class KubernetesComputeResourcesPatch(Object):
         except exceptions.ConfigError as e:
             msg = f"Error creating k8s client: {e}"
             logger.error(msg)
+            self.last_error = msg
             self.on.patch_failed.emit(message=msg)
             return
 
@@ -507,11 +522,13 @@ class KubernetesComputeResourcesPatch(Object):
                 msg = f"Kubernetes resources patch failed: {e}"
 
             logger.error(msg)
+            self.last_error = msg
             self.on.patch_failed.emit(message=msg)
 
         except ValueError as e:
             msg = f"Kubernetes resources patch failed: {e}"
             logger.error(msg)
+            self.last_error = msg
             self.on.patch_failed.emit(message=msg)
 
         else:
@@ -551,6 +568,7 @@ class KubernetesComputeResourcesPatch(Object):
         except (ValueError, ApiError) as e:
             msg = f"Failed to apply resource limit patch: {e}"
             logger.error(msg)
+            self.last_error = msg
             self.on.patch_failed.emit(message=msg)
             return False
 
