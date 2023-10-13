@@ -37,19 +37,22 @@ from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
 from config_builder import ConfigBuilder, ConfigError
+from ops import CollectStatusEvent
 from ops.charm import ActionEvent, CharmBase
 from ops.main import main
 from ops.model import (
     ActiveStatus,
     BlockedStatus,
     MaintenanceStatus,
-    OpenedPort,
+    Port,
     Relation,
     WaitingStatus,
 )
 from ops.pebble import PathError, ProtocolError  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+PORTS = {"api": Port("tcp", 9093), "ha": Port("tcp", 9094)}
 
 
 class AlertmanagerCharm(CharmBase):
@@ -67,7 +70,6 @@ class AlertmanagerCharm(CharmBase):
     _relations = SimpleNamespace(
         alerting="alerting", peer="replicas", remote_config="remote_configuration"
     )
-    _ports = SimpleNamespace(api=9093, ha=9094)
 
     # path, inside the workload container, to the alertmanager and amtool configuration files
     # the amalgamated templates file goes in the same folder as the main configuration file
@@ -97,7 +99,7 @@ class AlertmanagerCharm(CharmBase):
 
         self.ingress = IngressPerAppRequirer(
             self,
-            port=self.api_port,
+            port=PORTS["api"].port,
             scheme=lambda: urlparse(self._internal_url).scheme,
             strip_prefix=True,
             redirect_https=True,
@@ -122,7 +124,7 @@ class AlertmanagerCharm(CharmBase):
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
         self.remote_configuration = RemoteConfigurationRequirer(self)
 
-        self.set_ports()
+        self.unit.set_ports(*PORTS.values())
 
         self.resources_patch = KubernetesComputeResourcesPatch(
             self,
@@ -157,8 +159,8 @@ class AlertmanagerCharm(CharmBase):
             self,
             container_name=self._container_name,
             peer_addresses=self._get_peer_addresses(),
-            api_port=self.api_port,
-            ha_port=self._ports.ha,
+            api_port=PORTS["api"].port,
+            ha_port=PORTS["ha"].port,
             web_external_url=self._internal_url,
             config_path=self._config_path,
             web_config_path=self._web_config_path,
@@ -196,22 +198,12 @@ class AlertmanagerCharm(CharmBase):
             self.on.check_config_action, self._on_check_config  # pyright: ignore
         )
 
-    def set_ports(self):
-        """Open necessary (and close no longer needed) workload ports."""
-        planned_ports = {
-            OpenedPort("tcp", self._ports.api),
-            OpenedPort("tcp", self._ports.ha),
-        }
-        actual_ports = self.unit.opened_ports()
+        self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
 
-        # Ports may change across an upgrade, so need to sync
-        ports_to_close = actual_ports.difference(planned_ports)
-        for p in ports_to_close:
-            self.unit.close_port(p.protocol, p.port)
-
-        new_ports_to_open = planned_ports.difference(actual_ports)
-        for p in new_ports_to_open:
-            self.unit.open_port(p.protocol, p.port)
+    def _on_collect_unit_status(self, event: CollectStatusEvent):
+        # Check open ports
+        if self.unit.opened_ports() != set(PORTS.values()):
+            event.add_status(WaitingStatus(f'Opening {", ".join(PORTS.keys())} ports'))
 
     @property
     def _catalogue_item(self) -> CatalogueItem:
@@ -308,11 +300,6 @@ class AlertmanagerCharm(CharmBase):
             event.fail(str(e))
 
     @property
-    def api_port(self) -> int:
-        """Get the API port number to use for alertmanager (default: 9093)."""
-        return self._ports.api
-
-    @property
     def peer_relation(self) -> Optional["Relation"]:
         """Helper function for obtaining the peer relation object.
 
@@ -359,7 +346,7 @@ class AlertmanagerCharm(CharmBase):
 
         # Note: A free function (with many args) would have the same functionality.
         config_suite = (
-            ConfigBuilder(api_port=self.api_port)
+            ConfigBuilder(api_port=PORTS["api"].port)
             .set_config(raw_config)
             .set_tls_server_config(
                 cert_file_path=self._server_cert_path, key_file_path=self._key_path
@@ -412,7 +399,7 @@ class AlertmanagerCharm(CharmBase):
         self.alertmanager_provider.update(external_url=self._internal_url)
 
         self.ingress.provide_ingress_requirements(
-            scheme=urlparse(self._internal_url).scheme, port=self.api_port
+            scheme=urlparse(self._internal_url).scheme, port=PORTS["api"].port
         )
         self._scraping.update_scrape_job_spec(self.self_scraping_job)
 
@@ -529,7 +516,7 @@ class AlertmanagerCharm(CharmBase):
                         )
                         continue
                     # Drop scheme and replace API port with HA port
-                    addresses.append(f"{parsed.hostname}:{self._ports.ha}{parsed.path}")
+                    addresses.append(f"{parsed.hostname}:{PORTS['ha'].port}{parsed.path}")
 
         return addresses
 
@@ -549,7 +536,7 @@ class AlertmanagerCharm(CharmBase):
         If an external (public) url is set, add in its path.
         """
         scheme = "https" if self._is_tls_ready() else "http"
-        return f"{scheme}://{socket.getfqdn()}:{self._ports.api}"
+        return f"{scheme}://{socket.getfqdn()}:{PORTS['api'].port}"
 
     @property
     def _external_url(self) -> str:
