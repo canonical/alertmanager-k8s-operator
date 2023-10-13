@@ -113,10 +113,16 @@ class TestWithInitialHooks(unittest.TestCase):
     def test_charm_blocks_if_user_provided_config_with_templates(self, *unused):
         new_config = yaml.dump({"templates": ["/what/ever/*.tmpl"]})
         self.harness.update_config({"config_file": new_config})
+        self.harness.evaluate_status()
         self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
+
+        # Manual cleanup, due to https://github.com/canonical/operator/issues/736
+        self.harness.charm.unit._collected_statuses.clear()
+        self.harness.charm.last_error = None
 
         new_config = yaml.dump({})
         self.harness.update_config({"config_file": new_config})
+        self.harness.evaluate_status()
         self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
 
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
@@ -171,10 +177,16 @@ class TestWithoutInitialHooks(unittest.TestCase):
     @patch.object(WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0"))
     def test_unit_status_around_pebble_ready(self, *unused):
         # before pebble_ready, status should be "maintenance"
+        self.harness.evaluate_status()
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.MaintenanceStatus)
+
+        # Manual cleanup, due to https://github.com/canonical/operator/issues/736
+        self.harness.charm.unit._collected_statuses.clear()
+        self.harness.charm.last_error = None
 
         # after pebble_ready, status should be "active"
         self.harness.container_pebble_ready(self.container_name)
+        self.harness.evaluate_status()
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.ActiveStatus)
 
         self.assertEqual(self.harness.model.unit.name, "alertmanager-k8s/0")

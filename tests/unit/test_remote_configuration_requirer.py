@@ -111,6 +111,7 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         )
         self.harness.update_config({"config_file": TEST_ALERTMANAGER_DEFAULT_CONFIG})
 
+        self.harness.evaluate_status()
         self.assertEqual(
             self.harness.charm.unit.status, BlockedStatus("Multiple configs detected")
         )

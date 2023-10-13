@@ -54,6 +54,17 @@ logger = logging.getLogger(__name__)
 PORTS = {"api": Port("tcp", 9093), "ha": Port("tcp", 9094)}
 
 
+def _is_external_url_valid(url: Optional[str]) -> bool:
+    if not url:
+        return False
+
+    parsed = urlparse(url)
+    if not (parsed.scheme in ["http", "https"] and parsed.hostname):
+        return False
+
+    return True
+
+
 class AlertmanagerCharm(CharmBase):
     """A Juju charm for alertmanager.
 
@@ -61,6 +72,8 @@ class AlertmanagerCharm(CharmBase):
         api: an API client instance for communicating with the alertmanager workload
                 server
     """
+
+    last_error: str
 
     # Container name must match metadata.yaml
     # Layer name is used for the layer label argument in container.add_layer
@@ -84,6 +97,8 @@ class AlertmanagerCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         self.container = self.unit.get_container(self._container_name)
+
+        self.last_error: Optional[str] = None
 
         self.server_cert = CertHandler(
             self,
@@ -207,9 +222,24 @@ class AlertmanagerCharm(CharmBase):
                 MaintenanceStatus(f"Waiting for '{self.container.name}' container to become ready")
             )
 
+        # Make sure the external url is valid
+        if not _is_external_url_valid(self._external_url):
+            # This shouldn't happen
+            event.add_status(
+                BlockedStatus(
+                    f"Invalid external url: '{self._external_url}'; must include scheme and hostname."
+                )
+            )
+
         # TODO move this check into CertHandler?
         if self.server_cert.enabled and not self._is_tls_ready():
             event.add_status(MaintenanceStatus("Waiting for TLS ready"))
+
+        if self.last_error:
+            event.add_status(BlockedStatus(self.last_error))
+
+        # Must add ActiveStatus, otherwise charm ends up in UnknownStatus
+        event.add_status(ActiveStatus())
 
     @property
     def _catalogue_item(self) -> CatalogueItem:
@@ -373,27 +403,19 @@ class AlertmanagerCharm(CharmBase):
     def _common_exit_hook(self, update_ca_certs: bool = False) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self.resources_patch.is_ready():
-            if isinstance(self.unit.status, ActiveStatus) or self.unit.status.message == "":
-                self.unit.status = WaitingStatus("Waiting for resource limit patch to apply")
             return
 
         if not self.container.can_connect():
-            self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return
 
         # Make sure the external url is valid
-        if external_url := self._external_url:
-            parsed = urlparse(external_url)
-            if not (parsed.scheme in ["http", "https"] and parsed.hostname):
-                # This shouldn't happen
-                logger.error(
-                    "Invalid external url: '%s'; must include scheme and hostname.",
-                    external_url,
-                )
-                self.unit.status = BlockedStatus(
-                    f"Invalid external url: '{external_url}'; must include scheme and hostname."
-                )
-                return
+        if not _is_external_url_valid(self._external_url):
+            # This shouldn't happen
+            logger.error(
+                "Invalid external url: '%s'; must include scheme and hostname.",
+                self._external_url,
+            )
+            return
 
         # TODO Conditionally update with the external URL if it's a CMR, or rely on "recv-ca-cert"
         #  on the prometheus side.
@@ -419,7 +441,7 @@ class AlertmanagerCharm(CharmBase):
         try:
             self.alertmanager_workload.update_config(self._render_manifest())
         except (ConfigUpdateFailure, ConfigError) as e:
-            self.unit.status = BlockedStatus(str(e))
+            self.last_error = str(e)
             return
 
         if update_ca_certs:
@@ -432,12 +454,10 @@ class AlertmanagerCharm(CharmBase):
         try:
             self.alertmanager_workload.reload()
         except ConfigUpdateFailure as e:
-            self.unit.status = BlockedStatus(str(e))
+            self.last_error = str(e)
             return
 
         self.catalog.update_item(item=self._catalogue_item)
-
-        self.unit.status = ActiveStatus()
 
     def _on_server_cert_changed(self, _):
         self._common_exit_hook(update_ca_certs=True)

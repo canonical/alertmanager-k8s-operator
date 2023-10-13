@@ -100,10 +100,20 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
         )
         self.assertIn("--cluster.peer=", command)
 
+    @k8s_resource_multipatch
     def test_charm_blocks_on_connection_error(self):
+        self.harness.evaluate_status()
         self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
+
         self.harness.set_can_connect(CONTAINER_NAME, False)
+
+        # Manual cleanup, due to https://github.com/canonical/operator/issues/736
+        self.harness.charm.unit._collected_statuses.clear()
+        self.harness.charm.last_error = None
+
         self.harness.update_config({"templates_file": "doesn't matter"})
+
+        self.harness.evaluate_status()
         self.assertNotIsInstance(self.harness.charm.unit.status, ActiveStatus)
 
 
@@ -130,6 +140,7 @@ class TestInvalidConfig(unittest.TestCase):
         self.harness.begin_with_initial_hooks()
 
         # THEN the charm goes into blocked status
+        self.harness.evaluate_status()
         self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
 
     @patch.object(Alertmanager, "reload", tautology)
@@ -145,10 +156,16 @@ class TestInvalidConfig(unittest.TestCase):
         self.harness.begin_with_initial_hooks()
 
         # THEN the charm goes into active status
+        self.harness.evaluate_status()
         self.assertIsInstance(self.harness.charm.unit.status, ActiveStatus)
+
+        # Manual cleanup, due to https://github.com/canonical/operator/issues/736
+        self.harness.charm.unit._collected_statuses.clear()
+        self.harness.charm.last_error = None
 
         # AND WHEN the config is updated and invalid (mocked below)
         self.harness.update_config({"config_file": "templates: [wrong]"})
 
         # THEN the charm goes into blocked status
+        self.harness.evaluate_status()
         self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
