@@ -73,8 +73,6 @@ class AlertmanagerCharm(CharmBase):
                 server
     """
 
-    last_error: str
-
     # Container name must match metadata.yaml
     # Layer name is used for the layer label argument in container.add_layer
     # Service name matches charm name for consistency
@@ -212,11 +210,19 @@ class AlertmanagerCharm(CharmBase):
         self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
 
     def _on_collect_unit_status(self, event: CollectStatusEvent):
+        # Resource limit
+        if not self.resources_patch.is_ready():
+            event.add_status(
+                MaintenanceStatus("[resource patch] Waiting for resource limit patch to apply")
+            )
+        if self.resources_patch.last_error:
+            event.add_status(BlockedStatus(f"[resource patch] {self.last_error}"))
+
         # Check open ports
         if self.unit.opened_ports() != set(PORTS.values()):
             event.add_status(WaitingStatus(f'Opening {", ".join(PORTS.keys())} ports'))
 
-        # TODO move this check into workload manager
+        # "pebble ready"
         if not self.container.can_connect():
             event.add_status(
                 MaintenanceStatus(f"Waiting for '{self.container.name}' container to become ready")
@@ -231,7 +237,7 @@ class AlertmanagerCharm(CharmBase):
                 )
             )
 
-        # TODO move this check into CertHandler?
+        # TLS
         if self.server_cert.enabled and not self._is_tls_ready():
             event.add_status(MaintenanceStatus("Waiting for TLS ready"))
 
