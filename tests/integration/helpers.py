@@ -152,7 +152,7 @@ async def curl(ops_test: OpsTest, *, cert_dir: str, cert_path: str, ip_addr: str
         str(cert_path),
         mock_url,
     ]
-    logger.info("cURL command: '%s'", ' '.join(cmd))
+    logger.info("cURL command: '%s'", " ".join(cmd))
     rc, stdout, stderr = await ops_test.run(*cmd)
     logger.info("%s: %s", mock_url, (rc, stdout, stderr))
     assert rc == 0, (

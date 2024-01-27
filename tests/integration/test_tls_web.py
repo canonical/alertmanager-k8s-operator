@@ -97,7 +97,7 @@ async def test_https_reachable(ops_test: OpsTest, temp_dir):
             "-c",
             f'juju run {ca.name}/0 get-ca-certificate --format json | jq -r \'."{ca.name}/0".results."ca-certificate"\'',
         ]
-        logger.info("Obtaining CA cert with command: %s", ' '.join(cmd))
+        logger.info("Obtaining CA cert with command: %s", " ".join(cmd))
         retcode, stdout, stderr = await ops_test.run(*cmd)
         cert = stdout
         cert_path = temp_dir / "local.cert"
