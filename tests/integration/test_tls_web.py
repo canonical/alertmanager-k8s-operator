@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 am = SimpleNamespace(name="am", scale=1)
+ca = SimpleNamespace(name="ca")
+
 # FIXME change scale to 2 once the tls_certificate lib issue is fixed
 # https://github.com/canonical/tls-certificates-interface/issues/57
 
@@ -35,7 +37,7 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
             trust: true
             resources:
               alertmanager-image: {METADATA["resources"]["alertmanager-image"]["upstream-source"]}
-          ca:
+          {ca.name}:
             charm: self-signed-certificates
             channel: edge
             scale: 1
@@ -87,14 +89,15 @@ async def test_server_cert(ops_test: OpsTest):
 async def test_https_reachable(ops_test: OpsTest, temp_dir):
     """Make sure alertmanager's https endpoint is reachable using curl and ca cert."""
     for i in range(am.scale):
-        unit_name = f"{am.name}/{i}"
         # Save CA cert locally
         # juju show-unit am/0 --format yaml | yq '.am/0."relation-info"[0]."local-unit".data.ca' > /tmp/cacert.pem
+        # juju run ca/0 get-ca-certificate --format json | jq -r '."ca/0".results."ca-certificate"' > internal.cert
         cmd = [
             "sh",
             "-c",
-            f'juju show-unit {unit_name} --format yaml | yq \'.{unit_name}."relation-info"[0]."local-unit".data.ca\'',
+            f'juju run {ca.name}/0 get-ca-certificate --format json | jq -r \'."{ca.name}/0".results."ca-certificate"\'',
         ]
+        logger.info("Obtaining CA cert with command: %s", ' '.join(cmd))
         retcode, stdout, stderr = await ops_test.run(*cmd)
         cert = stdout
         cert_path = temp_dir / "local.cert"

@@ -140,18 +140,20 @@ async def curl(ops_test: OpsTest, *, cert_dir: str, cert_path: str, ip_addr: str
     # server). This is needed because the certificate issued by the CA would have that same
     # hostname as the subject, and for TLS to succeed, the target url's hostname must match
     # the one in the certificate.
-    rc, stdout, stderr = await ops_test.run(
+    cmd = [
         "curl",
         "-s",
         "--fail-with-body",
         "--resolve",
         f"{p.hostname}:{p.port or 443}:{ip_addr}",
         "--capath",
-        cert_dir,
+        str(cert_dir),
         "--cacert",
-        cert_path,
+        str(cert_path),
         mock_url,
-    )
+    ]
+    logger.info("cURL command: '%s'", ' '.join(cmd))
+    rc, stdout, stderr = await ops_test.run(*cmd)
     logger.info("%s: %s", mock_url, (rc, stdout, stderr))
     assert rc == 0, (
         f"curl exited with rc={rc} for {mock_url}; "
