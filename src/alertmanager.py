@@ -86,6 +86,7 @@ class WorkloadManager(Object):
         config_path: str,
         web_config_path: str,
         tls_enabled: Callable[[], bool],
+        cafile: Optional[str],
     ):
         # Must inherit from ops 'Object' to be able to register events.
         super().__init__(charm, f"{self.__class__.__name__}-{container_name}")
@@ -99,7 +100,7 @@ class WorkloadManager(Object):
 
         self._api_port = api_port
         self._ha_port = ha_port
-        self.api = Alertmanager(endpoint_url=web_external_url)
+        self.api = Alertmanager(endpoint_url=web_external_url, cafile=cafile)
         self._web_external_url = web_external_url
         self._config_path = config_path
         self._web_config_path = web_config_path

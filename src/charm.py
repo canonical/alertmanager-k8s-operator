@@ -7,6 +7,7 @@
 import logging
 import socket
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
@@ -163,6 +164,7 @@ class AlertmanagerCharm(CharmBase):
             config_path=self._config_path,
             web_config_path=self._web_config_path,
             tls_enabled=self._is_tls_ready,
+            cafile=self._ca_cert_path if Path(self._ca_cert_path).exists() else None,
         )
         self.framework.observe(
             # The workload manager too observes pebble ready, but still need this here because
@@ -506,7 +508,16 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _update_ca_certs(self):
+        # Workload container
         self.container.exec(["update-ca-certificates", "--fresh"]).wait()
+
+        # Charm container
+        ca_cert_path = Path(self._ca_cert_path)
+        if self.server_cert.ca:
+            ca_cert_path.parent.mkdir(exist_ok=True, parents=True)
+            ca_cert_path.write_text(self.server_cert.ca)  # pyright: ignore
+        else:
+            ca_cert_path.unlink(missing_ok=True)
         subprocess.run(["update-ca-certificates", "--fresh"], check=True)
 
     def _get_peer_addresses(self) -> List[str]:
