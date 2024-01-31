@@ -99,7 +99,7 @@ class WorkloadManager(Object):
 
         self._api_port = api_port
         self._ha_port = ha_port
-        self.api = Alertmanager(endpoint_url=charm._external_url)
+        self.api = Alertmanager(endpoint_url=web_external_url)
         self._web_external_url = web_external_url
         self._config_path = config_path
         self._web_config_path = web_config_path

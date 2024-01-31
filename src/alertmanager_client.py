@@ -6,6 +6,7 @@
 
 import json
 import logging
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -60,9 +61,14 @@ class Alertmanager:
         Raises:
             AlertmanagerBadResponse: If no response or invalid response, regardless the reason.
         """
+        # TODO: pass cert instead of insecure skip verify
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
         for retry in reversed(range(3)):
             try:
-                response = urllib.request.urlopen(url, data, timeout)
+                response = urllib.request.urlopen(url, data, timeout, context=ctx)
                 if response.code == 200 and response.reason == "OK":
                     return response.read()
                 if retry == 0:
