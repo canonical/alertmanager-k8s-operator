@@ -6,6 +6,7 @@
 
 import json
 import logging
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -29,9 +30,12 @@ class Alertmanager:
         self,
         endpoint_url: str = "http://localhost:9093",
         timeout=2,
+        cafile: Optional[str] = None,
     ):
         self.base_url = endpoint_url.rstrip("/")
         self.timeout = timeout
+
+        self.ssl_context = ssl.create_default_context(cafile=cafile)
 
     def reload(self) -> bool:
         """Send a POST request to hot-reload the config.
@@ -48,8 +52,7 @@ class Alertmanager:
             return False
         return True
 
-    @staticmethod
-    def _open(url: str, data: Optional[bytes], timeout: float) -> bytes:
+    def _open(self, url: str, data: Optional[bytes], timeout: float) -> bytes:
         """Send a request using urlopen.
 
         Args:
@@ -62,7 +65,7 @@ class Alertmanager:
         """
         for retry in reversed(range(3)):
             try:
-                response = urllib.request.urlopen(url, data, timeout)
+                response = urllib.request.urlopen(url, data, timeout, context=self.ssl_context)
                 if response.code == 200 and response.reason == "OK":
                     return response.read()
                 if retry == 0:
