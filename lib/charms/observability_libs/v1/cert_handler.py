@@ -65,13 +65,8 @@ logger = logging.getLogger(__name__)
 
 
 LIBID = "b5cd5cd580f3428fa5f59a8876dcbe6a"
-<<<<<<< Updated upstream:lib/charms/observability_libs/v0/cert_handler.py
-LIBAPI = 0
-LIBPATCH = 9
-=======
 LIBAPI = 1
 LIBPATCH = 1
->>>>>>> Stashed changes:lib/charms/observability_libs/v1/cert_handler.py
 
 
 def is_ip_address(value: str) -> bool:
