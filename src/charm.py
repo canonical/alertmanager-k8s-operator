@@ -509,7 +509,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _update_ca_certs(self):
         # Workload container
-        self.container.exec(["update-ca-certificates", "--fresh"]).wait()
+        self.container.exec(["update-ca-certificates", "--fresh"], timeout=3).wait()
 
         # Charm container
         ca_cert_path = Path(self._ca_cert_path)
