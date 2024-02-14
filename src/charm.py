@@ -512,9 +512,9 @@ class AlertmanagerCharm(CharmBase):
 
         # Charm container
         ca_cert_path = Path(self._ca_cert_path)
-        if self.server_cert.ca:
+        if self.server_cert.ca_cert:
             ca_cert_path.parent.mkdir(exist_ok=True, parents=True)
-            ca_cert_path.write_text(self.server_cert.ca)  # pyright: ignore
+            ca_cert_path.write_text(self.server_cert.ca_cert)  # pyright: ignore
         else:
             ca_cert_path.unlink(missing_ok=True)
         subprocess.run(["update-ca-certificates", "--fresh"], check=True)
