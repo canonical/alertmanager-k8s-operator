@@ -282,7 +282,7 @@ class AlertmanagerCharm(CharmBase):
     def _on_show_config_action(self, event: ActionEvent):
         """Hook for the show-config action."""
         event.log(f"Fetching {self._config_path}")
-        if not self.alertmanager_workload.is_ready():
+        if not self.alertmanager_workload.is_ready:
             event.fail("Container not ready")
 
         filepaths = self._render_manifest().manifest.keys()
