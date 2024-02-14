@@ -62,11 +62,6 @@ class _ProviderSchemaV0(pydantic.BaseModel):
 class _ProviderSchemaV1(pydantic.BaseModel):
     url: str
 
-    # The following are v0 fields that are continued to be populated for backwards compatibility.
-    # TODO: when we switch to pydantic 2+, use computed_field instead of the following fields, and
-    #  also drop the __init__.
-    #  https://docs.pydantic.dev/latest/api/fields/#pydantic.fields.computed_field
-
     @computed_field
     @property
     def public_address(self) -> Optional[str]:
