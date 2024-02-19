@@ -211,6 +211,7 @@ class CertHandler(Object):
         if not relation:
             return
 
+        self._generate_privkey()
         self._generate_csr(renew=True)
 
     def _generate_csr(
