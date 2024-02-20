@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 
 LIBID = "b5cd5cd580f3428fa5f59a8876dcbe6a"
 LIBAPI = 1
-LIBPATCH = 1
+LIBPATCH = 3
 
 
 def is_ip_address(value: str) -> bool:
@@ -192,14 +192,11 @@ class CertHandler(Object):
     def _generate_privkey(self):
         # Generate priv key unless done already
         # TODO figure out how to go about key rotation.
-        relation = self.charm.model.get_relation(self.certificates_relation_name)
 
-        if not relation:
+        if not (relation := self.charm.model.get_relation(self.certificates_relation_name)):
             return
 
-        private_key = relation.data[self.charm.unit].get("private-key", None)
-
-        if not private_key:
+        if not self.private_key:
             private_key = generate_private_key()
             secret = self.charm.unit.add_secret({"private-key": private_key.decode()})
             secret.grant(relation)
