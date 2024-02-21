@@ -28,13 +28,13 @@ from charms.catalogue_k8s.v1.catalogue import CatalogueConsumer, CatalogueItem
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
-from charms.observability_libs.v0.cert_handler import CertHandler
 from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     K8sResourcePatchFailedEvent,
     KubernetesComputeResourcesPatch,
     ResourceRequirements,
     adjust_resource_requirements,
 )
+from charms.observability_libs.v1.cert_handler import CertHandler
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
 from config_builder import ConfigBuilder, ConfigError
@@ -88,8 +88,7 @@ class AlertmanagerCharm(CharmBase):
         self.server_cert = CertHandler(
             self,
             key="am-server-cert",
-            peer_relation_name="replicas",
-            extra_sans_dns=[socket.getfqdn()],
+            sans=[socket.getfqdn()],
         )
         self.framework.observe(
             self.server_cert.on.cert_changed,  # pyright: ignore
@@ -376,9 +375,9 @@ class AlertmanagerCharm(CharmBase):
                 self._web_config_path: config_suite.web,
                 self._templates_path: config_suite.templates,
                 self._amtool_config_path: config_suite.amtool,
-                self._server_cert_path: self.server_cert.cert,
-                self._key_path: self.server_cert.key,
-                self._ca_cert_path: self.server_cert.ca,
+                self._server_cert_path: self.server_cert.server_cert,
+                self._key_path: self.server_cert.private_key,
+                self._ca_cert_path: self.server_cert.ca_cert,
             }
         )
 
@@ -513,9 +512,9 @@ class AlertmanagerCharm(CharmBase):
 
         # Charm container
         ca_cert_path = Path(self._ca_cert_path)
-        if self.server_cert.ca:
+        if self.server_cert.ca_cert:
             ca_cert_path.parent.mkdir(exist_ok=True, parents=True)
-            ca_cert_path.write_text(self.server_cert.ca)  # pyright: ignore
+            ca_cert_path.write_text(self.server_cert.ca_cert)  # pyright: ignore
         else:
             ca_cert_path.unlink(missing_ok=True)
         subprocess.run(["update-ca-certificates", "--fresh"], check=True)
