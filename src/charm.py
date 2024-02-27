@@ -36,6 +36,8 @@ from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
 )
 from charms.observability_libs.v1.cert_handler import CertHandler
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from charms.tempo_k8s.v1.charm_tracing import trace_charm
+from charms.tempo_k8s.v2.tracing import TracingEndpointRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
 from config_builder import ConfigBuilder, ConfigError
 from ops.charm import ActionEvent, CharmBase
@@ -53,6 +55,17 @@ from ops.pebble import PathError, ProtocolError  # type: ignore
 logger = logging.getLogger(__name__)
 
 
+@trace_charm(
+    tracing_endpoint="tracing_endpoint",
+    server_cert="server_cert_path",
+    extra_types=(
+        AlertmanagerProvider,
+        CertHandler,
+        IngressPerAppRequirer,
+        KubernetesComputeResourcesPatch,
+        RemoteConfigurationRequirer,
+    ),
+)
 class AlertmanagerCharm(CharmBase):
     """A Juju charm for alertmanager.
 
@@ -147,6 +160,7 @@ class AlertmanagerCharm(CharmBase):
                 self.server_cert.on.cert_changed,  # pyright: ignore
             ],
         )
+        self._tracing = TracingEndpointRequirer(self, protocols=["otlp_http"])
 
         self.catalog = CatalogueConsumer(charm=self, item=self._catalogue_item)
 
@@ -565,6 +579,18 @@ class AlertmanagerCharm(CharmBase):
     def _external_url(self) -> str:
         """Return the externally-reachable (public) address of the alertmanager api server."""
         return self.ingress.url or self._internal_url
+
+    @property
+    def tracing_endpoint(self) -> Optional[str]:
+        """Otlp http endpoint for charm instrumentation."""
+        if self._tracing.is_ready():
+            return self._tracing.get_endpoint("otlp_http")
+        return None
+
+    @property
+    def server_cert_path(self) -> Optional[str]:
+        """Server certificate path for tls tracing."""
+        return self._server_cert_path
 
 
 if __name__ == "__main__":

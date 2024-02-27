@@ -32,3 +32,6 @@ cryptography
 
 # Deps: traefik.v2.ingress
 pydantic>=2
+
+# Deps: tracing
+opentelemetry-exporter-otlp-proto-http>=1.21.0
