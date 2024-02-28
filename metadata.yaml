@@ -81,6 +81,9 @@ requires:
     limit: 1
     description: |
       Certificate and key files for the alertmanager server to use to authenticate to client.
+  tracing:
+    interface: tracing
+    limit: 1
 
 peers:
   replicas:
