@@ -121,7 +121,7 @@ async def test_receiver_gets_alert(ops_test: OpsTest, httpserver):
                 "status=firing",
                 "juju_model_uuid=1234",
                 f"juju_application={app_name}",
-                f"juju_model=model_name",
+                "juju_model=model_name",
                 "--annotation=summary=summary",
             ]
         )
