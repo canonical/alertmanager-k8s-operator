@@ -12,7 +12,7 @@ import validators
 import yaml
 from alertmanager import WorkloadManager
 from charm import AlertmanagerCharm
-from helpers import k8s_resource_multipatch, tautology
+from helpers import k8s_resource_multipatch
 from hypothesis import given
 from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
