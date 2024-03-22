@@ -11,7 +11,7 @@ import ops
 import validators
 import yaml
 from alertmanager import WorkloadManager
-from charm import Alertmanager, AlertmanagerCharm
+from charm import AlertmanagerCharm
 from helpers import k8s_resource_multipatch, tautology
 from hypothesis import given
 from ops.model import ActiveStatus, BlockedStatus
@@ -29,7 +29,6 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
     Background: Charm starts up with initial hooks.
     """
 
-    @patch.object(Alertmanager, "reload", tautology)
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("0.0.0", ""))
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
@@ -118,7 +117,6 @@ class TestInvalidConfig(unittest.TestCase):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
 
-    @patch.object(Alertmanager, "reload", tautology)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0"))
@@ -132,7 +130,6 @@ class TestInvalidConfig(unittest.TestCase):
         # THEN the charm goes into blocked status
         self.assertIsInstance(self.harness.charm.unit.status, BlockedStatus)
 
-    @patch.object(Alertmanager, "reload", tautology)
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
     @patch.object(WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0"))

@@ -19,7 +19,6 @@ from alertmanager import (
     WorkloadManager,
     WorkloadManagerError,
 )
-from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -67,12 +66,7 @@ logger = logging.getLogger(__name__)
     ),
 )
 class AlertmanagerCharm(CharmBase):
-    """A Juju charm for alertmanager.
-
-    Attributes:
-        api: an API client instance for communicating with the alertmanager workload
-                server
-    """
+    """A Juju charm for alertmanager."""
 
     # Container name must match metadata.yaml
     # Layer name is used for the layer label argument in container.add_layer
@@ -123,8 +117,6 @@ class AlertmanagerCharm(CharmBase):
             relation_name=self._relations.alerting,
             external_url=self._internal_url,  # TODO See 'TODO' below, about external_url
         )
-
-        self.api = Alertmanager(endpoint_url=self._external_url)
 
         self.grafana_dashboard_provider = GrafanaDashboardProvider(charm=self)
         self.grafana_source_provider = GrafanaSourceProvider(
@@ -498,7 +490,7 @@ class AlertmanagerCharm(CharmBase):
         Logs list of peers, uptime and version info.
         """
         try:
-            status = self.api.status()
+            status = self.alertmanager_workload.api.status()
             logger.info(
                 "alertmanager %s is up and running (uptime: %s); "
                 "cluster mode: %s, with %d peers",
@@ -507,7 +499,7 @@ class AlertmanagerCharm(CharmBase):
                 status["cluster"]["status"],
                 len(status["cluster"]["peers"]),
             )
-        except AlertmanagerBadResponse as e:
+        except ConnectionError as e:
             logger.error("Failed to obtain status: %s", str(e))
 
         # Calling the common hook to make sure a single unit set its IP in case all events fired

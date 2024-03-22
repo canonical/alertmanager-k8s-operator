@@ -9,7 +9,7 @@ from unittest.mock import patch
 import ops
 import yaml
 from alertmanager import WorkloadManager
-from charm import Alertmanager, AlertmanagerCharm
+from charm import AlertmanagerCharm
 from helpers import cli_arg, k8s_resource_multipatch, tautology
 from ops.testing import Harness
 
@@ -21,7 +21,6 @@ SERVICE_NAME = AlertmanagerCharm._service_name
 
 
 class TestExternalUrl(unittest.TestCase):
-    @patch.object(Alertmanager, "reload", tautology)
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch

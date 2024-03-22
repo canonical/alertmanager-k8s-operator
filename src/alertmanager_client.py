@@ -19,7 +19,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
-class AlertmanagerBadResponse(RuntimeError):
+class AlertmanagerBadResponse(ConnectionError):
     """A catch-all exception type to indicate 'no reply', regardless the reason."""
 
 
