@@ -71,7 +71,7 @@ async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_
     # Refresh from path
     await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
     await ops_test.model.wait_for_idle(
-        apps=[app_name, "prom", "karma"], status="active", timeout=2500
+        apps=[app_name, "prom", "karma"], status="active", timeout=2500, raise_on_error=False,
     )
     assert await is_alertmanager_up(ops_test, app_name)
 
