@@ -5,13 +5,12 @@
 import json
 import logging
 import time
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import sh
 import yaml
-from alertmanager_client import Alertmanager
-from helpers import get_unit_address, is_alertmanager_up
+from helpers import is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 from werkzeug.wrappers import Request, Response
 
@@ -73,29 +72,6 @@ async def test_configure_alertmanager_with_templates(ops_test: OpsTest, httpserv
 
 @pytest.mark.abort_on_fail
 async def test_receiver_gets_alert(ops_test: OpsTest, httpserver):
-    # create an alert
-    start_time = datetime.now(timezone.utc)
-    end_time = start_time + timedelta(minutes=5)
-    alert_name = "fake-alert"
-    model_uuid = "1234"
-    alerts = [
-        {
-            "startsAt": start_time.isoformat("T"),
-            "endsAt": end_time.isoformat("T"),
-            "status": "firing",
-            "annotations": {
-                "summary": "A fake alert",
-            },
-            "labels": {
-                "juju_model_uuid": model_uuid,
-                "juju_application": app_name,
-                "juju_model": ops_test.model_name,
-                "alertname": alert_name,
-            },
-            "generatorURL": f"http://localhost/{alert_name}",
-        }
-    ]
-
     request_from_alertmanager = None
 
     def request_handler(request: Request):
@@ -127,9 +103,28 @@ async def test_receiver_gets_alert(ops_test: OpsTest, httpserver):
     with httpserver.wait(timeout=120) as waiting:
         # expect an alert to be forwarded to the receiver
         httpserver.expect_oneshot_request("/", method="POST").respond_with_handler(request_handler)
-        unit_address = await get_unit_address(ops_test, app_name, 0)
-        amanager = Alertmanager(f"http://{unit_address}:9093")
-        amanager.set_alerts(alerts)
+
+        # Use amtool to fire a stand-in alert
+        sh.juju(
+            [
+                "ssh",
+                "-m",
+                ops_test.model_name,
+                "--container",
+                "alertmanager",
+                f"{app_name}/0",
+                "amtool",
+                "alert",
+                "add",
+                "foo",
+                "node=bar",
+                "status=firing",
+                "juju_model_uuid=1234",
+                f"juju_application={app_name}",
+                f"juju_model=model_name",
+                "--annotation=summary=summary",
+            ]
+        )
 
     # check receiver got an alert
     assert waiting.result
