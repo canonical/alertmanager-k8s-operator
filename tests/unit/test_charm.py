@@ -8,8 +8,8 @@ from unittest.mock import patch
 import ops
 import yaml
 from alertmanager import WorkloadManager
-from charm import Alertmanager, AlertmanagerCharm
-from helpers import k8s_resource_multipatch, tautology
+from charm import AlertmanagerCharm
+from helpers import k8s_resource_multipatch
 from ops import pebble
 from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
@@ -20,7 +20,6 @@ ops.testing.SIMULATE_CAN_CONNECT = True
 class TestWithInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
-    @patch.object(Alertmanager, "reload", tautology)
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @patch("socket.getfqdn", new=lambda *args: "fqdn")
     @k8s_resource_multipatch
@@ -151,7 +150,6 @@ class TestWithInitialHooks(unittest.TestCase):
 class TestWithoutInitialHooks(unittest.TestCase):
     container_name: str = "alertmanager"
 
-    @patch.object(Alertmanager, "reload", tautology)
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
