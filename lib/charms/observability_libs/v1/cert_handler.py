@@ -32,18 +32,17 @@ container.push(certpath, self.cert_handler.servert_cert)
 Since this library uses [Juju Secrets](https://juju.is/docs/juju/secret) it requires Juju >= 3.0.3.
 """
 import ipaddress
-import json
 import socket
 from itertools import filterfalse
 from typing import List, Optional, Union
 
 try:
-    from charms.tls_certificates_interface.v2.tls_certificates import (  # type: ignore
+    from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore
         AllCertificatesInvalidatedEvent,
         CertificateAvailableEvent,
         CertificateExpiringEvent,
         CertificateInvalidatedEvent,
-        TLSCertificatesRequiresV2,
+        TLSCertificatesRequiresV3,
         generate_csr,
         generate_private_key,
     )
@@ -66,7 +65,7 @@ logger = logging.getLogger(__name__)
 
 LIBID = "b5cd5cd580f3428fa5f59a8876dcbe6a"
 LIBAPI = 1
-LIBPATCH = 3
+LIBPATCH = 4
 
 
 def is_ip_address(value: str) -> bool:
@@ -128,7 +127,7 @@ class CertHandler(Object):
         self.sans_dns = list(filterfalse(is_ip_address, sans))
 
         self.certificates_relation_name = certificates_relation_name
-        self.certificates = TLSCertificatesRequiresV2(self.charm, self.certificates_relation_name)
+        self.certificates = TLSCertificatesRequiresV3(self.charm, self.certificates_relation_name)
 
         self.framework.observe(
             self.charm.on.config_changed,
@@ -278,7 +277,7 @@ class CertHandler(Object):
             content = {
                 "ca-cert": event.ca,
                 "server-cert": event.certificate,
-                "chain": json.dumps(event.chain),
+                "chain": event.chain_as_pem(),
                 "csr": event_csr,
             }
             try:
