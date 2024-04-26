@@ -9,7 +9,7 @@ import socket
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
@@ -338,8 +338,8 @@ class AlertmanagerCharm(CharmBase):
     def _get_local_config(self) -> Optional[Tuple[Optional[dict], Optional[str]]]:
         config = self.config["config_file"]
         if config:
-            local_config = yaml.safe_load(config)
-            local_templates = self.config["templates_file"] or None
+            local_config = yaml.safe_load(cast(str, config))
+            local_templates = cast(str, self.config["templates_file"]) or None
             return local_config, local_templates
         return None
 
