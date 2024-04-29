@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
-
 import unittest
 from unittest.mock import patch
 
@@ -176,3 +175,62 @@ class TestWithoutInitialHooks(unittest.TestCase):
         self.assertIsInstance(self.harness.charm.unit.status, ops.model.ActiveStatus)
 
         self.assertEqual(self.harness.model.unit.name, "alertmanager-k8s/0")
+
+
+class TestActions(unittest.TestCase):
+    container_name: str = "alertmanager"
+
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
+    @patch("socket.getfqdn", new=lambda *args: "fqdn")
+    @k8s_resource_multipatch
+    @patch("lightkube.core.client.GenericSyncClient")
+    @patch.object(WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0"))
+    def setUp(self, *unused):
+        self.harness = Harness(AlertmanagerCharm)
+        self.addCleanup(self.harness.cleanup)
+
+        self.harness.set_leader(True)
+        self.harness.begin_with_initial_hooks()
+
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
+    @k8s_resource_multipatch
+    @patch.object(WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0"))
+    def test_show_config(self, *_unused):
+        tls_paths = {
+            self.harness.charm._server_cert_path,
+            self.harness.charm._key_path,
+            self.harness.charm._ca_cert_path,
+        }
+
+        # GIVEN an isolated charm (see setUp, decorator)
+        # WHEN the "show-config" action runs
+        results = self.harness.run_action("show-config").results
+
+        # THEN the result is a dict some keys
+        self.assertEqual(results.keys(), {"path", "content", "configs"})
+
+        # AND configs DOES NOT contain cert-related entries
+        # results.configs is a list of dicts, [{"path": ..., "content": ...}, {...}, ...].
+        paths_rendered = {d["path"] for d in yaml.safe_load(results["configs"])}
+        for filepath in tls_paths:
+            self.assertNotIn(filepath, paths_rendered)
+
+        # AND GIVEN a tls relation is in place
+        rel_id = self.harness.add_relation("certificates", "ca")
+        self.harness.add_relation_unit(rel_id, "ca/0")
+        # AND cert files are on disk
+        for filepath in tls_paths:
+            self.harness.model.unit.get_container("alertmanager").push(
+                filepath, "test", make_dirs=True
+            )
+
+        # WHEN the "show-config" action runs
+        results = self.harness.run_action("show-config").results
+
+        # THEN the result is a dict with the same keys as before
+        self.assertEqual(results.keys(), {"path", "content", "configs"})
+
+        # AND configs contains cert-related entries
+        paths_rendered = {d["path"] for d in yaml.safe_load(results["configs"])}
+        for filepath in tls_paths:
+            self.assertIn(filepath, paths_rendered)

@@ -300,6 +300,7 @@ class AlertmanagerCharm(CharmBase):
                     "content": str(self.container.pull(filepath).read()),
                 }
                 for filepath in filepaths
+                if self.container.exists(filepath)
             ]
             content = self.container.pull(self._config_path)
             # juju requires keys to be lowercase alphanumeric (can't use self._config_path)
