@@ -583,7 +583,7 @@ class AlertmanagerCharm(CharmBase):
     @property
     def server_cert_path(self) -> Optional[str]:
         """Server certificate path for tls tracing."""
-        return self._server_cert_path
+        return self._server_cert_path if self.server_cert.enabled else None
 
 
 if __name__ == "__main__":
