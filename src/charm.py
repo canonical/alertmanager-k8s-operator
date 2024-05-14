@@ -383,7 +383,7 @@ class AlertmanagerCharm(CharmBase):
                 self._templates_path: config_suite.templates,
                 self._amtool_config_path: config_suite.amtool,
                 self._server_cert_path: self.server_cert.server_cert,
-                self._key_path: self.server_cert.private_key,
+                self._key_path: self.server_cert.private_key if self.server_cert.enabled else None,
                 self._ca_cert_path: self.server_cert.ca_cert,
             }
         )
