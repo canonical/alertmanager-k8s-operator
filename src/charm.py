@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 @trace_charm(
     tracing_endpoint="tracing_endpoint",
-    server_cert="server_cert_path",
+    server_cert="server_ca_cert_path",
     extra_types=(
         AlertmanagerProvider,
         CertHandler,
@@ -581,9 +581,9 @@ class AlertmanagerCharm(CharmBase):
         return None
 
     @property
-    def server_cert_path(self) -> Optional[str]:
-        """Server certificate path for tls tracing."""
-        return self._server_cert_path
+    def server_ca_cert_path(self) -> Optional[str]:
+        """Server CA certificate path for tls tracing."""
+        return self._ca_cert_path if self.server_cert.enabled else None
 
 
 if __name__ == "__main__":
