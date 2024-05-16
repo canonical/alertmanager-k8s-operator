@@ -439,7 +439,7 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = BlockedStatus(str(e))
             return
 
-        if update_ca_certs:
+        if update_ca_certs and self.server_cert.enabled:
             self._update_ca_certs()
 
         # Update pebble layer
@@ -465,7 +465,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent."""
-        self._common_exit_hook()
+        self._common_exit_hook(update_ca_certs=True)
 
     def _on_peer_relation_joined(self, _):
         """Event handler for replica's RelationChangedEvent."""
