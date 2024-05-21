@@ -439,7 +439,7 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = BlockedStatus(str(e))
             return
 
-        if update_ca_certs and self.server_cert.enabled:
+        if update_ca_certs:
             self._update_ca_certs()
 
         # Update pebble layer
