@@ -79,6 +79,7 @@ class TestWithInitialHooks(unittest.TestCase):
 
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
+    @patch.object(AlertmanagerCharm, "_update_ca_certs", lambda *a, **kw: None)
     def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
         new_config = yaml.dump({"not a real config": "but good enough for testing"})
         self.harness.update_config({"config_file": new_config})
@@ -94,6 +95,7 @@ class TestWithInitialHooks(unittest.TestCase):
 
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
+    @patch.object(AlertmanagerCharm, "_update_ca_certs", lambda *a, **kw: None)
     def test_topology_added_if_user_provided_config_with_group_by(self, *unused):
         new_config = yaml.dump({"route": {"group_by": ["alertname", "juju_model"]}})
         self.harness.update_config({"config_file": new_config})
@@ -108,6 +110,7 @@ class TestWithInitialHooks(unittest.TestCase):
 
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
+    @patch.object(AlertmanagerCharm, "_update_ca_certs", lambda *a, **kw: None)
     def test_charm_blocks_if_user_provided_config_with_templates(self, *unused):
         new_config = yaml.dump({"templates": ["/what/ever/*.tmpl"]})
         self.harness.update_config({"config_file": new_config})
@@ -119,6 +122,7 @@ class TestWithInitialHooks(unittest.TestCase):
 
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
+    @patch.object(AlertmanagerCharm, "_update_ca_certs", lambda *a, **kw: None)
     def test_templates_file_not_created_if_user_provides_templates_without_config(self, *unused):
         templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
         self.harness.update_config({"templates_file": templates})
@@ -132,6 +136,7 @@ class TestWithInitialHooks(unittest.TestCase):
 
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
+    @patch.object(AlertmanagerCharm, "_update_ca_certs", lambda *a, **kw: None)
     def test_templates_section_added_if_user_provided_templates(self, *unused):
         new_config = yaml.dump({"route": {"group_by": ["alertname", "juju_model"]}})
         self.harness.update_config({"config_file": new_config})
