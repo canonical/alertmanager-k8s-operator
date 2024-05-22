@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 @trace_charm(
     tracing_endpoint="tracing_endpoint",
-    server_cert="server_cert_path",
+    server_cert="server_ca_cert_path",
     extra_types=(
         AlertmanagerProvider,
         CertHandler,
@@ -383,7 +383,7 @@ class AlertmanagerCharm(CharmBase):
                 self._templates_path: config_suite.templates,
                 self._amtool_config_path: config_suite.amtool,
                 self._server_cert_path: self.server_cert.server_cert,
-                self._key_path: self.server_cert.private_key,
+                self._key_path: self.server_cert.private_key if self.server_cert.enabled else None,
                 self._ca_cert_path: self.server_cert.ca_cert,
             }
         )
@@ -465,7 +465,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent."""
-        self._common_exit_hook()
+        self._common_exit_hook(update_ca_certs=True)
 
     def _on_peer_relation_joined(self, _):
         """Event handler for replica's RelationChangedEvent."""
@@ -581,9 +581,9 @@ class AlertmanagerCharm(CharmBase):
         return None
 
     @property
-    def server_cert_path(self) -> Optional[str]:
-        """Server certificate path for tls tracing."""
-        return self._server_cert_path
+    def server_ca_cert_path(self) -> Optional[str]:
+        """Server CA certificate path for tls tracing."""
+        return self._ca_cert_path if self.server_cert.enabled else None
 
 
 if __name__ == "__main__":
