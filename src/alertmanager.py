@@ -7,7 +7,8 @@
 import logging
 import os
 import re
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
+from urllib.parse import urlparse
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from ops.framework import Object
@@ -96,8 +97,6 @@ class WorkloadManager(Object):
         self._service_name = self._container_name = container_name
         self._container = charm.unit.get_container(container_name)
 
-        self._peer_addresses = peer_addresses
-
         self._api_port = api_port
         self._ha_port = ha_port
         self.api = Alertmanager(endpoint_url=web_external_url, cafile=cafile)
@@ -105,6 +104,8 @@ class WorkloadManager(Object):
         self._config_path = config_path
         self._web_config_path = web_config_path
         self._is_tls_enabled = tls_enabled
+
+        self._peer_addresses = _parse_peer_addresses(peer_addresses, self._ha_port)
 
         # turn the container name to a valid Python identifier
         snake_case_container_name = self._container_name.replace("-", "_")
@@ -329,3 +330,14 @@ class WorkloadManager(Object):
             logger.warning("cannot determine if reload succeeded")
         elif config_from_server_before == config_from_server_after:
             logger.warning("config remained the same after a reload")
+
+
+def _parse_peer_addresses(addresses: List[str], port: int) -> List[str]:
+    """Parse peer addresses by removing their scheme and setting their port to the given port."""
+    return [_parse_peer_address(address, port) for address in addresses]
+
+
+def _parse_peer_address(address: str, port: Union[int, str]) -> str:
+    """Parse a peer address by removing its scheme and setting its port to the given port."""
+    parsed = urlparse(address)
+    return f"{parsed.hostname}:{str(port)}{parsed.path}"

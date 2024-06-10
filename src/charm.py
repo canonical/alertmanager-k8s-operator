@@ -162,7 +162,7 @@ class AlertmanagerCharm(CharmBase):
         self.alertmanager_workload = WorkloadManager(
             self,
             container_name=self._container_name,
-            peer_addresses=self._get_peer_addresses(),
+            peer_addresses=self._get_peer_addresses(include_this_unit=False),
             api_port=self.api_port,
             ha_port=self._ports.ha,
             web_external_url=self._internal_url,
@@ -526,13 +526,18 @@ class AlertmanagerCharm(CharmBase):
             ca_cert_path.unlink(missing_ok=True)
         subprocess.run(["update-ca-certificates", "--fresh"], check=True)
 
-    def _get_peer_addresses(self) -> List[str]:
-        """Create a list of HA addresses of all peer units (all units excluding current).
+    def _get_peer_addresses(self, include_this_unit=True) -> List[str]:
+        """Returns a list of the addresses of the api endpoint for all peer units.
+
+        An example of the return format is:
+          ["https://alertmanager-1.alertmanager-endpoints.am.svc.cluster.local"]
 
         The returned addresses include the hostname, HA port number and path, but do not include
         scheme (http).
         """
         addresses = []
+        if include_this_unit:
+            addresses.append(self._internal_url)
         if pr := self.peer_relation:
             for unit in pr.units:  # pr.units only holds peers (self.unit is not included)
                 if api_url := pr.data[unit].get("private_address"):
@@ -545,8 +550,8 @@ class AlertmanagerCharm(CharmBase):
                             api_url,
                         )
                         continue
-                    # Drop scheme and replace API port with HA port
-                    addresses.append(f"{parsed.hostname}:{self._ports.ha}{parsed.path}")
+                    # write back out to standardize the format
+                    addresses.append(parsed.geturl())
 
         return addresses
 
