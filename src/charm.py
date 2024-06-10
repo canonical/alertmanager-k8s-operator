@@ -240,16 +240,14 @@ class AlertmanagerCharm(CharmBase):
         # This assumption is necessary because the local CA signs CSRs with FQDN as the SAN DNS.
         # If prometheus were to scrape an ingress URL instead, it would error out with:
         # x509: cannot validate certificate.
-        metrics_endpoint = urlparse(self._internal_url.rstrip("/") + "/metrics")
-        metrics_path = metrics_endpoint.path
-        # Render a ':port' section only if it is explicit (e.g. 9093; without an explicit port, the
-        # port is deduced from the scheme).
-        port_str = (":" + str(metrics_endpoint.port)) if metrics_endpoint.port is not None else ""
-        target = f"{metrics_endpoint.hostname}{port_str}"
+        unit_addresses = [
+            _remove_scheme(address) for address in self._get_peer_addresses(include_this_unit=True)
+        ]
+
         config = {
-            "scheme": metrics_endpoint.scheme,
-            "metrics_path": metrics_path,
-            "static_configs": [{"targets": [target]}],
+            "scheme": self._scheme,
+            "metrics_path": "/metrics",
+            "static_configs": [{"targets": unit_addresses}],
         }
 
         return [config]
@@ -553,6 +551,9 @@ class AlertmanagerCharm(CharmBase):
                     # write back out to standardize the format
                     addresses.append(parsed.geturl())
 
+        # Sort the addresses in case their order is not guaranteed, to reduce unnecessary updates
+        addresses = sorted(addresses)
+
         return addresses
 
     def _is_tls_ready(self) -> bool:
@@ -596,3 +597,9 @@ class AlertmanagerCharm(CharmBase):
 
 if __name__ == "__main__":
     main(AlertmanagerCharm)
+
+
+def _remove_scheme(url: str) -> str:
+    """Remove the scheme from an url."""
+    parsed = urlparse(url)
+    return url.replace(f"{parsed.scheme}://", "", 1)

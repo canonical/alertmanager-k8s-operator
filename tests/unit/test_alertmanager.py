@@ -21,12 +21,8 @@ class TestParsePeerAddresses:
                 "6666",
                 ["peer1:6666"],
             ),
-            (
-                [],
-                "1234",
-                []
-            )
-        ]
+            ([], "1234", []),
+        ],
     )
     def test_parse_peer_addresses(self, addresses, port, expected):
         assert _parse_peer_addresses(addresses, port) == expected
