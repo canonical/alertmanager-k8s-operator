@@ -570,13 +570,16 @@ class AlertmanagerCharm(CharmBase):
 
         If an external (public) url is set, add in its path.
         """
-        scheme = "https" if self._is_tls_ready() else "http"
-        return f"{scheme}://{socket.getfqdn()}:{self._ports.api}"
+        return f"{self._scheme}://{socket.getfqdn()}:{self._ports.api}"
 
     @property
     def _external_url(self) -> str:
         """Return the externally-reachable (public) address of the alertmanager api server."""
         return self.ingress.url or self._internal_url
+
+    @property
+    def _scheme(self) -> str:
+        return "https" if self._is_tls_ready() else "http"
 
     @property
     def tracing_endpoint(self) -> Optional[str]:
