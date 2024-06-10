@@ -26,13 +26,17 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.begin_with_initial_hooks()
 
     @patch.object(AlertmanagerCharm, "_internal_url", new_callable=PropertyMock)
-    def test_self_scraping_job_with_no_peers(self, _mock_internal_url):
-        _mock_internal_url.return_value = "https://test-internal.url:9876"
+    @patch.object(AlertmanagerCharm, "_scheme", new_callable=PropertyMock)
+    def test_self_scraping_job_with_no_peers(self, _mock_scheme, _mock_internal_url):
+        scheme = "https"
+        _mock_scheme.return_value = scheme
+        url_no_scheme = f"test-internal.url:{self.harness.charm._ports.api}"
+        _mock_internal_url.return_value = f"{scheme}://{url_no_scheme}"
         jobs_expected = [
             {
                 "metrics_path": "/metrics",
-                "scheme": "https",
-                "static_configs": [{"targets": ["test-internal.url:9876"]}],
+                "scheme": scheme,
+                "static_configs": [{"targets": [url_no_scheme]}],
             }
         ]
 
