@@ -7,7 +7,7 @@ from unittest.mock import patch
 import ops
 import yaml
 from alertmanager import WorkloadManager
-from charm import AlertmanagerCharm, _remove_scheme
+from charm import AlertmanagerCharm
 from helpers import k8s_resource_multipatch
 from ops import pebble
 from ops.model import ActiveStatus, BlockedStatus
@@ -239,18 +239,3 @@ class TestActions(unittest.TestCase):
         paths_rendered = {d["path"] for d in yaml.safe_load(results["configs"])}
         for filepath in tls_paths:
             self.assertIn(filepath, paths_rendered)
-
-
-class TestHelpers(unittest.TestCase):
-    def test_remove_scheme(self):
-        url_expected = "something.com/path;param?query=arg#frag"
-        url_with_scheme = f"https://{url_expected}"
-
-        url_with_scheme_removed = _remove_scheme(url_with_scheme)
-        self.assertEqual(url_expected, url_with_scheme_removed)
-
-    def test_remove_scheme_when_scheme_doesnt_exist(self):
-        url_expected = "something.com/path;param?query=arg#frag"
-
-        url_with_scheme_removed = _remove_scheme(url_expected)
-        self.assertEqual(url_expected, url_with_scheme_removed)

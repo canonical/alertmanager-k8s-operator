@@ -19,6 +19,7 @@ from alertmanager import (
     WorkloadManager,
     WorkloadManagerError,
 )
+from charm_helpers import remove_scheme
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -241,7 +242,7 @@ class AlertmanagerCharm(CharmBase):
         # If prometheus were to scrape an ingress URL instead, it would error out with:
         # x509: cannot validate certificate.
         unit_addresses = [
-            _remove_scheme(address) for address in self._get_peer_addresses(include_this_unit=True)
+            remove_scheme(address) for address in self._get_peer_addresses(include_this_unit=True)
         ]
 
         config = {
@@ -597,9 +598,3 @@ class AlertmanagerCharm(CharmBase):
 
 if __name__ == "__main__":
     main(AlertmanagerCharm)
-
-
-def _remove_scheme(url: str) -> str:
-    """Remove the scheme from an url."""
-    parsed = urlparse(url)
-    return url.replace(f"{parsed.scheme}://", "", 1)
