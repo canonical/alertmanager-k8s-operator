@@ -99,9 +99,10 @@ class ConfigBuilder:
         # add juju topology to "group_by"
         # `route` is a mandatory field so don't need to be too careful
         route = config.get("route", {})
-        group_by = route.get("group_by", [])
-        group_by = list(set(group_by).union(["juju_application", "juju_model", "juju_model_uuid"]))
-        route["group_by"] = group_by
+        group_by = set(route.get("group_by", []))
+        if group_by != {"..."}:
+            group_by = list(group_by.union(["juju_application", "juju_model", "juju_model_uuid"]))
+        route["group_by"] = list(group_by)
         config["route"] = route
         return yaml.safe_dump(config)
 
