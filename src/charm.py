@@ -19,7 +19,7 @@ from alertmanager import (
     WorkloadManager,
     WorkloadManagerError,
 )
-from charm_helpers import remove_scheme
+from charm_helpers import add_port_to_addresses, get_hostname_from_address
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -160,10 +160,14 @@ class AlertmanagerCharm(CharmBase):
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
 
+        peer_ha_addresses = add_port_to_addresses(
+            self._get_peer_addresses(include_this_unit=False), self._ports.ha
+        )
+
         self.alertmanager_workload = WorkloadManager(
             self,
             container_name=self._container_name,
-            peer_addresses=self._get_peer_addresses(include_this_unit=False),
+            peer_addresses=peer_ha_addresses,
             api_port=self.api_port,
             ha_port=self._ports.ha,
             web_external_url=self._internal_url,
@@ -241,14 +245,14 @@ class AlertmanagerCharm(CharmBase):
         # This assumption is necessary because the local CA signs CSRs with FQDN as the SAN DNS.
         # If prometheus were to scrape an ingress URL instead, it would error out with:
         # x509: cannot validate certificate.
-        unit_addresses = [
-            remove_scheme(address) for address in self._get_peer_addresses(include_this_unit=True)
-        ]
+        peer_api_addresses = add_port_to_addresses(
+            self._get_peer_addresses(include_this_unit=True), self._ports.api
+        )
 
         config = {
             "scheme": self._scheme,
             "metrics_path": "/metrics",
-            "static_configs": [{"targets": unit_addresses}],
+            "static_configs": [{"targets": peer_api_addresses}],
         }
 
         return [config]
@@ -526,31 +530,21 @@ class AlertmanagerCharm(CharmBase):
         subprocess.run(["update-ca-certificates", "--fresh"], check=True)
 
     def _get_peer_addresses(self, include_this_unit=True) -> List[str]:
-        """Returns a list of the addresses of the api endpoint for all peer units.
+        """Returns a list of the addresses the peer units, without scheme or port.
 
         An example of the return format is:
-          ["https://alertmanager-1.alertmanager-endpoints.am.svc.cluster.local"]
-
-        The returned addresses include the hostname, HA port number and path, but do not include
-        scheme (http).
+          ["alertmanager-1.alertmanager-endpoints.am.svc.cluster.local"]
         """
         addresses = []
         if include_this_unit:
             addresses.append(self._internal_url)
         if pr := self.peer_relation:
             for unit in pr.units:  # pr.units only holds peers (self.unit is not included)
-                if api_url := pr.data[unit].get("private_address"):
-                    parsed = urlparse(api_url)
-                    if not (parsed.scheme in ["http", "https"] and parsed.hostname):
-                        # This shouldn't happen
-                        logger.error(
-                            "Invalid peer address in relation data: '%s'; skipping. "
-                            "Address must include scheme (http or https) and hostname.",
-                            api_url,
-                        )
-                        continue
-                    # write back out to standardize the format
-                    addresses.append(parsed.geturl())
+                if address := pr.data[unit].get("private_address"):
+                    addresses.append(address)
+
+        # Save only the hostname part of the address
+        addresses = [get_hostname_from_address(address) for address in addresses]
 
         # Sort the addresses in case their order is not guaranteed, to reduce unnecessary updates
         addresses = sorted(addresses)
