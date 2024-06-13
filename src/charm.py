@@ -241,14 +241,10 @@ class AlertmanagerCharm(CharmBase):
         # This assumption is necessary because the local CA signs CSRs with FQDN as the SAN DNS.
         # If prometheus were to scrape an ingress URL instead, it would error out with:
         # x509: cannot validate certificate.
-        unit_addresses = [
-            remove_scheme(address) for address in self._get_peer_addresses(include_this_unit=True)
-        ]
-
         config = {
             "scheme": self._scheme,
             "metrics_path": "/metrics",
-            "static_configs": [{"targets": unit_addresses}],
+            "static_configs": [{"targets": [f"*:{self._ports.api}"]}],
         }
 
         return [config]
