@@ -111,6 +111,25 @@ class TestWithInitialHooks(unittest.TestCase):
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
     @patch.object(AlertmanagerCharm, "_update_ca_certs", lambda *a, **kw: None)
+    def test_topology_is_not_added_if_user_provided_config_with_ellipsis(self, *unused):
+        """The special value '...' effectively disables aggregation entirely.
+
+        Ref: https://prometheus.io/docs/alerting/latest/configuration/#route
+        """
+        new_config = yaml.dump({"route": {"group_by": ["..."]}})
+        self.harness.update_config({"config_file": new_config})
+        updated_config = yaml.safe_load(
+            self.harness.charm.container.pull(self.harness.charm._config_path)
+        )
+
+        self.assertListEqual(
+            updated_config["route"]["group_by"],
+            sorted(["..."]),
+        )
+
+    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
+    @k8s_resource_multipatch
+    @patch.object(AlertmanagerCharm, "_update_ca_certs", lambda *a, **kw: None)
     def test_charm_blocks_if_user_provided_config_with_templates(self, *unused):
         new_config = yaml.dump({"templates": ["/what/ever/*.tmpl"]})
         self.harness.update_config({"config_file": new_config})
