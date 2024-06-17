@@ -545,10 +545,8 @@ class AlertmanagerCharm(CharmBase):
                     addresses.append(address)
 
         # Save only the hostname part of the address
-        hostnames = [urlparse(address).hostname for address in addresses]
-
         # Sort the hostnames in case their order is not guaranteed, to reduce unnecessary updates
-        hostnames = sorted(hostnames)
+        hostnames = sorted([urlparse(address).hostname for address in addresses])
 
         return hostnames
 
