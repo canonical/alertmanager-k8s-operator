@@ -562,9 +562,7 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _internal_url(self) -> str:
-        """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server.
-
-        """
+        """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server."""
         return f"{self._scheme}://{socket.getfqdn()}:{self._ports.api}"
 
     @property
