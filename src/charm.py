@@ -19,7 +19,6 @@ from alertmanager import (
     WorkloadManager,
     WorkloadManagerError,
 )
-from charm_helpers import get_hostname_from_address
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -546,7 +545,7 @@ class AlertmanagerCharm(CharmBase):
                     addresses.append(address)
 
         # Save only the hostname part of the address
-        hostnames = [get_hostname_from_address(address) for address in addresses]
+        hostnames = [urlparse(address).hostname for address in addresses]
 
         # Sort the hostnames in case their order is not guaranteed, to reduce unnecessary updates
         hostnames = sorted(hostnames)
