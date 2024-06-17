@@ -3,7 +3,7 @@
 # See LICENSE file for licensing details.
 
 import pytest
-from charm_helpers import add_port_to_addresses, get_hostname_from_address
+from charm_helpers import add_port_to_hostname, get_hostname_from_address
 
 
 class TestHelpers:
@@ -34,5 +34,5 @@ class TestHelpers:
         ],
     )
     def test_add_port_to_addresses(self, addresses, port, expected):
-        addresses_with_port = add_port_to_addresses(addresses, port)
+        addresses_with_port = add_port_to_hostname(addresses, port)
         assert addresses_with_port == expected

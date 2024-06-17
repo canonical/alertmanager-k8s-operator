@@ -19,7 +19,7 @@ from alertmanager import (
     WorkloadManager,
     WorkloadManagerError,
 )
-from charm_helpers import add_port_to_addresses, get_hostname_from_address
+from charm_helpers import add_port_to_hostname, get_hostname_from_address
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -160,14 +160,14 @@ class AlertmanagerCharm(CharmBase):
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
 
-        peer_ha_addresses = add_port_to_addresses(
-            self._get_peer_addresses(include_this_unit=False), self._ports.ha
+        peer_ha_netlocs = add_port_to_hostname(
+            self._get_peer_hostnames(include_this_unit=False), self._ports.ha
         )
 
         self.alertmanager_workload = WorkloadManager(
             self,
             container_name=self._container_name,
-            peer_addresses=peer_ha_addresses,
+            peer_netlocs=peer_ha_netlocs,
             api_port=self.api_port,
             ha_port=self._ports.ha,
             web_external_url=self._internal_url,
@@ -245,14 +245,14 @@ class AlertmanagerCharm(CharmBase):
         # This assumption is necessary because the local CA signs CSRs with FQDN as the SAN DNS.
         # If prometheus were to scrape an ingress URL instead, it would error out with:
         # x509: cannot validate certificate.
-        peer_api_addresses = add_port_to_addresses(
-            self._get_peer_addresses(include_this_unit=True), self._ports.api
+        peer_api_netlocs = add_port_to_hostname(
+            self._get_peer_hostnames(include_this_unit=True), self._ports.api
         )
 
         config = {
             "scheme": self._scheme,
             "metrics_path": "/metrics",
-            "static_configs": [{"targets": peer_api_addresses}],
+            "static_configs": [{"targets": peer_api_netlocs}],
         }
 
         return [config]
@@ -529,8 +529,8 @@ class AlertmanagerCharm(CharmBase):
             ca_cert_path.unlink(missing_ok=True)
         subprocess.run(["update-ca-certificates", "--fresh"], check=True)
 
-    def _get_peer_addresses(self, include_this_unit=True) -> List[str]:
-        """Returns a list of the addresses the peer units, without scheme or port.
+    def _get_peer_hostnames(self, include_this_unit=True) -> List[str]:
+        """Returns a list of the hostnames of the peer units.
 
         An example of the return format is:
           ["alertmanager-1.alertmanager-endpoints.am.svc.cluster.local"]
@@ -544,12 +544,12 @@ class AlertmanagerCharm(CharmBase):
                     addresses.append(address)
 
         # Save only the hostname part of the address
-        addresses = [get_hostname_from_address(address) for address in addresses]
+        hostnames = [get_hostname_from_address(address) for address in addresses]
 
-        # Sort the addresses in case their order is not guaranteed, to reduce unnecessary updates
-        addresses = sorted(addresses)
+        # Sort the hostnames in case their order is not guaranteed, to reduce unnecessary updates
+        hostnames = sorted(hostnames)
 
-        return addresses
+        return hostnames
 
     def _is_tls_ready(self) -> bool:
         """Returns True if the workload is ready to operate in TLS mode."""

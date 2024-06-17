@@ -21,7 +21,7 @@ def get_hostname_from_address(address: str) -> str:
     return parsed.hostname
 
 
-def add_port_to_addresses(addresses: List[str], port: Union[int, str]) -> List[str]:
+def add_port_to_hostname(addresses: List[str], port: Union[int, str]) -> List[str]:
     """Adds a port to all the provided addresses.
 
     Note that this does not check if the address already has a port.
