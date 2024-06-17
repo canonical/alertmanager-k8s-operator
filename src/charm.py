@@ -19,7 +19,7 @@ from alertmanager import (
     WorkloadManager,
     WorkloadManagerError,
 )
-from charm_helpers import add_port_to_hostname, get_hostname_from_address
+from charm_helpers import get_hostname_from_address
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -160,9 +160,10 @@ class AlertmanagerCharm(CharmBase):
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
 
-        peer_ha_netlocs = add_port_to_hostname(
-            self._get_peer_hostnames(include_this_unit=False), self._ports.ha
-        )
+        peer_ha_netlocs = [
+            f"{hostname}:{self._ports.ha}"
+            for hostname in self._get_peer_hostnames(include_this_unit=False)
+        ]
 
         self.alertmanager_workload = WorkloadManager(
             self,
@@ -245,9 +246,10 @@ class AlertmanagerCharm(CharmBase):
         # This assumption is necessary because the local CA signs CSRs with FQDN as the SAN DNS.
         # If prometheus were to scrape an ingress URL instead, it would error out with:
         # x509: cannot validate certificate.
-        peer_api_netlocs = add_port_to_hostname(
-            self._get_peer_hostnames(include_this_unit=True), self._ports.api
-        )
+        peer_api_netlocs = [
+            f"{hostname}:{self._ports.api}"
+            for hostname in self._get_peer_hostnames(include_this_unit=True)
+        ]
 
         config = {
             "scheme": self._scheme,

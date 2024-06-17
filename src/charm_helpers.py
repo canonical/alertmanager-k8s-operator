@@ -19,11 +19,3 @@ def get_hostname_from_address(address: str) -> str:
             f"  urlparse(address) requires address to have a scheme."
         )
     return parsed.hostname
-
-
-def add_port_to_hostname(addresses: List[str], port: Union[int, str]) -> List[str]:
-    """Adds a port to all the provided addresses.
-
-    Note that this does not check if the address already has a port.
-    """
-    return [f"{address}:{port}" for address in addresses]

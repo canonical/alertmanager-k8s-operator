@@ -3,7 +3,7 @@
 # See LICENSE file for licensing details.
 
 import pytest
-from charm_helpers import add_port_to_hostname, get_hostname_from_address
+from charm_helpers import get_hostname_from_address
 
 
 class TestHelpers:
@@ -17,22 +17,3 @@ class TestHelpers:
     def test_get_hostname_from_address(self, url, expected):
         hostname = get_hostname_from_address(url)
         assert hostname == expected
-
-    @pytest.mark.parametrize(
-        "addresses, port, expected",
-        [
-            (
-                ["something.com", "something-else.com"],
-                "1234",
-                ["something.com:1234", "something-else.com:1234"],
-            ),
-            (
-                ["something.com", "something-else.com"],
-                1234,
-                ["something.com:1234", "something-else.com:1234"],
-            ),
-        ],
-    )
-    def test_add_port_to_addresses(self, addresses, port, expected):
-        addresses_with_port = add_port_to_hostname(addresses, port)
-        assert addresses_with_port == expected
