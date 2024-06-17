@@ -564,7 +564,6 @@ class AlertmanagerCharm(CharmBase):
     def _internal_url(self) -> str:
         """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server.
 
-        If an external (public) url is set, add in its path.
         """
         return f"{self._scheme}://{socket.getfqdn()}:{self._ports.api}"
 
