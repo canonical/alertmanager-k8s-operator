@@ -79,7 +79,7 @@ class WorkloadManager(Object):
         charm,
         *,
         container_name: str,
-        peer_addresses: List[str],
+        peer_netlocs: List[str],
         api_port: int,
         ha_port: int,
         web_external_url: str,
@@ -96,7 +96,7 @@ class WorkloadManager(Object):
         self._service_name = self._container_name = container_name
         self._container = charm.unit.get_container(container_name)
 
-        self._peer_addresses = peer_addresses
+        self._peer_netlocs = peer_netlocs
 
         self._api_port = api_port
         self._ha_port = ha_port
@@ -169,17 +169,15 @@ class WorkloadManager(Object):
 
         def _command():
             """Returns full command line to start alertmanager."""
-            # cluster listen address - empty string disables HA mode
-            listen_address_arg = (
-                "" if len(self._peer_addresses) == 0 else f"0.0.0.0:{self._ha_port}"
-            )
+            # cluster listen netloc - empty string disables HA mode
+            listen_netloc_arg = "" if len(self._peer_netlocs) == 0 else f"0.0.0.0:{self._ha_port}"
 
             # The chosen port in the cluster.listen-address flag is the port that needs to be
             # specified in the cluster.peer flag of the other peers.
             # Assuming all replicas use the same port.
             # Sorting for repeatability in comparing between service layers.
             peer_cmd_args = " ".join(
-                sorted([f"--cluster.peer={address}" for address in self._peer_addresses])
+                sorted([f"--cluster.peer={netloc}" for netloc in self._peer_netlocs])
             )
             web_config_arg = (
                 f"--web.config.file={self._web_config_path} " if self._is_tls_enabled() else ""
@@ -189,7 +187,7 @@ class WorkloadManager(Object):
                 f"--config.file={self._config_path} "
                 f"--storage.path={self._storage_path} "
                 f"--web.listen-address=:{self._api_port} "
-                f"--cluster.listen-address={listen_address_arg} "
+                f"--cluster.listen-address={listen_netloc_arg} "
                 f"--web.external-url={self._web_external_url} "
                 f"{web_config_arg}"
                 f"{peer_cmd_args}"

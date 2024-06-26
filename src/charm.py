@@ -159,10 +159,15 @@ class AlertmanagerCharm(CharmBase):
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
 
+        peer_ha_netlocs = [
+            f"{hostname}:{self._ports.ha}"
+            for hostname in self._get_peer_hostnames(include_this_unit=False)
+        ]
+
         self.alertmanager_workload = WorkloadManager(
             self,
             container_name=self._container_name,
-            peer_addresses=self._get_peer_addresses(),
+            peer_netlocs=peer_ha_netlocs,
             api_port=self.api_port,
             ha_port=self._ports.ha,
             web_external_url=self._internal_url,
@@ -240,16 +245,15 @@ class AlertmanagerCharm(CharmBase):
         # This assumption is necessary because the local CA signs CSRs with FQDN as the SAN DNS.
         # If prometheus were to scrape an ingress URL instead, it would error out with:
         # x509: cannot validate certificate.
-        metrics_endpoint = urlparse(self._internal_url.rstrip("/") + "/metrics")
-        metrics_path = metrics_endpoint.path
-        # Render a ':port' section only if it is explicit (e.g. 9093; without an explicit port, the
-        # port is deduced from the scheme).
-        port_str = (":" + str(metrics_endpoint.port)) if metrics_endpoint.port is not None else ""
-        target = f"{metrics_endpoint.hostname}{port_str}"
+        peer_api_netlocs = [
+            f"{hostname}:{self._ports.api}"
+            for hostname in self._get_peer_hostnames(include_this_unit=True)
+        ]
+
         config = {
-            "scheme": metrics_endpoint.scheme,
-            "metrics_path": metrics_path,
-            "static_configs": [{"targets": [target]}],
+            "scheme": self._scheme,
+            "metrics_path": "/metrics",
+            "static_configs": [{"targets": peer_api_netlocs}],
         }
 
         return [config]
@@ -526,29 +530,25 @@ class AlertmanagerCharm(CharmBase):
             ca_cert_path.unlink(missing_ok=True)
         subprocess.run(["update-ca-certificates", "--fresh"], check=True)
 
-    def _get_peer_addresses(self) -> List[str]:
-        """Create a list of HA addresses of all peer units (all units excluding current).
+    def _get_peer_hostnames(self, include_this_unit=True) -> List[str]:
+        """Returns a list of the hostnames of the peer units.
 
-        The returned addresses include the hostname, HA port number and path, but do not include
-        scheme (http).
+        An example of the return format is:
+          ["alertmanager-1.alertmanager-endpoints.am.svc.cluster.local"]
         """
         addresses = []
+        if include_this_unit:
+            addresses.append(self._internal_url)
         if pr := self.peer_relation:
             for unit in pr.units:  # pr.units only holds peers (self.unit is not included)
-                if api_url := pr.data[unit].get("private_address"):
-                    parsed = urlparse(api_url)
-                    if not (parsed.scheme in ["http", "https"] and parsed.hostname):
-                        # This shouldn't happen
-                        logger.error(
-                            "Invalid peer address in relation data: '%s'; skipping. "
-                            "Address must include scheme (http or https) and hostname.",
-                            api_url,
-                        )
-                        continue
-                    # Drop scheme and replace API port with HA port
-                    addresses.append(f"{parsed.hostname}:{self._ports.ha}{parsed.path}")
+                if address := pr.data[unit].get("private_address"):
+                    addresses.append(address)
 
-        return addresses
+        # Save only the hostname part of the address
+        # Sort the hostnames in case their order is not guaranteed, to reduce unnecessary updates
+        hostnames = sorted([urlparse(address).hostname for address in addresses])
+
+        return hostnames
 
     def _is_tls_ready(self) -> bool:
         """Returns True if the workload is ready to operate in TLS mode."""
@@ -561,17 +561,17 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _internal_url(self) -> str:
-        """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server.
-
-        If an external (public) url is set, add in its path.
-        """
-        scheme = "https" if self._is_tls_ready() else "http"
-        return f"{scheme}://{socket.getfqdn()}:{self._ports.api}"
+        """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server."""
+        return f"{self._scheme}://{socket.getfqdn()}:{self._ports.api}"
 
     @property
     def _external_url(self) -> str:
         """Return the externally-reachable (public) address of the alertmanager api server."""
         return self.ingress.url or self._internal_url
+
+    @property
+    def _scheme(self) -> str:
+        return "https" if self._is_tls_ready() else "http"
 
     @property
     def tracing_endpoint(self) -> Optional[str]:
