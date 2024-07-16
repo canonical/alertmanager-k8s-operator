@@ -126,6 +126,7 @@ class AlertmanagerCharm(CharmBase):
             refresh_event=[
                 self.ingress.on.ready,
                 self.ingress.on.revoked,
+                self.on.update_status,
                 self.server_cert.on.cert_changed,
             ],
         )
