@@ -123,6 +123,12 @@ class AlertmanagerCharm(CharmBase):
             charm=self,
             source_type="alertmanager",
             source_url=self._external_url,
+            refresh_event=[
+                self.ingress.on.ready,
+                self.ingress.on.revoked,
+                self.on.update_status,
+                self.server_cert.on.cert_changed,
+            ],
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
         self.remote_configuration = RemoteConfigurationRequirer(self)
