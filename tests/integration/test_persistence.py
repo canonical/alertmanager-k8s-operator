@@ -26,7 +26,10 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     await ops_test.model.deploy(
         "ch:alertmanager-k8s", application_name=app_name, channel="edge", trust=True
     )
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    await ops_test.model.wait_for_idle(
+        apps=[app_name], status="active", timeout=1000, raise_on_error=False
+    )
+    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=30)
 
     # set a silencer for an alert and check it is set
     unit_address = await get_unit_address(ops_test, app_name, 0)

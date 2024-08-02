@@ -9,7 +9,7 @@ import socket
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
@@ -19,7 +19,6 @@ from alertmanager import (
     WorkloadManager,
     WorkloadManagerError,
 )
-from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -28,14 +27,16 @@ from charms.catalogue_k8s.v1.catalogue import CatalogueConsumer, CatalogueItem
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
-from charms.observability_libs.v0.cert_handler import CertHandler
 from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     K8sResourcePatchFailedEvent,
     KubernetesComputeResourcesPatch,
     ResourceRequirements,
     adjust_resource_requirements,
 )
+from charms.observability_libs.v1.cert_handler import CertHandler
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from charms.tempo_k8s.v1.charm_tracing import trace_charm
+from charms.tempo_k8s.v2.tracing import TracingEndpointRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
 from config_builder import ConfigBuilder, ConfigError
 from ops.charm import ActionEvent, CharmBase
@@ -53,13 +54,19 @@ from ops.pebble import PathError, ProtocolError  # type: ignore
 logger = logging.getLogger(__name__)
 
 
+@trace_charm(
+    tracing_endpoint="tracing_endpoint",
+    server_cert="server_ca_cert_path",
+    extra_types=(
+        AlertmanagerProvider,
+        CertHandler,
+        IngressPerAppRequirer,
+        KubernetesComputeResourcesPatch,
+        RemoteConfigurationRequirer,
+    ),
+)
 class AlertmanagerCharm(CharmBase):
-    """A Juju charm for alertmanager.
-
-    Attributes:
-        api: an API client instance for communicating with the alertmanager workload
-                server
-    """
+    """A Juju charm for alertmanager."""
 
     # Container name must match metadata.yaml
     # Layer name is used for the layer label argument in container.add_layer
@@ -88,8 +95,7 @@ class AlertmanagerCharm(CharmBase):
         self.server_cert = CertHandler(
             self,
             key="am-server-cert",
-            peer_relation_name="replicas",
-            extra_sans_dns=[socket.getfqdn()],
+            sans=[socket.getfqdn()],
         )
         self.framework.observe(
             self.server_cert.on.cert_changed,  # pyright: ignore
@@ -112,13 +118,17 @@ class AlertmanagerCharm(CharmBase):
             external_url=self._internal_url,  # TODO See 'TODO' below, about external_url
         )
 
-        self.api = Alertmanager(endpoint_url=self._external_url)
-
         self.grafana_dashboard_provider = GrafanaDashboardProvider(charm=self)
         self.grafana_source_provider = GrafanaSourceProvider(
             charm=self,
             source_type="alertmanager",
             source_url=self._external_url,
+            refresh_event=[
+                self.ingress.on.ready,
+                self.ingress.on.revoked,
+                self.on.update_status,
+                self.server_cert.on.cert_changed,
+            ],
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
         self.remote_configuration = RemoteConfigurationRequirer(self)
@@ -148,16 +158,22 @@ class AlertmanagerCharm(CharmBase):
                 self.server_cert.on.cert_changed,  # pyright: ignore
             ],
         )
+        self._tracing = TracingEndpointRequirer(self, protocols=["otlp_http"])
 
         self.catalog = CatalogueConsumer(charm=self, item=self._catalogue_item)
 
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
 
+        peer_ha_netlocs = [
+            f"{hostname}:{self._ports.ha}"
+            for hostname in self._get_peer_hostnames(include_this_unit=False)
+        ]
+
         self.alertmanager_workload = WorkloadManager(
             self,
             container_name=self._container_name,
-            peer_addresses=self._get_peer_addresses(),
+            peer_netlocs=peer_ha_netlocs,
             api_port=self.api_port,
             ha_port=self._ports.ha,
             web_external_url=self._internal_url,
@@ -235,16 +251,15 @@ class AlertmanagerCharm(CharmBase):
         # This assumption is necessary because the local CA signs CSRs with FQDN as the SAN DNS.
         # If prometheus were to scrape an ingress URL instead, it would error out with:
         # x509: cannot validate certificate.
-        metrics_endpoint = urlparse(self._internal_url.rstrip("/") + "/metrics")
-        metrics_path = metrics_endpoint.path
-        # Render a ':port' section only if it is explicit (e.g. 9093; without an explicit port, the
-        # port is deduced from the scheme).
-        port_str = (":" + str(metrics_endpoint.port)) if metrics_endpoint.port is not None else ""
-        target = f"{metrics_endpoint.hostname}{port_str}"
+        peer_api_netlocs = [
+            f"{hostname}:{self._ports.api}"
+            for hostname in self._get_peer_hostnames(include_this_unit=True)
+        ]
+
         config = {
-            "scheme": metrics_endpoint.scheme,
-            "metrics_path": metrics_path,
-            "static_configs": [{"targets": [target]}],
+            "scheme": self._scheme,
+            "metrics_path": "/metrics",
+            "static_configs": [{"targets": peer_api_netlocs}],
         }
 
         return [config]
@@ -295,6 +310,7 @@ class AlertmanagerCharm(CharmBase):
                     "content": str(self.container.pull(filepath).read()),
                 }
                 for filepath in filepaths
+                if self.container.exists(filepath)
             ]
             content = self.container.pull(self._config_path)
             # juju requires keys to be lowercase alphanumeric (can't use self._config_path)
@@ -333,8 +349,8 @@ class AlertmanagerCharm(CharmBase):
     def _get_local_config(self) -> Optional[Tuple[Optional[dict], Optional[str]]]:
         config = self.config["config_file"]
         if config:
-            local_config = yaml.safe_load(config)
-            local_templates = self.config["templates_file"] or None
+            local_config = yaml.safe_load(cast(str, config))
+            local_templates = cast(str, self.config["templates_file"]) or None
             return local_config, local_templates
         return None
 
@@ -376,9 +392,9 @@ class AlertmanagerCharm(CharmBase):
                 self._web_config_path: config_suite.web,
                 self._templates_path: config_suite.templates,
                 self._amtool_config_path: config_suite.amtool,
-                self._server_cert_path: self.server_cert.cert,
-                self._key_path: self.server_cert.key,
-                self._ca_cert_path: self.server_cert.ca,
+                self._server_cert_path: self.server_cert.server_cert,
+                self._key_path: self.server_cert.private_key if self.server_cert.enabled else None,
+                self._ca_cert_path: self.server_cert.ca_cert,
             }
         )
 
@@ -459,7 +475,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent."""
-        self._common_exit_hook()
+        self._common_exit_hook(update_ca_certs=True)
 
     def _on_peer_relation_joined(self, _):
         """Event handler for replica's RelationChangedEvent."""
@@ -485,7 +501,7 @@ class AlertmanagerCharm(CharmBase):
         Logs list of peers, uptime and version info.
         """
         try:
-            status = self.api.status()
+            status = self.alertmanager_workload.api.status()
             logger.info(
                 "alertmanager %s is up and running (uptime: %s); "
                 "cluster mode: %s, with %d peers",
@@ -494,7 +510,7 @@ class AlertmanagerCharm(CharmBase):
                 status["cluster"]["status"],
                 len(status["cluster"]["peers"]),
             )
-        except AlertmanagerBadResponse as e:
+        except ConnectionError as e:
             logger.error("Failed to obtain status: %s", str(e))
 
         # Calling the common hook to make sure a single unit set its IP in case all events fired
@@ -513,36 +529,32 @@ class AlertmanagerCharm(CharmBase):
 
         # Charm container
         ca_cert_path = Path(self._ca_cert_path)
-        if self.server_cert.ca:
+        if self.server_cert.ca_cert:
             ca_cert_path.parent.mkdir(exist_ok=True, parents=True)
-            ca_cert_path.write_text(self.server_cert.ca)  # pyright: ignore
+            ca_cert_path.write_text(self.server_cert.ca_cert)  # pyright: ignore
         else:
             ca_cert_path.unlink(missing_ok=True)
         subprocess.run(["update-ca-certificates", "--fresh"], check=True)
 
-    def _get_peer_addresses(self) -> List[str]:
-        """Create a list of HA addresses of all peer units (all units excluding current).
+    def _get_peer_hostnames(self, include_this_unit=True) -> List[str]:
+        """Returns a list of the hostnames of the peer units.
 
-        The returned addresses include the hostname, HA port number and path, but do not include
-        scheme (http).
+        An example of the return format is:
+          ["alertmanager-1.alertmanager-endpoints.am.svc.cluster.local"]
         """
         addresses = []
+        if include_this_unit:
+            addresses.append(self._internal_url)
         if pr := self.peer_relation:
             for unit in pr.units:  # pr.units only holds peers (self.unit is not included)
-                if api_url := pr.data[unit].get("private_address"):
-                    parsed = urlparse(api_url)
-                    if not (parsed.scheme in ["http", "https"] and parsed.hostname):
-                        # This shouldn't happen
-                        logger.error(
-                            "Invalid peer address in relation data: '%s'; skipping. "
-                            "Address must include scheme (http or https) and hostname.",
-                            api_url,
-                        )
-                        continue
-                    # Drop scheme and replace API port with HA port
-                    addresses.append(f"{parsed.hostname}:{self._ports.ha}{parsed.path}")
+                if address := pr.data[unit].get("private_address"):
+                    addresses.append(address)
 
-        return addresses
+        # Save only the hostname part of the address
+        # Sort the hostnames in case their order is not guaranteed, to reduce unnecessary updates
+        hostnames = sorted([urlparse(address).hostname for address in addresses])
+
+        return hostnames
 
     def _is_tls_ready(self) -> bool:
         """Returns True if the workload is ready to operate in TLS mode."""
@@ -555,17 +567,29 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _internal_url(self) -> str:
-        """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server.
-
-        If an external (public) url is set, add in its path.
-        """
-        scheme = "https" if self._is_tls_ready() else "http"
-        return f"{scheme}://{socket.getfqdn()}:{self._ports.api}"
+        """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server."""
+        return f"{self._scheme}://{socket.getfqdn()}:{self._ports.api}"
 
     @property
     def _external_url(self) -> str:
         """Return the externally-reachable (public) address of the alertmanager api server."""
         return self.ingress.url or self._internal_url
+
+    @property
+    def _scheme(self) -> str:
+        return "https" if self._is_tls_ready() else "http"
+
+    @property
+    def tracing_endpoint(self) -> Optional[str]:
+        """Otlp http endpoint for charm instrumentation."""
+        if self._tracing.is_ready():
+            return self._tracing.get_endpoint("otlp_http")
+        return None
+
+    @property
+    def server_ca_cert_path(self) -> Optional[str]:
+        """Server CA certificate path for tls tracing."""
+        return self._ca_cert_path if self.server_cert.enabled else None
 
 
 if __name__ == "__main__":

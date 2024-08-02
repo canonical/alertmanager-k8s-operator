@@ -24,7 +24,7 @@ default_config = {
         "repeat_interval": "1h",
         "receiver": "placeholder",
     },
-    "receivers": [{"name": "placeholder", "webhook_configs": [{"url": "http://127.0.0.1:5001/"}]}],
+    "receivers": [{"name": "placeholder"}],
 }
 
 
@@ -99,9 +99,13 @@ class ConfigBuilder:
         # add juju topology to "group_by"
         # `route` is a mandatory field so don't need to be too careful
         route = config.get("route", {})
-        group_by = route.get("group_by", [])
-        group_by = list(set(group_by).union(["juju_application", "juju_model", "juju_model_uuid"]))
-        route["group_by"] = group_by
+        group_by = set(route.get("group_by", []))
+
+        # The special value '...' disables aggregation entirely. Do not add topology in that case.
+        # Ref: https://prometheus.io/docs/alerting/latest/configuration/#route
+        if group_by != {"..."}:
+            group_by = list(group_by.union(["juju_application", "juju_model", "juju_model_uuid"]))
+        route["group_by"] = list(group_by)
         config["route"] = route
         return yaml.safe_dump(config)
 
