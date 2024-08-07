@@ -695,14 +695,14 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(increase(alertmanager_notifications_total{instance=~\"$instance\"}[$__interval])) by (integration)",
+          "expr": "sum(increase(alertmanager_notifications_total{instance=~\"$instance\"}[$__rate_interval])) by (integration)",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "{{ integration}}",
           "refId": "B"
         },
         {
-          "expr": "sum(increase(alertmanager_notifications_failed_total{instance=~\"$instance\"}[$__interval])) by (integration)",
+          "expr": "sum(increase(alertmanager_notifications_failed_total{instance=~\"$instance\"}[$__rate_interval])) by (integration)",
           "format": "time_series",
           "hide": false,
           "interval": "",
@@ -807,14 +807,14 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(histogram_quantile(0.9,rate(alertmanager_notification_latency_seconds_bucket{instance=~\"$instance\"}[$__interval]))) by (integration)",
+          "expr": "sum(histogram_quantile(0.9,rate(alertmanager_notification_latency_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))) by (integration)",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "0.9q {{ integration }}",
           "refId": "B"
         },
         {
-          "expr": "sum(histogram_quantile(0.99,rate(alertmanager_notification_latency_seconds_bucket{instance=~\"$instance\"}[$__interval]))) by (integration)",
+          "expr": "sum(histogram_quantile(0.99,rate(alertmanager_notification_latency_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))) by (integration)",
           "format": "time_series",
           "interval": "",
           "intervalFactor": 1,
@@ -1023,7 +1023,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(increase(alertmanager_alerts_received_total{instance=~\"$instance\"}[$__interval])) by (status)",
+          "expr": "sum(increase(alertmanager_alerts_received_total{instance=~\"$instance\"}[$__rate_interval])) by (status)",
           "format": "time_series",
           "interval": "",
           "intervalFactor": 1,
@@ -1977,14 +1977,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_cluster_peers_left_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_peers_left_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Cluster joined peers",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_cluster_peers_joined_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_peers_joined_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Cluster left peers",
@@ -2086,14 +2086,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_cluster_peers_left_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_peers_left_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Cluster joined peers",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_cluster_peers_joined_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_peers_joined_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Cluster left peers",
@@ -2195,14 +2195,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_cluster_peers_left_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_peers_left_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Cluster joined peers",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_cluster_peers_joined_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_peers_joined_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Cluster left peers",
@@ -2304,14 +2304,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_cluster_peers_left_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_peers_left_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Cluster joined peers",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_cluster_peers_joined_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_peers_joined_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Cluster left peers",
@@ -2412,14 +2412,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_cluster_reconnections_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_reconnections_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Successful reconnections",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_cluster_reconnections_failed_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_reconnections_failed_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Failed reconnections",
@@ -2521,14 +2521,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_cluster_reconnections_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_reconnections_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Successful reconnections",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_cluster_reconnections_failed_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_reconnections_failed_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Failed reconnections",
@@ -2630,14 +2630,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_cluster_reconnections_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_reconnections_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Successful reconnections",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_cluster_reconnections_failed_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_reconnections_failed_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Failed reconnections",
@@ -2739,14 +2739,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_cluster_reconnections_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_reconnections_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Successful reconnections",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_cluster_reconnections_failed_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_cluster_reconnections_failed_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Failed reconnections",
@@ -2854,14 +2854,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_sent_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_sent_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "sent {{msg_type}}",
               "refId": "A"
             },
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_received_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_received_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "received {{msg_type}}",
@@ -2970,14 +2970,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_sent_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_sent_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "sent {{msg_type}}",
               "refId": "A"
             },
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_received_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_received_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "received {{msg_type}}",
@@ -3086,14 +3086,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_sent_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_sent_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "sent {{msg_type}}",
               "refId": "A"
             },
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_received_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_received_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "received {{msg_type}}",
@@ -3202,14 +3202,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_sent_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_sent_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "sent {{msg_type}}",
               "refId": "A"
             },
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_received_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_received_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "received {{msg_type}}",
@@ -3317,14 +3317,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_sent_size_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_sent_size_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "sent {{msg_type}}",
               "refId": "A"
             },
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_received_size_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_received_size_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "received {{msg_type}}",
@@ -3433,14 +3433,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_sent_size_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_sent_size_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "sent {{msg_type}}",
               "refId": "A"
             },
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_received_size_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_received_size_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "received {{msg_type}}",
@@ -3549,14 +3549,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_sent_size_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_sent_size_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "sent {{msg_type}}",
               "refId": "A"
             },
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_received_size_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_received_size_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "received {{msg_type}}",
@@ -3665,14 +3665,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_sent_size_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_sent_size_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "sent {{msg_type}}",
               "refId": "A"
             },
             {
-              "expr": "sum(increase(alertmanager_cluster_messages_received_size_total{instance=~\"$instance\"}[$__interval])) by (msg_type)",
+              "expr": "sum(increase(alertmanager_cluster_messages_received_size_total{instance=~\"$instance\"}[$__rate_interval])) by (msg_type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "received {{msg_type}}",
@@ -4222,7 +4222,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_sent_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_sent_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -4230,14 +4230,14 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_dropped_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_dropped_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "dropped {{key}}",
               "refId": "B"
             },
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_failure_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_failure_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "failed {{key}}",
@@ -4343,7 +4343,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_sent_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_sent_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -4351,14 +4351,14 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_dropped_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_dropped_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "dropped {{key}}",
               "refId": "B"
             },
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_failure_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_failure_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "failed {{key}}",
@@ -4464,7 +4464,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_sent_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_sent_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -4472,14 +4472,14 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_dropped_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_dropped_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "dropped {{key}}",
               "refId": "B"
             },
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_failure_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_failure_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "failed {{key}}",
@@ -4585,7 +4585,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_sent_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_sent_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -4593,14 +4593,14 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_dropped_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_dropped_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "dropped {{key}}",
               "refId": "B"
             },
             {
-              "expr": "increase(alertmanager_oversized_gossip_message_failure_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_oversized_gossip_message_failure_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "failed {{key}}",
@@ -4700,7 +4700,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -4802,7 +4802,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -4904,7 +4904,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -5006,7 +5006,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -5107,7 +5107,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_silences_gossip_messages_propagated_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_gossip_messages_propagated_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -5115,7 +5115,7 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_nflog_gossip_messages_propagated_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_gossip_messages_propagated_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "nf_log",
@@ -5216,7 +5216,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_silences_gossip_messages_propagated_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_gossip_messages_propagated_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -5224,7 +5224,7 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_nflog_gossip_messages_propagated_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_gossip_messages_propagated_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "nf_log",
@@ -5325,7 +5325,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_silences_gossip_messages_propagated_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_gossip_messages_propagated_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -5333,7 +5333,7 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_nflog_gossip_messages_propagated_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_gossip_messages_propagated_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "nf_log",
@@ -5434,7 +5434,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_silences_gossip_messages_propagated_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_gossip_messages_propagated_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -5442,7 +5442,7 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_nflog_gossip_messages_propagated_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_gossip_messages_propagated_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "nf_log",
@@ -5556,14 +5556,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_nflog_queries_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_queries_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query count",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_nflog_query_errors_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_query_errors_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query errors",
@@ -5664,14 +5664,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_nflog_queries_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_queries_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query count",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_nflog_query_errors_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_query_errors_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query errors",
@@ -5772,14 +5772,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_nflog_queries_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_queries_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query count",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_nflog_query_errors_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_query_errors_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query errors",
@@ -5880,14 +5880,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_nflog_queries_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_queries_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query count",
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_nflog_query_errors_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_nflog_query_errors_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query errors",
@@ -5987,7 +5987,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query duration",
@@ -6088,7 +6088,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query duration",
@@ -6189,7 +6189,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query duration",
@@ -6290,7 +6290,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query duration",
@@ -6793,7 +6793,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -6895,7 +6895,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -6997,7 +6997,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -7099,7 +7099,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8024,7 +8024,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_silences_queries_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_queries_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8032,7 +8032,7 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_silences_query_errors_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_query_errors_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Silecnces query fails",
@@ -8133,7 +8133,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_silences_queries_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_queries_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8141,7 +8141,7 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_silences_query_errors_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_query_errors_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Silecnces query fails",
@@ -8242,7 +8242,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_silences_queries_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_queries_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8250,7 +8250,7 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_silences_query_errors_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_query_errors_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Silecnces query fails",
@@ -8351,7 +8351,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(alertmanager_silences_queries_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_queries_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8359,7 +8359,7 @@
               "refId": "A"
             },
             {
-              "expr": "increase(alertmanager_silences_query_errors_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "increase(alertmanager_silences_query_errors_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Silecnces query fails",
@@ -8459,7 +8459,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8561,7 +8561,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8663,7 +8663,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8765,7 +8765,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -10103,12 +10103,12 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "groupBy": [
                 {
                   "params": [
-                    "$__interval"
+                    "$__rate_interval"
                   ],
                   "type": "time"
                 },
@@ -10247,12 +10247,12 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "groupBy": [
                 {
                   "params": [
-                    "$__interval"
+                    "$__rate_interval"
                   ],
                   "type": "time"
                 },
@@ -10391,12 +10391,12 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "groupBy": [
                 {
                   "params": [
-                    "$__interval"
+                    "$__rate_interval"
                   ],
                   "type": "time"
                 },
@@ -10535,12 +10535,12 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "groupBy": [
                 {
                   "params": [
-                    "$__interval"
+                    "$__rate_interval"
                   ],
                   "type": "time"
                 },
