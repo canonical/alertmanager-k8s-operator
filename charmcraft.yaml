@@ -11,4 +11,8 @@ bases:
       channel: "20.04"
 parts:
   charm:
+    build-packages:
+      # rustc and cargo required to build tracing lib's dependency pydantic
+      - rustc
+      - cargo
     charm-binary-python-packages: [ops, PyYAML, cryptography, jsonschema]
