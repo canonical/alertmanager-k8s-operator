@@ -807,14 +807,14 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(histogram_quantile(0.9,rate(alertmanager_notification_latency_seconds_bucket{instance=~\"$instance\"}[$__interval]))) by (integration)",
+          "expr": "sum(histogram_quantile(0.9,rate(alertmanager_notification_latency_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))) by (integration)",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "0.9q {{ integration }}",
           "refId": "B"
         },
         {
-          "expr": "sum(histogram_quantile(0.99,rate(alertmanager_notification_latency_seconds_bucket{instance=~\"$instance\"}[$__interval]))) by (integration)",
+          "expr": "sum(histogram_quantile(0.99,rate(alertmanager_notification_latency_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))) by (integration)",
           "format": "time_series",
           "interval": "",
           "intervalFactor": 1,
@@ -4700,7 +4700,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -4802,7 +4802,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -4904,7 +4904,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -5006,7 +5006,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_oversize_gossip_message_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -5987,7 +5987,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query duration",
@@ -6088,7 +6088,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query duration",
@@ -6189,7 +6189,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query duration",
@@ -6290,7 +6290,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_nflog_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "Nf log query duration",
@@ -6793,7 +6793,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -6895,7 +6895,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -6997,7 +6997,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -7099,7 +7099,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval]) / rate(alertmanager_nflog_snapshot_duration_seconds_sum{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8459,7 +8459,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8561,7 +8561,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8663,7 +8663,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -8765,7 +8765,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__interval]))",
+              "expr": "histogram_quantile(1,rate(alertmanager_silences_query_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -10103,7 +10103,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "groupBy": [
                 {
@@ -10247,7 +10247,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "groupBy": [
                 {
@@ -10391,7 +10391,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "groupBy": [
                 {
@@ -10535,7 +10535,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__interval])",
+              "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[$__rate_interval])",
               "format": "time_series",
               "groupBy": [
                 {
