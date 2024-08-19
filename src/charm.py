@@ -350,6 +350,15 @@ class AlertmanagerCharm(CharmBase):
         config = self.config["config_file"]
         if config:
             local_config = yaml.safe_load(cast(str, config))
+
+            # If `juju config` is executed like this `config_file=am.yaml` instead of
+            # `config_file=@am.yaml` local_config will be the string `am.yaml` instead
+            # of its content (dict).
+            if not isinstance(local_config, dict):
+                msg = f"Unable to set config from file. Use juju config {self.unit.name} config_file=@FILENAME"
+                logger.error(msg)
+                raise ConfigUpdateFailure(msg)
+
             local_templates = cast(str, self.config["templates_file"]) or None
             return local_config, local_templates
         return None
