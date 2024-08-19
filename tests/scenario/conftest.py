@@ -4,9 +4,10 @@
 from unittest.mock import patch
 
 import pytest
+from scenario import Context
+
 from alertmanager import WorkloadManager
 from charm import AlertmanagerCharm
-from scenario import Context
 
 
 def tautology(*_, **__) -> bool:
