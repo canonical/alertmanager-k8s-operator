@@ -4,10 +4,11 @@
 import unittest
 from unittest.mock import PropertyMock, patch
 
-from alertmanager import WorkloadManager
-from charm import AlertmanagerCharm
 from helpers import k8s_resource_multipatch
 from ops.testing import Harness
+
+from alertmanager import WorkloadManager
+from charm import AlertmanagerCharm
 
 
 class TestWithInitialHooks(unittest.TestCase):

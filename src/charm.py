@@ -13,12 +13,6 @@ from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
-from alertmanager import (
-    ConfigFileSystemState,
-    ConfigUpdateFailure,
-    WorkloadManager,
-    WorkloadManagerError,
-)
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -38,7 +32,6 @@ from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_k8s.v1.charm_tracing import trace_charm
 from charms.tempo_k8s.v2.tracing import TracingEndpointRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
-from config_builder import ConfigBuilder, ConfigError
 from ops.charm import ActionEvent, CharmBase
 from ops.main import main
 from ops.model import (
@@ -50,6 +43,14 @@ from ops.model import (
     WaitingStatus,
 )
 from ops.pebble import PathError, ProtocolError  # type: ignore
+
+from alertmanager import (
+    ConfigFileSystemState,
+    ConfigUpdateFailure,
+    WorkloadManager,
+    WorkloadManagerError,
+)
+from config_builder import ConfigBuilder, ConfigError
 
 logger = logging.getLogger(__name__)
 
