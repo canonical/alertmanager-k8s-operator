@@ -1,0 +1,9 @@
+route:
+  receiver: test_receiver
+  group_by:
+  - alertname
+  group_wait: 1234s
+  group_interval: 4321s
+  repeat_interval: 1111h
+receivers:
+- name: test_receiver
