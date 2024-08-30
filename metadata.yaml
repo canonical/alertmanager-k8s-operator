@@ -62,6 +62,8 @@ provides:
     interface: grafana_dashboard
   grafana-source:
     interface: grafana_datasource
+  k6:
+    interface: k6
 
 requires:
   ingress:

@@ -207,6 +207,11 @@ class AlertmanagerCharm(CharmBase):
             self.on[self._relations.peer].relation_changed, self._on_peer_relation_changed
         )
 
+        self.framework.observe(
+            self.on["k6"].relation_joined,
+            self._on_k6_relation_joined,
+        )
+
         # Action events
         self.framework.observe(
             self.on.show_config_action, self._on_show_config_action  # pyright: ignore
@@ -490,6 +495,15 @@ class AlertmanagerCharm(CharmBase):
     def _on_peer_relation_joined(self, _):
         """Event handler for replica's RelationChangedEvent."""
         self._common_exit_hook()
+
+    def _on_k6_relation_joined(self, event):
+        from pathlib import Path
+        import json
+        from string import Template
+
+        event.relation.data[self.unit]["tests"] = json.dumps({
+            p.name: Template(p.read_text()).substitute({"url": self._external_url}) for p in Path("./src/k6_tests/").glob("**/*") if p.is_file()
+        })
 
     def _on_peer_relation_changed(self, _):
         """Event handler for replica's RelationChangedEvent.
