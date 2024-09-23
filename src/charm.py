@@ -165,6 +165,7 @@ class AlertmanagerCharm(CharmBase):
 
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.start, self._on_start)
 
         peer_ha_netlocs = [
             f"{hostname}:{self._ports.ha}"
@@ -484,6 +485,10 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_config_changed(self, _):
+        """Event handler for ConfigChangedEvent."""
+        self._common_exit_hook(update_ca_certs=True)
+
+    def _on_start(self, _):
         """Event handler for ConfigChangedEvent."""
         self._common_exit_hook(update_ca_certs=True)
 
