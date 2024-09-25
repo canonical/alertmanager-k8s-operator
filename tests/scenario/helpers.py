@@ -1,11 +1,20 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from scenario import Container, Context, PeerRelation, Relation, State
+from scenario import Container, Context, ExecOutput, PeerRelation, Relation, State
 
 
 def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) -> State:
-    container = Container("alertmanager", can_connect=False)
+    container = Container(
+        "alertmanager",
+        can_connect=False,
+        exec_mock={
+            ("update-ca-certificates", "--fresh"): ExecOutput(  # this is the command we're mocking
+                return_code=0,  # this data structure contains all we need to mock the call.
+                stdout="OK",
+            )
+        },
+    )
     state = State(config={"config_file": ""}, containers=[container])
     peer_rel = PeerRelation("replicas")
 
