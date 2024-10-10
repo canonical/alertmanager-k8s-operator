@@ -9,7 +9,6 @@ import os
 import re
 from typing import Callable, Dict, List, Optional, Tuple
 
-from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 from ops.framework import Object
 from ops.model import Container
 from ops.pebble import (  # type: ignore
@@ -17,6 +16,8 @@ from ops.pebble import (  # type: ignore
     ExecError,
     Layer,
 )
+
+from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
 logger = logging.getLogger(__name__)
 

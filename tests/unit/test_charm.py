@@ -6,12 +6,13 @@ from unittest.mock import patch
 
 import ops
 import yaml
-from alertmanager import WorkloadManager
-from charm import AlertmanagerCharm
 from helpers import k8s_resource_multipatch
 from ops import pebble
 from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
+
+from alertmanager import WorkloadManager
+from charm import AlertmanagerCharm
 
 ops.testing.SIMULATE_CAN_CONNECT = True
 

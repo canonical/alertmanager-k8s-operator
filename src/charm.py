@@ -13,12 +13,6 @@ from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
-from alertmanager import (
-    ConfigFileSystemState,
-    ConfigUpdateFailure,
-    WorkloadManager,
-    WorkloadManagerError,
-)
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -38,7 +32,6 @@ from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
-from config_builder import ConfigBuilder, ConfigError
 from ops.charm import ActionEvent, CharmBase
 from ops.main import main
 from ops.model import (
@@ -50,6 +43,14 @@ from ops.model import (
     WaitingStatus,
 )
 from ops.pebble import PathError, ProtocolError  # type: ignore
+
+from alertmanager import (
+    ConfigFileSystemState,
+    ConfigUpdateFailure,
+    WorkloadManager,
+    WorkloadManagerError,
+)
+from config_builder import ConfigBuilder, ConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,7 @@ class AlertmanagerCharm(CharmBase):
 
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.start, self._on_start)
 
         peer_ha_netlocs = [
             f"{hostname}:{self._ports.ha}"
@@ -350,6 +352,15 @@ class AlertmanagerCharm(CharmBase):
         config = self.config["config_file"]
         if config:
             local_config = yaml.safe_load(cast(str, config))
+
+            # If `juju config` is executed like this `config_file=am.yaml` instead of
+            # `config_file=@am.yaml` local_config will be the string `am.yaml` instead
+            # of its content (dict).
+            if not isinstance(local_config, dict):
+                msg = f"Unable to set config from file. Use juju config {self.unit.name} config_file=@FILENAME"
+                logger.error(msg)
+                raise ConfigUpdateFailure(msg)
+
             local_templates = cast(str, self.config["templates_file"]) or None
             return local_config, local_templates
         return None
@@ -474,6 +485,10 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_config_changed(self, _):
+        """Event handler for ConfigChangedEvent."""
+        self._common_exit_hook(update_ca_certs=True)
+
+    def _on_start(self, _):
         """Event handler for ConfigChangedEvent."""
         self._common_exit_hook(update_ca_certs=True)
 

@@ -8,10 +8,11 @@ from unittest.mock import patch
 
 import ops
 import yaml
-from alertmanager import WorkloadManager
-from charm import AlertmanagerCharm
 from helpers import cli_arg, k8s_resource_multipatch
 from ops.testing import Harness
+
+from alertmanager import WorkloadManager
+from charm import AlertmanagerCharm
 
 logger = logging.getLogger(__name__)
 
