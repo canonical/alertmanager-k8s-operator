@@ -11,7 +11,8 @@ jsonschema
 # Code: https://github.com/canonical/operator/
 # Docs: https://ops.rtfd.io/
 # Deps: charm
-ops >= 2.10
+# pinned to 2.16 as 2.17 breaks our unittests
+ops == 2.16
 
 # YAML processing framework
 # Code: https://github.com/yaml/pyyaml
