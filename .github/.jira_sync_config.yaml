@@ -8,6 +8,9 @@ settings:
   components:
     - alertmanager
     - team-core
+
+  labels:
+    - 25.04
       
   add_gh_comment: false
   sync_description: false
@@ -15,3 +18,4 @@ settings:
 
   label_mapping:
     "Type: Enhancement": Story
+    "Type: Bug": Bug
