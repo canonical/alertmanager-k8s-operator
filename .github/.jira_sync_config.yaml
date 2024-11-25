@@ -18,4 +18,3 @@ settings:
 
   label_mapping:
     "Type: Enhancement": Story
-    "Type: Bug": Bug
