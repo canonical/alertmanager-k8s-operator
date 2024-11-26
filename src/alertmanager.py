@@ -84,6 +84,7 @@ class WorkloadManager(Object):
         api_port: int,
         ha_port: int,
         web_external_url: str,
+        web_route_prefix: str,
         config_path: str,
         web_config_path: str,
         tls_enabled: Callable[[], bool],
@@ -103,6 +104,7 @@ class WorkloadManager(Object):
         self._ha_port = ha_port
         self.api = Alertmanager(endpoint_url=web_external_url, cafile=cafile)
         self._web_external_url = web_external_url
+        self._web_route_prefix = web_route_prefix
         self._config_path = config_path
         self._web_config_path = web_config_path
         self._is_tls_enabled = tls_enabled
@@ -190,6 +192,7 @@ class WorkloadManager(Object):
                 f"--web.listen-address=:{self._api_port} "
                 f"--cluster.listen-address={listen_netloc_arg} "
                 f"--web.external-url={self._web_external_url} "
+                f"--web.route-prefix={self._web_route_prefix} "
                 f"{web_config_arg}"
                 f"{peer_cmd_args}"
             )

@@ -36,3 +36,6 @@ pydantic>=2
 
 # Deps: tracing
 opentelemetry-exporter-otlp-proto-http>=1.21.0
+
+# Deps: lib/charms/observability_libs/v0/kubernetes_compute_resources_patch.py
+tenacity

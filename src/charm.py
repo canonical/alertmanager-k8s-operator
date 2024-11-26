@@ -142,7 +142,8 @@ class AlertmanagerCharm(CharmBase):
             resource_reqs_func=self._resource_reqs_from_config,
         )
         self.framework.observe(
-            self.resources_patch.on.patch_failed, self._on_k8s_patch_failed  # pyright: ignore
+            self.resources_patch.on.patch_failed,
+            self._on_k8s_patch_failed,  # pyright: ignore
         )
 
         # Self-monitoring
@@ -178,7 +179,8 @@ class AlertmanagerCharm(CharmBase):
             peer_netlocs=peer_ha_netlocs,
             api_port=self.api_port,
             ha_port=self._ports.ha,
-            web_external_url=self._internal_url,
+            web_external_url=self._external_url,
+            web_route_prefix="/",
             config_path=self._config_path,
             web_config_path=self._web_config_path,
             tls_enabled=self._is_tls_ready,
@@ -210,10 +212,12 @@ class AlertmanagerCharm(CharmBase):
 
         # Action events
         self.framework.observe(
-            self.on.show_config_action, self._on_show_config_action  # pyright: ignore
+            self.on.show_config_action,
+            self._on_show_config_action,  # pyright: ignore
         )
         self.framework.observe(
-            self.on.check_config_action, self._on_check_config  # pyright: ignore
+            self.on.check_config_action,
+            self._on_check_config,  # pyright: ignore
         )
 
     def set_ports(self):
