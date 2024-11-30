@@ -448,9 +448,7 @@ class AlertmanagerCharm(CharmBase):
         #  - https://github.com/canonical/prometheus-k8s-operator/issues/530,
         self.alertmanager_provider.update(external_url=self._internal_url)
 
-        self.ingress.provide_ingress_requirements(
-            scheme=self._scheme, port=self.api_port
-        )
+        self.ingress.provide_ingress_requirements(scheme=self._scheme, port=self.api_port)
         self._scraping.update_scrape_job_spec(self.self_scraping_job)
 
         if self.peer_relation:
@@ -580,10 +578,10 @@ class AlertmanagerCharm(CharmBase):
     def _certs_on_disk(self) -> bool:
         """Check if the TLS setup is ready on disk."""
         return (
-                self.container.can_connect()
-                and self.container.exists(self._server_cert_path)
-                and self.container.exists(self._key_path)
-                and self.container.exists(self._ca_cert_path)
+            self.container.can_connect()
+            and self.container.exists(self._server_cert_path)
+            and self.container.exists(self._key_path)
+            and self.container.exists(self._ca_cert_path)
         )
 
     def _is_tls_ready(self) -> bool:

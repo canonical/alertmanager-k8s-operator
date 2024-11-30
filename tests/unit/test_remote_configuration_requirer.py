@@ -5,7 +5,7 @@ import json
 import logging
 import unittest
 from typing import cast
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
@@ -53,8 +53,12 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
         self.harness.set_leader(True)
 
-        self.harness.handle_exec('alertmanager', ["update-ca-certificates", "--fresh"], result="")
-        self.harness.handle_exec('alertmanager', [WorkloadManager._amtool_path, "check-config", AlertmanagerCharm._config_path], result="")
+        self.harness.handle_exec("alertmanager", ["update-ca-certificates", "--fresh"], result="")
+        self.harness.handle_exec(
+            "alertmanager",
+            [WorkloadManager._amtool_path, "check-config", AlertmanagerCharm._config_path],
+            result="",
+        )
 
         # TODO: Once we're on ops 2.0.0+ this can be removed as begin_with_initial_hooks()
         # now does it.
@@ -77,7 +81,8 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
 
     @k8s_resource_multipatch
     def test_valid_config_pushed_to_relation_data_bag_updates_alertmanager_config(
-        self, *_,
+        self,
+        *_,
     ):
         expected_config = remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
         # add juju topology to "group_by"
@@ -104,7 +109,8 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
     @k8s_resource_multipatch
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     def test_configs_available_from_both_relation_data_bag_and_charm_config_block_charm(
-        self, *_,
+        self,
+        *_,
     ):
         sample_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
         self.harness.update_relation_data(
@@ -121,7 +127,8 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
     @patch("config_builder.default_config", yaml.safe_load(TEST_ALERTMANAGER_DEFAULT_CONFIG))
     @k8s_resource_multipatch
     def test_invalid_config_pushed_to_the_relation_data_bag_does_not_update_alertmanager_config(
-        self, *_,
+        self,
+        *_,
     ):
         invalid_config = yaml.safe_load("some: invalid_config")
 
@@ -137,7 +144,8 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
     def test_templates_pushed_to_relation_data_bag_are_saved_to_templates_file_in_alertmanager(
-        self, *_,
+        self,
+        *_,
     ):
         sample_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
         test_template = '{{define "myTemplate"}}do something{{end}}'

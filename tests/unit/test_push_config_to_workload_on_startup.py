@@ -121,7 +121,7 @@ class TestInvalidConfig(unittest.TestCase):
         self.harness = Harness(AlertmanagerCharm)
         self.addCleanup(self.harness.cleanup)
 
-        self.harness.handle_exec('alertmanager', ["update-ca-certificates", "--fresh"], result="")
+        self.harness.handle_exec("alertmanager", ["update-ca-certificates", "--fresh"], result="")
 
     @k8s_resource_multipatch
     @patch("lightkube.core.client.GenericSyncClient")
