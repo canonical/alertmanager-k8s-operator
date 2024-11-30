@@ -409,7 +409,7 @@ class AlertmanagerCharm(CharmBase):
                 self._templates_path: config_suite.templates,
                 self._amtool_config_path: config_suite.amtool,
                 self._server_cert_path: self.server_cert.server_cert,
-                self._key_path: self.server_cert.private_key if self.server_cert.enabled else None,
+                self._key_path: self.server_cert.private_key,
                 self._ca_cert_path: self.server_cert.ca_cert,
             }
         )
@@ -467,7 +467,9 @@ class AlertmanagerCharm(CharmBase):
             return
 
         # Update pebble layer
+        logger.info("Before update_layer. Certs on disk: %s, tls ready: %s. Plan: %s", self._certs_on_disk, self._is_tls_ready(), self.container.get_plan().to_dict())
         self.alertmanager_workload.update_layer()
+        logger.info("After update_layer. Certs on disk: %s, tls ready: %s. Plan: %s", self._certs_on_disk, self._is_tls_ready(), self.container.get_plan().to_dict())
 
         # Reload or restart the service
         try:
