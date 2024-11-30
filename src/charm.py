@@ -106,7 +106,7 @@ class AlertmanagerCharm(CharmBase):
         self.ingress = IngressPerAppRequirer(
             self,
             port=self.api_port,
-            scheme=lambda: urlparse(self._internal_url).scheme,
+            scheme=self._scheme,
             strip_prefix=True,
             redirect_https=True,
         )
@@ -184,6 +184,7 @@ class AlertmanagerCharm(CharmBase):
             config_path=self._config_path,
             web_config_path=self._web_config_path,
             tls_enabled=self._is_tls_ready,
+            is_waiting_for_cert=self._is_waiting_for_cert,
             cafile=self._ca_cert_path if Path(self._ca_cert_path).exists() else None,
         )
         self.framework.observe(
@@ -424,6 +425,9 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return
 
+        if update_ca_certs or (self.server_cert.available and not self._certs_on_disk):
+            self._update_ca_certs()
+
         # Make sure the external url is valid
         if external_url := self._external_url:
             parsed = urlparse(external_url)
@@ -445,7 +449,7 @@ class AlertmanagerCharm(CharmBase):
         self.alertmanager_provider.update(external_url=self._internal_url)
 
         self.ingress.provide_ingress_requirements(
-            scheme=urlparse(self._internal_url).scheme, port=self.api_port
+            scheme=self._scheme, port=self.api_port
         )
         self._scraping.update_scrape_job_spec(self.self_scraping_job)
 
@@ -463,9 +467,6 @@ class AlertmanagerCharm(CharmBase):
         except (ConfigUpdateFailure, ConfigError) as e:
             self.unit.status = BlockedStatus(str(e))
             return
-
-        if update_ca_certs:
-            self._update_ca_certs()
 
         # Update pebble layer
         self.alertmanager_workload.update_layer()
@@ -575,14 +576,22 @@ class AlertmanagerCharm(CharmBase):
 
         return hostnames
 
+    @property
+    def _certs_on_disk(self) -> bool:
+        """Check if the TLS setup is ready on disk."""
+        return (
+                self.container.can_connect()
+                and self.container.exists(self._server_cert_path)
+                and self.container.exists(self._key_path)
+                and self.container.exists(self._ca_cert_path)
+        )
+
     def _is_tls_ready(self) -> bool:
         """Returns True if the workload is ready to operate in TLS mode."""
-        return (
-            self.container.can_connect()
-            and self.container.exists(self._server_cert_path)
-            and self.container.exists(self._key_path)
-            and self.container.exists(self._ca_cert_path)
-        )
+        return self.server_cert.available and self._certs_on_disk
+
+    def _is_waiting_for_cert(self) -> bool:
+        return self.server_cert.enabled and not self.server_cert.available
 
     @property
     def _internal_url(self) -> str:

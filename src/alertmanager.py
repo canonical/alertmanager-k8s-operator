@@ -88,6 +88,7 @@ class WorkloadManager(Object):
         config_path: str,
         web_config_path: str,
         tls_enabled: Callable[[], bool],
+        is_waiting_for_cert: Callable[[], bool],
         cafile: Optional[str],
     ):
         # Must inherit from ops 'Object' to be able to register events.
@@ -108,6 +109,7 @@ class WorkloadManager(Object):
         self._config_path = config_path
         self._web_config_path = web_config_path
         self._is_tls_enabled = tls_enabled
+        self._is_waiting_for_cert = is_waiting_for_cert
 
         # turn the container name to a valid Python identifier
         snake_case_container_name = self._container_name.replace("-", "_")
@@ -213,7 +215,7 @@ class WorkloadManager(Object):
                         "override": "replace",
                         "summary": "alertmanager service",
                         "command": _command(),
-                        "startup": "enabled",
+                        "startup": "disabled",
                         "environment": _environment(),
                     }
                 },
@@ -233,6 +235,13 @@ class WorkloadManager(Object):
             # This would be caught by pebble (default timeout is 30 sec) and a ChangeError
             # would be raised.
             self._container.replan()
+            restart = not self._container.get_service(self._service_name).is_running()
+            if self._is_waiting_for_cert():
+                self._container.stop(self._service_name)
+                logger.info("%s stopped - waiting for cert", self._service_name)
+            elif restart:
+                self._container.restart(self._service_name)
+                logger.info("%s restarted", self._service_name)
         except ChangeError as e:
             logger.error(
                 "Failed to replan; pebble plan: %s; %s",
