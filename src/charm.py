@@ -184,7 +184,6 @@ class AlertmanagerCharm(CharmBase):
             config_path=self._config_path,
             web_config_path=self._web_config_path,
             tls_enabled=self._is_tls_ready,
-            is_waiting_for_cert=self._is_waiting_for_cert,
             cafile=self._ca_cert_path if Path(self._ca_cert_path).exists() else None,
         )
         self.framework.observe(
@@ -467,9 +466,7 @@ class AlertmanagerCharm(CharmBase):
             return
 
         # Update pebble layer
-        logger.info("Before update_layer. Certs on disk: %s, tls ready: %s. Plan: %s", self._certs_on_disk, self._is_tls_ready(), self.container.get_plan().to_dict())
         self.alertmanager_workload.update_layer()
-        logger.info("After update_layer. Certs on disk: %s, tls ready: %s. Plan: %s", self._certs_on_disk, self._is_tls_ready(), self.container.get_plan().to_dict())
 
         # Reload or restart the service
         try:
