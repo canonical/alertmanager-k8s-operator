@@ -106,7 +106,7 @@ class AlertmanagerCharm(CharmBase):
         self.ingress = IngressPerAppRequirer(
             self,
             port=self.api_port,
-            scheme=lambda: urlparse(self._internal_url).scheme,
+            scheme=self._scheme,
             strip_prefix=True,
             redirect_https=True,
         )
@@ -408,7 +408,7 @@ class AlertmanagerCharm(CharmBase):
                 self._templates_path: config_suite.templates,
                 self._amtool_config_path: config_suite.amtool,
                 self._server_cert_path: self.server_cert.server_cert,
-                self._key_path: self.server_cert.private_key if self.server_cert.enabled else None,
+                self._key_path: self.server_cert.private_key,
                 self._ca_cert_path: self.server_cert.ca_cert,
             }
         )
@@ -423,6 +423,9 @@ class AlertmanagerCharm(CharmBase):
         if not self.container.can_connect():
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return
+
+        if update_ca_certs or (self.server_cert.available and not self._certs_on_disk):
+            self._update_ca_certs()
 
         # Make sure the external url is valid
         if external_url := self._external_url:
@@ -444,9 +447,7 @@ class AlertmanagerCharm(CharmBase):
         #  - https://github.com/canonical/prometheus-k8s-operator/issues/530,
         self.alertmanager_provider.update(external_url=self._internal_url)
 
-        self.ingress.provide_ingress_requirements(
-            scheme=urlparse(self._internal_url).scheme, port=self.api_port
-        )
+        self.ingress.provide_ingress_requirements(scheme=self._scheme, port=self.api_port)
         self._scraping.update_scrape_job_spec(self.self_scraping_job)
 
         if self.peer_relation:
@@ -463,9 +464,6 @@ class AlertmanagerCharm(CharmBase):
         except (ConfigUpdateFailure, ConfigError) as e:
             self.unit.status = BlockedStatus(str(e))
             return
-
-        if update_ca_certs:
-            self._update_ca_certs()
 
         # Update pebble layer
         self.alertmanager_workload.update_layer()
@@ -575,14 +573,22 @@ class AlertmanagerCharm(CharmBase):
 
         return hostnames
 
-    def _is_tls_ready(self) -> bool:
-        """Returns True if the workload is ready to operate in TLS mode."""
+    @property
+    def _certs_on_disk(self) -> bool:
+        """Check if the TLS setup is ready on disk."""
         return (
             self.container.can_connect()
             and self.container.exists(self._server_cert_path)
             and self.container.exists(self._key_path)
             and self.container.exists(self._ca_cert_path)
         )
+
+    def _is_tls_ready(self) -> bool:
+        """Returns True if the workload is ready to operate in TLS mode."""
+        return self.server_cert.available and self._certs_on_disk
+
+    def _is_waiting_for_cert(self) -> bool:
+        return self.server_cert.enabled and not self.server_cert.available
 
     @property
     def _internal_url(self) -> str:
