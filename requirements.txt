@@ -11,8 +11,7 @@ jsonschema
 # Code: https://github.com/canonical/operator/
 # Docs: https://ops.rtfd.io/
 # Deps: charm
-# pinned to 2.16 as 2.17 breaks our unittests
-ops == 2.16
+ops
 
 # YAML processing framework
 # Code: https://github.com/yaml/pyyaml
@@ -36,3 +35,6 @@ pydantic>=2
 
 # Deps: tracing
 opentelemetry-exporter-otlp-proto-http>=1.21.0
+
+# Deps: lib/charms/observability_libs/v0/kubernetes_compute_resources_patch.py
+tenacity
