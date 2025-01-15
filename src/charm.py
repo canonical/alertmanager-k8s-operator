@@ -30,7 +30,7 @@ from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
 from charms.observability_libs.v1.cert_handler import CertHandler
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
-from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
+from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer, charm_tracing_config
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
 from ops.charm import ActionEvent, CharmBase
 from ops.main import main
@@ -56,8 +56,8 @@ logger = logging.getLogger(__name__)
 
 
 @trace_charm(
-    tracing_endpoint="tracing_endpoint",
-    server_cert="server_ca_cert_path",
+    tracing_endpoint="_charm_tracing_endpoint",
+    server_cert="_charm_tracing_ca_cert",
     extra_types=(
         AlertmanagerProvider,
         CertHandler,
@@ -161,6 +161,9 @@ class AlertmanagerCharm(CharmBase):
             ],
         )
         self._tracing = TracingEndpointRequirer(self, protocols=["otlp_http"])
+        self._charm_tracing_endpoint, self._charm_tracing_ca_cert = charm_tracing_config(
+            self._tracing, self._ca_cert_path
+        )
 
         self.catalog = CatalogueConsumer(charm=self, item=self._catalogue_item)
 
@@ -603,18 +606,6 @@ class AlertmanagerCharm(CharmBase):
     @property
     def _scheme(self) -> str:
         return "https" if self._is_tls_ready() else "http"
-
-    @property
-    def tracing_endpoint(self) -> Optional[str]:
-        """Otlp http endpoint for charm instrumentation."""
-        if self._tracing.is_ready():
-            return self._tracing.get_endpoint("otlp_http")
-        return None
-
-    @property
-    def server_ca_cert_path(self) -> Optional[str]:
-        """Server CA certificate path for tls tracing."""
-        return self._ca_cert_path if self.server_cert.enabled else None
 
 
 if __name__ == "__main__":
