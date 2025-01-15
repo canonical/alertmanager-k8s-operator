@@ -13,12 +13,6 @@ from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
 import yaml
-from alertmanager import (
-    ConfigFileSystemState,
-    ConfigUpdateFailure,
-    WorkloadManager,
-    WorkloadManagerError,
-)
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -35,10 +29,9 @@ from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
 )
 from charms.observability_libs.v1.cert_handler import CertHandler
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from charms.tempo_k8s.v1.charm_tracing import trace_charm
-from charms.tempo_k8s.v2.tracing import TracingEndpointRequirer, charm_tracing_config
+from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
+from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
-from config_builder import ConfigBuilder, ConfigError
 from ops.charm import ActionEvent, CharmBase
 from ops.main import main
 from ops.model import (
@@ -50,6 +43,14 @@ from ops.model import (
     WaitingStatus,
 )
 from ops.pebble import PathError, ProtocolError  # type: ignore
+
+from alertmanager import (
+    ConfigFileSystemState,
+    ConfigUpdateFailure,
+    WorkloadManager,
+    WorkloadManagerError,
+)
+from config_builder import ConfigBuilder, ConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,7 @@ class AlertmanagerCharm(CharmBase):
         self.ingress = IngressPerAppRequirer(
             self,
             port=self.api_port,
-            scheme=lambda: urlparse(self._internal_url).scheme,
+            scheme=self._scheme,
             strip_prefix=True,
             redirect_https=True,
         )
@@ -141,7 +142,8 @@ class AlertmanagerCharm(CharmBase):
             resource_reqs_func=self._resource_reqs_from_config,
         )
         self.framework.observe(
-            self.resources_patch.on.patch_failed, self._on_k8s_patch_failed  # pyright: ignore
+            self.resources_patch.on.patch_failed,
+            self._on_k8s_patch_failed,  # pyright: ignore
         )
 
         # Self-monitoring
@@ -167,6 +169,7 @@ class AlertmanagerCharm(CharmBase):
 
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.start, self._on_start)
 
         peer_ha_netlocs = [
             f"{hostname}:{self._ports.ha}"
@@ -179,7 +182,8 @@ class AlertmanagerCharm(CharmBase):
             peer_netlocs=peer_ha_netlocs,
             api_port=self.api_port,
             ha_port=self._ports.ha,
-            web_external_url=self._internal_url,
+            web_external_url=self._external_url,
+            web_route_prefix="/",
             config_path=self._config_path,
             web_config_path=self._web_config_path,
             tls_enabled=self._is_tls_ready,
@@ -211,10 +215,12 @@ class AlertmanagerCharm(CharmBase):
 
         # Action events
         self.framework.observe(
-            self.on.show_config_action, self._on_show_config_action  # pyright: ignore
+            self.on.show_config_action,
+            self._on_show_config_action,  # pyright: ignore
         )
         self.framework.observe(
-            self.on.check_config_action, self._on_check_config  # pyright: ignore
+            self.on.check_config_action,
+            self._on_check_config,  # pyright: ignore
         )
 
     def set_ports(self):
@@ -353,6 +359,15 @@ class AlertmanagerCharm(CharmBase):
         config = self.config["config_file"]
         if config:
             local_config = yaml.safe_load(cast(str, config))
+
+            # If `juju config` is executed like this `config_file=am.yaml` instead of
+            # `config_file=@am.yaml` local_config will be the string `am.yaml` instead
+            # of its content (dict).
+            if not isinstance(local_config, dict):
+                msg = f"Unable to set config from file. Use juju config {self.unit.name} config_file=@FILENAME"
+                logger.error(msg)
+                raise ConfigUpdateFailure(msg)
+
             local_templates = cast(str, self.config["templates_file"]) or None
             return local_config, local_templates
         return None
@@ -396,7 +411,7 @@ class AlertmanagerCharm(CharmBase):
                 self._templates_path: config_suite.templates,
                 self._amtool_config_path: config_suite.amtool,
                 self._server_cert_path: self.server_cert.server_cert,
-                self._key_path: self.server_cert.private_key if self.server_cert.enabled else None,
+                self._key_path: self.server_cert.private_key,
                 self._ca_cert_path: self.server_cert.ca_cert,
             }
         )
@@ -411,6 +426,9 @@ class AlertmanagerCharm(CharmBase):
         if not self.container.can_connect():
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return
+
+        if update_ca_certs or (self.server_cert.available and not self._certs_on_disk):
+            self._update_ca_certs()
 
         # Make sure the external url is valid
         if external_url := self._external_url:
@@ -432,9 +450,7 @@ class AlertmanagerCharm(CharmBase):
         #  - https://github.com/canonical/prometheus-k8s-operator/issues/530,
         self.alertmanager_provider.update(external_url=self._internal_url)
 
-        self.ingress.provide_ingress_requirements(
-            scheme=urlparse(self._internal_url).scheme, port=self.api_port
-        )
+        self.ingress.provide_ingress_requirements(scheme=self._scheme, port=self.api_port)
         self._scraping.update_scrape_job_spec(self.self_scraping_job)
 
         if self.peer_relation:
@@ -451,9 +467,6 @@ class AlertmanagerCharm(CharmBase):
         except (ConfigUpdateFailure, ConfigError) as e:
             self.unit.status = BlockedStatus(str(e))
             return
-
-        if update_ca_certs:
-            self._update_ca_certs()
 
         # Update pebble layer
         self.alertmanager_workload.update_layer()
@@ -477,6 +490,10 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _on_config_changed(self, _):
+        """Event handler for ConfigChangedEvent."""
+        self._common_exit_hook(update_ca_certs=True)
+
+    def _on_start(self, _):
         """Event handler for ConfigChangedEvent."""
         self._common_exit_hook(update_ca_certs=True)
 
@@ -559,14 +576,22 @@ class AlertmanagerCharm(CharmBase):
 
         return hostnames
 
-    def _is_tls_ready(self) -> bool:
-        """Returns True if the workload is ready to operate in TLS mode."""
+    @property
+    def _certs_on_disk(self) -> bool:
+        """Check if the TLS setup is ready on disk."""
         return (
             self.container.can_connect()
             and self.container.exists(self._server_cert_path)
             and self.container.exists(self._key_path)
             and self.container.exists(self._ca_cert_path)
         )
+
+    def _is_tls_ready(self) -> bool:
+        """Returns True if the workload is ready to operate in TLS mode."""
+        return self.server_cert.available and self._certs_on_disk
+
+    def _is_waiting_for_cert(self) -> bool:
+        return self.server_cert.enabled and not self.server_cert.available
 
     @property
     def _internal_url(self) -> str:

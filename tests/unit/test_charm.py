@@ -6,12 +6,13 @@ from unittest.mock import patch
 
 import ops
 import yaml
-from alertmanager import WorkloadManager
-from charm import AlertmanagerCharm
 from helpers import k8s_resource_multipatch
 from ops import pebble
 from ops.model import ActiveStatus, BlockedStatus
 from ops.testing import Harness
+
+from alertmanager import WorkloadManager
+from charm import AlertmanagerCharm
 
 ops.testing.SIMULATE_CAN_CONNECT = True
 
@@ -220,10 +221,12 @@ class TestActions(unittest.TestCase):
     @k8s_resource_multipatch
     @patch.object(WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0"))
     def test_show_config(self, *_unused):
-        tls_paths = {
+        conditional_tls_paths = {
             self.harness.charm._server_cert_path,
-            self.harness.charm._key_path,
             self.harness.charm._ca_cert_path,
+        }
+        unconditional_paths = {
+            self.harness.charm._key_path,
         }
 
         # GIVEN an isolated charm (see setUp, decorator)
@@ -236,14 +239,16 @@ class TestActions(unittest.TestCase):
         # AND configs DOES NOT contain cert-related entries
         # results.configs is a list of dicts, [{"path": ..., "content": ...}, {...}, ...].
         paths_rendered = {d["path"] for d in yaml.safe_load(results["configs"])}
-        for filepath in tls_paths:
+        for filepath in conditional_tls_paths:
             self.assertNotIn(filepath, paths_rendered)
+        for filepath in unconditional_paths:
+            self.assertIn(filepath, paths_rendered)
 
         # AND GIVEN a tls relation is in place
         rel_id = self.harness.add_relation("certificates", "ca")
         self.harness.add_relation_unit(rel_id, "ca/0")
         # AND cert files are on disk
-        for filepath in tls_paths:
+        for filepath in conditional_tls_paths:
             self.harness.model.unit.get_container("alertmanager").push(
                 filepath, "test", make_dirs=True
             )
@@ -256,5 +261,7 @@ class TestActions(unittest.TestCase):
 
         # AND configs contains cert-related entries
         paths_rendered = {d["path"] for d in yaml.safe_load(results["configs"])}
-        for filepath in tls_paths:
+        for filepath in conditional_tls_paths:
+            self.assertIn(filepath, paths_rendered)
+        for filepath in unconditional_paths:
             self.assertIn(filepath, paths_rendered)
