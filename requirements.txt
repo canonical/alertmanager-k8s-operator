@@ -11,7 +11,7 @@ jsonschema
 # Code: https://github.com/canonical/operator/
 # Docs: https://ops.rtfd.io/
 # Deps: charm
-ops >= 2.10
+ops
 
 # YAML processing framework
 # Code: https://github.com/yaml/pyyaml
@@ -35,3 +35,6 @@ pydantic>=2
 
 # Deps: tracing
 opentelemetry-exporter-otlp-proto-http>=1.21.0
+
+# Deps: lib/charms/observability_libs/v0/kubernetes_compute_resources_patch.py
+tenacity

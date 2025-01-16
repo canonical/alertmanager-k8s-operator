@@ -16,6 +16,7 @@ from pathlib import Path
 
 import helpers
 import pytest
+import sh
 import yaml
 from deepdiff import DeepDiff  # type: ignore[import]
 from pytest_operator.plugin import OpsTest
@@ -102,6 +103,26 @@ async def test_remote_configuration_applied_on_relation_created(ops_test: OpsTes
             ignore_order=True,
         )
         == {}
+    )
+
+
+@pytest.mark.abort_on_fail
+async def test_remote_configuration_file_wrongly_applied(ops_test: OpsTest, setup):
+    sh.juju(
+        [
+            "config",
+            f"{APP_NAME}",
+            "-m",
+            ops_test.model_name,
+            "config_file=tests/integration/am_config.yaml",
+        ]
+    )
+
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME],
+        status="blocked",
+        timeout=1000,
+        idle_period=5,
     )
 
 

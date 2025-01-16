@@ -7,7 +7,12 @@ options:
     default: ""
     description: >
       Alertmanager configuration file (yaml), with the exclusion of the templates section.
-      Refer to https://www.prometheus.io/docs/alerting/latest/configuration/ for full details.
+      To send the contents of a file to this configuration option, the symbol `@` must be used.
+
+      Usage: `juju config alertmanager config_file=@alertmanager.yaml`
+
+      For more information on configuring the Alertmanager, refer to:
+      https://www.prometheus.io/docs/alerting/latest/configuration/
   templates_file:
     type: string
     default: ""

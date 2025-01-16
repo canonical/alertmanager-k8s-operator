@@ -4,9 +4,10 @@
 from unittest.mock import patch
 
 import pytest
+from scenario import Context
+
 from alertmanager import WorkloadManager
 from charm import AlertmanagerCharm
-from scenario import Context
 
 
 def tautology(*_, **__) -> bool:
@@ -22,6 +23,8 @@ def alertmanager_charm():
         is_ready=tautology,
     ), patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", "")), patch.object(
         WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0")
+    ), patch(
+        "subprocess.run"
     ):
         yield AlertmanagerCharm
 
