@@ -142,7 +142,9 @@ class WorkloadManager(Object):
         """
         if not self.is_ready:
             return None
-        version_output, _ = self._container.exec([self._exe_name, "--version"]).wait_output()
+        version_output, _ = self._container.exec(
+            [self._exe_name, "--version"], timeout=30
+        ).wait_output()
         # Output looks like this:
         # alertmanager, version 0.23.0 (branch: HEAD, ...
         result = re.search(r"version (\d*\.\d*\.\d*)", version_output)
@@ -159,7 +161,9 @@ class WorkloadManager(Object):
             raise ContainerNotReady(
                 "cannot check config: alertmanager workload container not ready"
             )
-        proc = self._container.exec([self._amtool_path, "check-config", self._config_path])
+        proc = self._container.exec(
+            [self._amtool_path, "check-config", self._config_path], timeout=30
+        )
         try:
             output, err = proc.wait_output()
         except ExecError as e:
