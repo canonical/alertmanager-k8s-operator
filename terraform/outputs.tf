@@ -14,7 +14,7 @@ output "endpoints" {
     # Provides
     alerting              = "alerting"
     karma_dashboard       = "karma-dashboard"
-    self_metrics_endpoint = "self-metrics-endpoint:"
+    self_metrics_endpoint = "self-metrics-endpoint"
     grafana_dashboard     = "grafana-dashboard"
     grafana_source        = "grafana-source"
   }
