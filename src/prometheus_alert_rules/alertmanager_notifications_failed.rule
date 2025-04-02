@@ -1,11 +1,14 @@
-alert: AlertmanagerNotificationsFailed
-expr: rate(alertmanager_notifications_failed_total{integration=~".*"}[5m]) > 0
-for: 0m
-labels:
-  severity: warning
-annotations:
-  summary: Alertmanager notifications failure (instance {{ $labels.instance }})
-  description: |
-    Alertmanager notifications failure
-    VALUE = {{ $value }}
-    LABELS = {{ $labels }}
+groups:
+- name: AlertmanagerNotificationsFailed
+  rules:
+  - alert: AlertmanagerNotificationsFailed
+    expr: rate(alertmanager_notifications_failed_total{integration=~".*"}[5m]) > 0
+    for: 0m
+    labels:
+      severity: warning
+    annotations:
+      summary: Alertmanager notifications failure (instance {{ $labels.instance }})
+      description: |
+        Alertmanager notifications failure
+        VALUE = {{ $value }}
+        LABELS = {{ $labels }}
