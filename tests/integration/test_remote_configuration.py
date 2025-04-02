@@ -50,6 +50,7 @@ receivers:
 
 @pytest.fixture(scope="module")
 async def tester_charm(ops_test: OpsTest):
+    assert ops_test.model
     _copy_alertmanager_remote_configuration_library_into_tester_charm()
     tester_charm = await ops_test.build_charm(TESTER_CHARM_PATH)
     await ops_test.model.deploy(
@@ -65,6 +66,7 @@ async def tester_charm(ops_test: OpsTest):
 @pytest.fixture(scope="module")
 @pytest.mark.abort_on_fail
 async def setup(ops_test: OpsTest, charm_under_test, tester_charm):
+    assert ops_test.model
     await ops_test.model.deploy(
         charm_under_test,
         resources=RESOURCES,
@@ -78,6 +80,7 @@ async def setup(ops_test: OpsTest, charm_under_test, tester_charm):
 
 @pytest.mark.abort_on_fail
 async def test_remote_configuration_applied_on_relation_created(ops_test: OpsTest, setup):
+    assert ops_test.model
     await ops_test.model.add_relation(
         relation1=f"{APP_NAME}:remote-configuration", relation2=TESTER_APP_NAME
     )
@@ -108,7 +111,8 @@ async def test_remote_configuration_applied_on_relation_created(ops_test: OpsTes
 
 @pytest.mark.abort_on_fail
 async def test_remote_configuration_file_wrongly_applied(ops_test: OpsTest, setup):
-    sh.juju(
+    assert ops_test.model
+    sh.juju(  # pyright: ignore
         [
             "config",
             f"{APP_NAME}",

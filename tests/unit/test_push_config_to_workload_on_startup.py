@@ -19,7 +19,7 @@ from alertmanager import WorkloadManager
 from charm import AlertmanagerCharm
 
 logger = logging.getLogger(__name__)
-ops.testing.SIMULATE_CAN_CONNECT = True
+ops.testing.SIMULATE_CAN_CONNECT = True  # pyright: ignore
 CONTAINER_NAME = "alertmanager"
 
 

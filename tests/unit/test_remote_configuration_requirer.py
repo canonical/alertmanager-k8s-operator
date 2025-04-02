@@ -21,7 +21,7 @@ from charm import AlertmanagerCharm
 
 logger = logging.getLogger(__name__)
 
-testing.SIMULATE_CAN_CONNECT = True
+testing.SIMULATE_CAN_CONNECT = True  # pyright: ignore
 
 TEST_ALERTMANAGER_CONFIG_FILE = "/test/rules/dir/config_file.yml"
 TEST_ALERTMANAGER_DEFAULT_CONFIG = """route:

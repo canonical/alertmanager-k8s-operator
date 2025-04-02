@@ -18,7 +18,7 @@ from ops.framework import EventBase, EventSource, StoredState
 
 logger = logging.getLogger(__name__)
 
-testing.SIMULATE_CAN_CONNECT = True
+testing.SIMULATE_CAN_CONNECT = True  # pyright: ignore
 
 TEST_APP_NAME = "provider-tester"
 METADATA = f"""
@@ -47,7 +47,7 @@ class AlertmanagerConfigFileChangedCharmEvents(CharmEvents):
 class RemoteConfigurationProviderCharm(CharmBase):
     ALERTMANAGER_CONFIG_FILE = TEST_ALERTMANAGER_CONFIG_WITHOUT_TEMPLATES_FILE_PATH
 
-    on = AlertmanagerConfigFileChangedCharmEvents()
+    on = AlertmanagerConfigFileChangedCharmEvents()  # pyright: ignore
     _stored = StoredState()
 
     def __init__(self, *args):

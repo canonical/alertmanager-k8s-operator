@@ -11,7 +11,7 @@ import yaml
 from helpers import get_unit_address, is_alertmanager_up, uk8s_group
 from pytest_operator.plugin import OpsTest
 
-from alertmanager_client import Alertmanager
+from src.alertmanager_client import Alertmanager
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 
 @pytest.mark.abort_on_fail
 async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_test, httpserver):
+    assert ops_test.model
     # deploy alertmanager charm from charmhub
     logger.info("deploy charm from charmhub")
     await ops_test.model.deploy(
@@ -82,13 +83,15 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     retcode, stdout, stderr = await ops_test.run(*cmd)
     assert retcode == 0, f"kubectl failed: {(stderr or stdout).strip()}"
     logger.debug(stdout)
-    await ops_test.model.block_until(lambda: len(ops_test.model.applications[app_name].units) > 0)
+    application = ops_test.model.applications[app_name]
+    assert application
+    await ops_test.model.block_until(lambda: len(application[app_name].units) > 0)
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)
 
     # upgrade alertmanger using charm built locally
     logger.info("upgrade deployed charm with local charm %s", charm_under_test)
-    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
+    await application.refresh(path=charm_under_test, resources=resources)
     await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=1000, raise_on_error=False
     )

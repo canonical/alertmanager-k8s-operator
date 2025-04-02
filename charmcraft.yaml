@@ -1,14 +1,199 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
-
+name: alertmanager-k8s
 type: charm
-bases:
-  - build-on:
-    - name: "ubuntu"
-      channel: "20.04"
-    run-on:
-    - name: "ubuntu"
-      channel: "20.04"
+summary: Alertmanager handles alerts sent by client applications.
+description: >
+  Alertmanager handles alerts sent by client applications such as the Prometheus server.
+  It takes care of deduplicating, grouping, and routing them to the correct receiver integrations
+  such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
+
+links:
+  documentation: https://discourse.charmhub.io/t/alertmanager-k8s-docs-index/5788
+  website: https://charmhub.io/alertmanager-k8s
+  source: https://github.com/canonical/alertmanager-k8s-operator
+  issues: https://github.com/canonical/alertmanager-k8s-operator/issues
+
+assumes:
+  - k8s-api
+  - juju >= 3.0.3  # Juju 3.0.3+ needed for secrets and open-port
+
+platforms:
+  ubuntu@20.04:amd64:
+  ubuntu@24.04:amd64:
+
 parts:
   charm:
-    charm-binary-python-packages: [ops, PyYAML, cryptography, jsonschema, pydantic, maturin]
+    source: .
+    plugin: uv
+    build-packages: [git]
+    build-snaps: [astral-uv]
+    override-build: |
+      craftctl default
+      git describe --always > $CRAFT_PART_INSTALL/version
+
+containers:
+  alertmanager:  # container key used by pebble
+    resource: alertmanager-image
+    mounts:
+      - storage: data
+        # nflogs and silences files go here. With a mounted storage for silences, they persist
+        # across container restarts.
+        # This path is passed to alertmanager via the `--storage.path` cli argument.
+        location: /alertmanager
+
+storage:
+  data:
+    type: filesystem
+    description: >
+      Storage path passed to alertmanager via --storage.path argument and used for nflog and silences snapshot
+
+
+
+provides:
+  alerting:
+    # The provider (alertmanager) adds the following key-value pair to the relation data bag of
+    # every alertmanager unit:
+    #   "public_address": <ip_address>:<port>
+    interface: alertmanager_dispatch
+    optional: true
+    description: |
+      Integrates with other charms to send notifications when alert rules are triggered.
+  karma-dashboard:
+    interface: karma_dashboard
+    optional: true
+    description: |
+      Links an entire Alertmanager cluster to a Karma[1] dashboard.
+      Scaling alertmanager would automatically cause karma to group alerts by cluster.
+
+      [1] https://charmhub.io/karma-k8s
+  self-metrics-endpoint:
+    interface: prometheus_scrape
+    optional: true
+    description: |
+      Exposes the Prometheus metrics endpoint providing telemetry about the Alertmanager instance.
+  grafana-dashboard:
+    interface: grafana_dashboard
+    optional: true
+    description: |
+      Forwards the built-in Grafana dashboard(s) for monitoring Alertmanager.
+  grafana-source:
+    interface: grafana_datasource
+    optional: true
+    description: |
+      Configures Grafana to be able to use this Alertmanager instance as a datasource.
+
+requires:
+  ingress:
+    interface: ingress
+    optional: true
+    limit: 1
+    description: |
+      Alertmanager typically needs a "per app" ingress, which is available in the traefik charm[1].
+
+      [1] https://charmhub.io/traefik-k8s
+  remote-configuration:
+    interface: alertmanager_remote_configuration
+    optional: true
+    limit: 1
+  catalogue:
+    interface: catalogue
+    optional: true
+    description: Add Alertmanager as an item to a Catalogue charm.
+  certificates:
+    interface: tls-certificates
+    optional: true
+    limit: 1
+    description: |
+      Certificate and key files for the alertmanager server to use to authenticate to client.
+  tracing:
+    interface: tracing
+    optional: true
+    limit: 1
+    description: |
+      Enables sending workload traces to a distributed tracing backend such as Tempo.
+
+peers:
+  replicas:
+    interface: alertmanager_replica
+    # assumed network type: private
+
+resources:
+  alertmanager-image:
+    type: oci-image
+    description: |
+      OCI image for alertmanager. This charms makes the following assumptions about the image:
+      - location of executable "alertmanager" is in the path
+      - has `update-ca-certificates`
+    upstream-source: ubuntu/alertmanager:0-22.04
+
+config:
+  options:
+    config_file:
+      type: string
+      default: ""
+      description: >
+        Alertmanager configuration file (yaml), with the exclusion of the templates section.
+        To send the contents of a file to this configuration option, the symbol `@` must be used.
+
+        Usage: `juju config alertmanager config_file=@alertmanager.yaml`
+
+        For more information on configuring the Alertmanager, refer to:
+        https://www.prometheus.io/docs/alerting/latest/configuration/
+    templates_file:
+      type: string
+      default: ""
+      description: >
+        Alertmanager templates definition file. This is a slight deviation from the official
+        alertmanager config spec. All templates need to go into this single config option, instead of
+        the 'templates' section of the main configuration file. The templates will be pushed to the
+        workload container, and the configuration file will be updated accordingly. Templates can't
+        be used without `config_file`.
+        Refer to https://prometheus.io/docs/alerting/latest/notification_examples/ for more details
+        on templates.
+    web_external_url:
+      type: string
+      default: ""
+      description: |
+        DEPRECATED. This config option is no longer used, in favor of "skipPrefix".
+
+        The URL under which Alertmanager is externally reachable (for example, if
+        Alertmanager is served via a manually configured ingress).
+
+        This config option is used for the `--web.external-url` alertmanager cli
+        argument. If this charm config option is provided, it takes precedence over the
+        URL provided over the "ingress" relation.
+
+        Note: this config option shouldn't be included when you're using the "ingress"
+        relation (e.g. traefik) - the charm will automatically assign an external url
+        to `--web.external-url` when related to an ingress provider.
+
+        This should be a complete URI, including scheme, or a  fully qualified subpath
+        starting with `/`.
+        If Alertmanager is being served directly from the root of a fully-qualified
+        host or a bare A record, this may be omitted.
+        If the URL has a path portion, Alertmanager will use it to prefix all HTTP
+        endpoints.
+    cpu:
+      description: |
+        K8s cpu resource limit, e.g. "1" or "500m". Default is unset (no limit). This value is used
+        for the "limits" portion of the resource requirements (the "requests" portion is
+        automatically deduced from it).
+        See https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+      type: string
+    memory:
+      description: |
+        K8s memory resource limit, e.g. "1Gi". Default is unset (no limit). This value is used
+        for the "limits" portion of the resource requirements (the "requests" portion is
+        automatically deduced from it).
+        See https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+      type: string
+
+actions:
+  show-config:
+    description: Show alertmanager config file.
+  check-config:
+    description: |
+      Run `amtool` inside the workload to validate the configuration file, and
+      return the resulting output. This can be useful for troubleshooting.
+

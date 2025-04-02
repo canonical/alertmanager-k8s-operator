@@ -21,6 +21,7 @@ resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 @pytest.mark.abort_on_fail
 async def test_deploy_from_local_path(ops_test: OpsTest, charm_under_test):
     """Deploy the charm-under-test."""
+    assert ops_test.model
     logger.debug("deploy local charm")
 
     await ops_test.model.deploy(
@@ -32,6 +33,8 @@ async def test_deploy_from_local_path(ops_test: OpsTest, charm_under_test):
 
 @pytest.mark.abort_on_fail
 async def test_kubectl_delete_pod(ops_test: OpsTest):
+    assert ops_test.model
+    assert ops_test.model_name
     pod_name = f"{app_name}-0"
 
     cmd = [
@@ -48,6 +51,8 @@ async def test_kubectl_delete_pod(ops_test: OpsTest):
     retcode, stdout, stderr = await ops_test.run(*cmd)
     assert retcode == 0, f"kubectl failed: {(stderr or stdout).strip()}"
     logger.debug(stdout)
-    await ops_test.model.block_until(lambda: len(ops_test.model.applications[app_name].units) > 0)
+    application = ops_test.model.applications[app_name]
+    assert application
+    await ops_test.model.block_until(lambda: len(application.units) > 0)
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)

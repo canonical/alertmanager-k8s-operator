@@ -5,6 +5,7 @@
 """A Charm to functionally test the Alertmanager Operator."""
 
 import logging
+import typing
 
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     ConfigReadError,
@@ -40,7 +41,9 @@ class AlertmanagerTesterCharm(CharmBase):
             self.unit.status = WaitingStatus("Waiting for the container to be ready")
             event.defer()
             return
-        self.container.push(self.ALERTMANAGER_CONFIG_FILE, self.config["config_file"])
+        self.container.push(
+            self.ALERTMANAGER_CONFIG_FILE, typing.cast(str, self.config["config_file"])
+        )
         self.unit.status = ActiveStatus()
 
 
