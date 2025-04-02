@@ -21,7 +21,7 @@ import yaml
 from deepdiff import DeepDiff  # type: ignore[import]
 from pytest_operator.plugin import OpsTest
 
-METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 APP_NAME = METADATA["name"]
 RESOURCES = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
 
