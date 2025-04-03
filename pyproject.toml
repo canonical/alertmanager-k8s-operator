@@ -15,6 +15,7 @@ dependencies = [
   "pydantic>=2",  # traefik_k8s.v2.ingress
   "opentelemetry-exporter-otlp-proto-http>=1.21.0",  # tracing
   "tenacity",
+  "cosl",
 ]
 
 [project.optional-dependencies]
@@ -27,7 +28,6 @@ dev = [
   # Unit
   "pytest",
   "coverage[toml]",
-  "cosl",
   "deepdiff",
   "hypothesis",
   "validators>=0.21.2",

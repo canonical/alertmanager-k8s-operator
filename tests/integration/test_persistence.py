@@ -7,9 +7,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-import sh
 import yaml
-from helpers import get_unit_address, is_alertmanager_up, uk8s_group
+from helpers import get_unit_address, is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 
 from src.alertmanager_client import Alertmanager
