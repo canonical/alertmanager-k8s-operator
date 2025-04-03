@@ -13,6 +13,7 @@ name = "alertmanager-k8s"
 version = "0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "cosl" },
     { name = "cryptography" },
     { name = "jsonschema" },
     { name = "lightkube" },
@@ -30,12 +31,11 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "codespell" },
-    { name = "cosl" },
     { name = "coverage", version = "7.6.1", source = { registry = "https://pypi.org/simple" }, extra = ["toml"], marker = "python_full_version < '3.9'" },
     { name = "coverage", version = "7.8.0", source = { registry = "https://pypi.org/simple" }, extra = ["toml"], marker = "python_full_version >= '3.9'" },
     { name = "deepdiff" },
     { name = "hypothesis", version = "6.113.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
-    { name = "hypothesis", version = "6.130.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
+    { name = "hypothesis", version = "6.130.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "juju" },
     { name = "ops-scenario", version = "6.1.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "ops-scenario", version = "6.1.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
@@ -57,7 +57,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "codespell", marker = "extra == 'dev'" },
-    { name = "cosl", marker = "extra == 'dev'" },
+    { name = "cosl" },
     { name = "coverage", extras = ["toml"], marker = "extra == 'dev'" },
     { name = "cryptography" },
     { name = "deepdiff", marker = "extra == 'dev'" },
@@ -829,7 +829,7 @@ wheels = [
 
 [[package]]
 name = "hypothesis"
-version = "6.130.7"
+version = "6.130.8"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.11'",
@@ -841,9 +841,9 @@ dependencies = [
     { name = "exceptiongroup", marker = "python_full_version >= '3.9' and python_full_version < '3.11'" },
     { name = "sortedcontainers", marker = "python_full_version >= '3.9'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/70/62c6a31686d23d62aecf3e3ff9a5b8f14f5ef1398a36b5d313709583e5fc/hypothesis-6.130.7.tar.gz", hash = "sha256:5aadc7b661745db0d3e063ae7794c9f14b3647c0f472fb1792006edcba0fe082", size = 427465 }
+sdist = { url = "https://files.pythonhosted.org/packages/5c/ae/fa9f4dff4ead766ffd280e710aa06083ee185938526535b808e366871fbc/hypothesis-6.130.8.tar.gz", hash = "sha256:1b719943011375b1d66f01f858181c3c3ae49324cd7d7b359229cbf95a7785ce", size = 427941 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/67/80/8ca30a540a103a8d745a9a86ad2e88f1b8d3def247fd2179a22fee8218ac/hypothesis-6.130.7-py3-none-any.whl", hash = "sha256:c9f665f43b6b8546e5bf77e38b5ab246b182ac2618b9d9b849c49d4d35add817", size = 492183 },
+    { url = "https://files.pythonhosted.org/packages/b5/74/ff7d6642dd21288947fb9f6e5a767c415326b0a02bc710842f191dab9768/hypothesis-6.130.8-py3-none-any.whl", hash = "sha256:8ddafde382fb96163c2a51c5a7c540d2642b2802a596347c13ac8fbc9de50d70", size = 492487 },
 ]
 
 [[package]]
