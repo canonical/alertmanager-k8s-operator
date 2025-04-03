@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import sh
 import yaml
 from helpers import get_unit_address, is_alertmanager_up, uk8s_group
 from pytest_operator.plugin import OpsTest
@@ -56,13 +57,8 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     # FIXME: remove the following kubectl commands once the above bug is fixed
     pod_name = f"{app_name}-0"
     container_name = "alertmanager"
-    sg_cmd = [
-        "sg",
-        uk8s_group(),
-        "-c",
-    ]
     kubectl_cmd = [
-        "microk8s.kubectl",
+        "kubectl",
         "-n",
         ops_test.model_name,
         "exec",
@@ -73,12 +69,12 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     ]
     # find pid of alertmanager
     pid_cmd = ["pidof", "alertmanager"]
-    cmd = sg_cmd + [" ".join(kubectl_cmd + pid_cmd)]
+    cmd = [" ".join(kubectl_cmd + pid_cmd)]
     retcode, alertmanager_pid, stderr = await ops_test.run(*cmd)
     assert retcode == 0, f"kubectl failed: {(stderr or alertmanager_pid).strip()}"
     # use pid of alertmanager to send it a SIGTERM signal using kubectl
     term_cmd = ["kill", "-s", "TERM", alertmanager_pid]
-    cmd = sg_cmd + [" ".join(kubectl_cmd + term_cmd)]
+    cmd = [" ".join(kubectl_cmd + term_cmd)]
     logger.debug("Sending SIGTERM to Alertmanager")
     retcode, stdout, stderr = await ops_test.run(*cmd)
     assert retcode == 0, f"kubectl failed: {(stderr or stdout).strip()}"

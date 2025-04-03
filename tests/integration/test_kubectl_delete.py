@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 import pytest
+import sh
 import yaml
 from helpers import is_alertmanager_up, uk8s_group
 from pytest_operator.plugin import OpsTest
@@ -37,20 +38,8 @@ async def test_kubectl_delete_pod(ops_test: OpsTest):
     assert ops_test.model_name
     pod_name = f"{app_name}-0"
 
-    cmd = [
-        "sg",
-        uk8s_group(),
-        "-c",
-        " ".join(["microk8s.kubectl", "delete", "pod", "-n", ops_test.model_name, pod_name]),
-    ]
+    sh.kubectl.delete.pod(pod_name, namespace=ops_test.model_name)  # pyright: ignore
 
-    logger.debug(
-        "Removing pod '%s' from model '%s' with cmd: %s", pod_name, ops_test.model_name, cmd
-    )
-
-    retcode, stdout, stderr = await ops_test.run(*cmd)
-    assert retcode == 0, f"kubectl failed: {(stderr or stdout).strip()}"
-    logger.debug(stdout)
     application = ops_test.model.applications[app_name]
     assert application
     await ops_test.model.block_until(lambda: len(application.units) > 0)
