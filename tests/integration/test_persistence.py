@@ -68,12 +68,12 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     ]
     # find pid of alertmanager
     pid_cmd = ["pidof", "alertmanager"]
-    cmd = [" ".join(kubectl_cmd + pid_cmd)]
+    cmd = kubectl_cmd + pid_cmd
     retcode, alertmanager_pid, stderr = await ops_test.run(*cmd)
     assert retcode == 0, f"kubectl failed: {(stderr or alertmanager_pid).strip()}"
     # use pid of alertmanager to send it a SIGTERM signal using kubectl
     term_cmd = ["kill", "-s", "TERM", alertmanager_pid]
-    cmd = [" ".join(kubectl_cmd + term_cmd)]
+    cmd = kubectl_cmd + term_cmd
     logger.debug("Sending SIGTERM to Alertmanager")
     retcode, stdout, stderr = await ops_test.run(*cmd)
     assert retcode == 0, f"kubectl failed: {(stderr or stdout).strip()}"
