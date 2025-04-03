@@ -50,37 +50,9 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     silences_before = alertmanager.get_silences()
     assert len(silences_before)
 
-    # Use kubectl to send a SIGTERM signal to Alertmanager so that data is flushed to disk.
-    # This step should not be necessary once the bug in the following issue ticket is fixed
-    # https://github.com/canonical/pebble/issues/122
-    # FIXME: remove the following kubectl commands once the above bug is fixed
-    pod_name = f"{app_name}-0"
-    container_name = "alertmanager"
-    kubectl_cmd = [
-        "kubectl",
-        "-n",
-        ops_test.model_name,
-        "exec",
-        pod_name,
-        "-c",
-        container_name,
-        "--",
-    ]
-    # find pid of alertmanager
-    pid_cmd = ["pidof", "alertmanager"]
-    cmd = kubectl_cmd + pid_cmd
-    retcode, alertmanager_pid, stderr = await ops_test.run(*cmd)
-    assert retcode == 0, f"kubectl failed: {(stderr or alertmanager_pid).strip()}"
-    # use pid of alertmanager to send it a SIGTERM signal using kubectl
-    term_cmd = ["kill", "-s", "TERM", alertmanager_pid]
-    cmd = kubectl_cmd + term_cmd
-    logger.debug("Sending SIGTERM to Alertmanager")
-    retcode, stdout, stderr = await ops_test.run(*cmd)
-    assert retcode == 0, f"kubectl failed: {(stderr or stdout).strip()}"
-    logger.debug(stdout)
     application = ops_test.model.applications[app_name]
     assert application
-    await ops_test.model.block_until(lambda: len(application[app_name].units) > 0)
+    await ops_test.model.block_until(lambda: len(application.units) > 0)
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)
 
