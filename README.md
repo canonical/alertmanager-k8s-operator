@@ -120,8 +120,7 @@ juju status alertmanager-k8s --format=json \
 
 So, if you navigate to these IPs you will get the Alertmanager dashboard:
 
-![Alertmanager UI](doc/alertmanager-ui.png)
-
+![alertmanager-ui](https://github.com/user-attachments/assets/9eb0c006-ef57-476e-9341-46e076b596c4)
 
 ## Clustering
 

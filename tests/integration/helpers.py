@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 async def get_unit_address(ops_test: OpsTest, app_name: str, unit_num: int) -> str:
     """Get private address of a unit."""
+    assert ops_test.model
     status = await ops_test.model.get_status()  # noqa: F821
     return status["applications"][app_name]["units"][f"{app_name}/{unit_num}"]["address"]
 
@@ -37,9 +38,10 @@ async def cli_upgrade_from_path_and_wait(
     ops_test: OpsTest,
     path: str,
     alias: str,
-    resources: Dict[str, str] = None,
-    wait_for_status: str = None,
+    resources: Optional[Dict[str, str]] = None,
+    wait_for_status: Optional[str] = None,
 ):
+    assert ops_test.model
     if resources is None:
         resources = {}
 
@@ -63,14 +65,20 @@ async def cli_upgrade_from_path_and_wait(
 
 
 async def get_leader_unit_num(ops_test: OpsTest, app_name: str):
-    units = ops_test.model.applications[app_name].units
+    assert ops_test.model
+    application = ops_test.model.applications[app_name]
+    assert application
+    units = application.units
     is_leader = [await units[i].is_leader_from_status() for i in range(len(units))]
     logger.info("Leaders: %s", is_leader)
     return is_leader.index(True)
 
 
 async def is_leader_elected(ops_test: OpsTest, app_name: str):
-    units = ops_test.model.applications[app_name].units
+    assert ops_test.model
+    application = ops_test.model.applications[app_name]
+    assert application
+    units = application.units
     return any([await units[i].is_leader_from_status() for i in range(len(units))])
 
 
@@ -101,10 +109,13 @@ async def is_alertmanage_unit_up(ops_test: OpsTest, app_name: str, unit_num: int
 
 
 async def is_alertmanager_up(ops_test: OpsTest, app_name: str):
+    assert ops_test.model
+    application = ops_test.model.applications[app_name]
+    assert application
     return all(
         [
             await is_alertmanage_unit_up(ops_test, app_name, unit_num)
-            for unit_num in range(len(ops_test.model.applications[app_name].units))
+            for unit_num in range(len(application.units))
         ]
     )
 

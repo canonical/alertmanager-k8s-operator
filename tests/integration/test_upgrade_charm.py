@@ -22,13 +22,14 @@ from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
-METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 app_name = METADATA["name"]
 resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
 
 
 @pytest.mark.abort_on_fail
 async def test_setup_env(ops_test: OpsTest):
+    assert ops_test.model
     await ops_test.model.set_config(
         {"update-status-hook-interval": "60m", "logging-config": "<root>=WARNING; unit=DEBUG"}
     )
@@ -38,13 +39,16 @@ async def test_setup_env(ops_test: OpsTest):
 async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_under_test):
     """Build the charm-under-test, deploy the charm from charmhub, and upgrade from path."""
     logger.info("deploy charm from charmhub")
+    assert ops_test.model
     await ops_test.model.deploy(
         "ch:alertmanager-k8s", application_name=app_name, channel="edge", trust=True
     )
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
 
     logger.info("upgrade deployed charm with local charm %s", charm_under_test)
-    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
+    application = ops_test.model.applications[app_name]
+    assert application
+    await application.refresh(path=charm_under_test, resources=resources)
     await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=1000, raise_on_error=False
     )
@@ -55,6 +59,7 @@ async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_und
 @pytest.mark.abort_on_fail
 async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_under_test):
     # Deploy related apps
+    assert ops_test.model
     await asyncio.gather(
         ops_test.model.deploy(
             "ch:prometheus-k8s", application_name="prom", channel="edge", trust=True
@@ -69,7 +74,9 @@ async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_
     )
 
     # Refresh from path
-    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
+    application = ops_test.model.applications[app_name]
+    assert application
+    await application.refresh(path=charm_under_test, resources=resources)
     await ops_test.model.wait_for_idle(
         apps=[app_name, "prom", "karma"],
         status="active",
@@ -81,14 +88,17 @@ async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_
 
 @pytest.mark.abort_on_fail
 async def test_upgrade_with_multiple_units(ops_test: OpsTest, charm_under_test):
+    assert ops_test.model
     # Add unit
-    await ops_test.model.applications[app_name].scale(scale_change=1)
+    application = ops_test.model.applications[app_name]
+    assert application
+    await application.scale(scale_change=1)
     await ops_test.model.wait_for_idle(
         apps=[app_name, "prom", "karma"], status="active", timeout=1000
     )
 
     # Refresh from path
-    await ops_test.model.applications[app_name].refresh(path=charm_under_test, resources=resources)
+    await application.refresh(path=charm_under_test, resources=resources)
     await ops_test.model.wait_for_idle(
         apps=[app_name, "prom", "karma"], status="active", timeout=2500
     )

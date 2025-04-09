@@ -1,9 +1,0 @@
-# Copyright 2021 Canonical Ltd.
-# See LICENSE file for licensing details.
-
-show-config:
-  description: Show alertmanager config file.
-check-config:
-  description: |
-    Run `amtool` inside the workload to validate the configuration file, and
-    return the resulting output. This can be useful for troubleshooting.

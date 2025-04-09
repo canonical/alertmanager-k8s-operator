@@ -14,7 +14,7 @@ from ops.testing import Harness
 from alertmanager import WorkloadManager
 from charm import AlertmanagerCharm
 
-ops.testing.SIMULATE_CAN_CONNECT = True
+ops.testing.SIMULATE_CAN_CONNECT = True  # pyright: ignore
 
 
 class TestWithInitialHooks(unittest.TestCase):
@@ -45,7 +45,7 @@ class TestWithInitialHooks(unittest.TestCase):
         # Check we've got the plan as expected
         self.assertIsNotNone(plan.services)
         self.assertIsNotNone(service := plan.services.get(self.harness.charm._service_name))
-        self.assertIsNotNone(command := service.command)
+        self.assertIsNotNone(command := service.command)  # pyright: ignore
 
         # Check command is as expected
         self.assertEqual(

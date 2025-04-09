@@ -14,7 +14,7 @@ from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
-METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 am = SimpleNamespace(name="am", scale=1)
 ca = SimpleNamespace(name="ca")
 
@@ -25,6 +25,7 @@ ca = SimpleNamespace(name="ca")
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     """Deploy 2 alertmanager units, related to a local CA."""
+    assert ops_test.model
     test_bundle = dedent(
         f"""
         ---
@@ -121,7 +122,10 @@ async def test_https_reachable(ops_test: OpsTest, temp_dir):
 @pytest.mark.abort_on_fail
 async def test_https_still_reachable_after_refresh(ops_test: OpsTest, charm_under_test, temp_dir):
     """Make sure alertmanager's https endpoint is still reachable after an upgrade."""
-    await ops_test.model.applications[am.name].refresh(path=charm_under_test)
+    assert ops_test.model
+    application = ops_test.model.applications[am.name]
+    assert application
+    await application.refresh(path=charm_under_test)
     await ops_test.model.wait_for_idle(
         status="active", raise_on_error=False, timeout=600, idle_period=30
     )

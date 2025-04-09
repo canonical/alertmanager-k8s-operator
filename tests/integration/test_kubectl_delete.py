@@ -7,13 +7,14 @@ import logging
 from pathlib import Path
 
 import pytest
+import sh
 import yaml
-from helpers import is_alertmanager_up, uk8s_group
+from helpers import is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
-METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 app_name = METADATA["name"]
 resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
 
@@ -21,6 +22,7 @@ resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 @pytest.mark.abort_on_fail
 async def test_deploy_from_local_path(ops_test: OpsTest, charm_under_test):
     """Deploy the charm-under-test."""
+    assert ops_test.model
     logger.debug("deploy local charm")
 
     await ops_test.model.deploy(
@@ -32,22 +34,14 @@ async def test_deploy_from_local_path(ops_test: OpsTest, charm_under_test):
 
 @pytest.mark.abort_on_fail
 async def test_kubectl_delete_pod(ops_test: OpsTest):
+    assert ops_test.model
+    assert ops_test.model_name
     pod_name = f"{app_name}-0"
 
-    cmd = [
-        "sg",
-        uk8s_group(),
-        "-c",
-        " ".join(["microk8s.kubectl", "delete", "pod", "-n", ops_test.model_name, pod_name]),
-    ]
+    sh.kubectl.delete.pod(pod_name, namespace=ops_test.model_name)  # pyright: ignore
 
-    logger.debug(
-        "Removing pod '%s' from model '%s' with cmd: %s", pod_name, ops_test.model_name, cmd
-    )
-
-    retcode, stdout, stderr = await ops_test.run(*cmd)
-    assert retcode == 0, f"kubectl failed: {(stderr or stdout).strip()}"
-    logger.debug(stdout)
-    await ops_test.model.block_until(lambda: len(ops_test.model.applications[app_name].units) > 0)
+    application = ops_test.model.applications[app_name]
+    assert application
+    await ops_test.model.block_until(lambda: len(application.units) > 0)
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
     assert await is_alertmanager_up(ops_test, app_name)

@@ -26,7 +26,7 @@ class TestServerScheme:
     """Scenario: The workload is deployed to operate in HTTP mode, then switched to HTTPS."""
 
     @pytest.fixture
-    def initial_state(self, context, fqdn, leader) -> State:
+    def initial_state(self, context, fqdn, leader) -> State:  # pyright: ignore
         """This is the initial state for this test class."""
         # GIVEN an isolated alertmanager charm after the startup sequence is complete
 
@@ -37,7 +37,7 @@ class TestServerScheme:
             # Add relation
             prom_rel = Relation("alerting", relation_id=10)
             state = add_relation_sequence(context, state, prom_rel)
-            yield state  # keep the patch active for so long as this fixture is needed
+            yield state  # keep the patch active for so long as this fixture is needed  # pyright:ignore
 
     def test_initial_state_has_http_scheme_in_pebble_layer(self, context, initial_state, fqdn):
         # THEN the pebble command has 'http' and the correct hostname in the 'web.external-url' arg

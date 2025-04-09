@@ -48,9 +48,12 @@ class TestWithInitialHooks(unittest.TestCase):
         jobs = self.harness.charm.self_scraping_job
         self.assertEqual(jobs, jobs_expected)
 
+    @patch.object(WorkloadManager, "check_config")
     @patch.object(AlertmanagerCharm, "_internal_url", new_callable=PropertyMock)
     @patch.object(AlertmanagerCharm, "_scheme", new_callable=PropertyMock)
-    def test_self_scraping_job_with_peers(self, _mock_scheme, _mock_internal_url):
+    def test_self_scraping_job_with_peers(
+        self, _mock_scheme, _mock_internal_url, _mock_check_config
+    ):
         scheme = "https"
         _mock_scheme.return_value = scheme
 

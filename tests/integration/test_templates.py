@@ -16,7 +16,7 @@ from werkzeug.wrappers import Request, Response
 
 logger = logging.getLogger(__name__)
 
-METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 app_name = METADATA["name"]
 resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
 receiver_name = "fake-receiver"
@@ -29,17 +29,21 @@ template = r'{{ define "slack.default.callbackid" }}' + callback_id + "{{ end }}
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     # deploy charm from local source folder
+    assert ops_test.model
     await ops_test.model.deploy(
         charm_under_test, resources=resources, application_name=app_name, trust=True
     )
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
-    assert ops_test.model.applications[app_name].units[0].workload_status == "active"
+    application = ops_test.model.applications[app_name]
+    assert application
+    assert application.units[0].workload_status == "active"
     assert await is_alertmanager_up(ops_test, app_name)
 
 
 @pytest.mark.abort_on_fail
 async def test_configure_alertmanager_with_templates(ops_test: OpsTest, httpserver):
     # define the alertmanager configuration
+    assert ops_test.model
     aconfig = {
         "global": {"http_config": {"tls_config": {"insecure_skip_verify": True}}},
         "route": {
@@ -64,7 +68,9 @@ async def test_configure_alertmanager_with_templates(ops_test: OpsTest, httpserv
     }
 
     # set alertmanager configuration and template file
-    await ops_test.model.applications[app_name].set_config(
+    application = ops_test.model.applications[app_name]
+    assert application
+    await application.set_config(
         {"config_file": yaml.safe_dump(aconfig), "templates_file": template}
     )
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=60)
@@ -105,7 +111,7 @@ async def test_receiver_gets_alert(ops_test: OpsTest, httpserver):
         httpserver.expect_oneshot_request("/", method="POST").respond_with_handler(request_handler)
 
         # Use amtool to fire a stand-in alert
-        sh.juju(
+        sh.juju(  #  pyright: ignore
             [
                 "ssh",
                 "-m",

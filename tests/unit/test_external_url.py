@@ -4,6 +4,7 @@
 
 import logging
 import unittest
+from typing import Optional
 from unittest.mock import patch
 
 import ops
@@ -16,7 +17,7 @@ from charm import AlertmanagerCharm
 
 logger = logging.getLogger(__name__)
 
-ops.testing.SIMULATE_CAN_CONNECT = True
+ops.testing.SIMULATE_CAN_CONNECT = True  # pyright: ignore
 CONTAINER_NAME = "alertmanager"
 SERVICE_NAME = AlertmanagerCharm._service_name
 
@@ -44,13 +45,13 @@ class TestExternalUrl(unittest.TestCase):
         self.harness.begin_with_initial_hooks()
         self.fqdn_url = f"http://fqdn:{self.harness.charm.api_port}"
 
-    def get_url_cli_arg(self) -> str:
+    def get_url_cli_arg(self) -> Optional[str]:
         plan = self.harness.get_container_pebble_plan(CONTAINER_NAME)
         return cli_arg(plan, "--web.external-url")
 
     def get_cluster_args(self):
         plan = self.harness.get_container_pebble_plan(CONTAINER_NAME).to_dict()
-        args = plan["services"][SERVICE_NAME]["command"].split()
+        args = plan.get("services", {}).get(SERVICE_NAME, {}).get("command", "").split()
         cluster_args = filter(lambda s: s.startswith("--cluster.peer="), args)
         cluster_args = sorted((s.split("=")[1] for s in cluster_args))
         return cluster_args
