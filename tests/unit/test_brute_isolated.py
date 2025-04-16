@@ -12,13 +12,13 @@ from scenario import Context, Relation, State
 
 def test_startup_shutdown_sequence(context: Context):
     state = begin_with_initial_hooks_isolated(context)
-    state = context.run("update-status", state)
+    state = context.run(context.on.update_status(), state)
 
     for peer_rel in state.get_relations("replicas"):
-        state = context.run(peer_rel.departed_event, state)
+        state = context.run(context.on.relation_departed(peer_rel), state)
 
-    state = context.run("stop", state)
-    context.run("remove", state)
+    state = context.run(context.on.stop(), state)
+    context.run(context.on.remove(), state)
 
 
 @pytest.mark.parametrize("fqdn", ["localhost", "am-0.endpoints.cluster.local"])
