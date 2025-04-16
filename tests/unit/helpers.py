@@ -4,6 +4,7 @@
 
 """Helper functions for writing tests."""
 
+import dataclasses
 from unittest.mock import patch
 
 from scenario import Container, Context, Exec, PeerRelation, Relation, State
@@ -54,21 +55,21 @@ def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) 
 
     state = context.run(context.on.install(), state)
 
-    state = state.replace(relations=[peer_rel])
+    state = dataclasses.replace(state, relations=[peer_rel])
     state = context.run(peer_rel.created_event, state)
 
     if leader:
-        state = state.replace(leader=True)
+        state = dataclasses.replace(state, leader=True)
         state = context.run(context.on.leader_elected(), state)
     else:
-        state = state.replace(leader=False)
+        state = dataclasses.replace(state, leader=False)
         state = context.run(context.on.leader_settings_changed(), state)
 
     state = context.run(context.on.config_changed(), state)
 
     # state = state.with_can_connect("alertmanger")
-    container = container.replace(can_connect=True)
-    state = state.replace(containers=[container])
+    container = dataclasses.replace(container, can_connect=True)
+    state = dataclasses.replace(state, containers=[container])
     state = context.run(container.pebble_ready_event, state)
 
     state = context.run(context.on.start(), state)
@@ -79,7 +80,7 @@ def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) 
 def add_relation_sequence(context: Context, state: State, relation: Relation):
     """Helper to simulate a relation-added sequence."""
     # TODO consider adding to scenario.sequences
-    state_with_relation = state.replace(relations=state.relations + [relation])
+    state_with_relation = dataclasses.replace(state, relations=state.relations + [relation])
     state_after_relation_created = context.run(relation.created_event, state_with_relation)
     state_after_relation_joined = context.run(relation.joined_event, state_after_relation_created)
     state_after_relation_changed = context.run(relation.changed_event, state_after_relation_joined)
