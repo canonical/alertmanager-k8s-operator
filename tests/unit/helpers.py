@@ -63,7 +63,6 @@ def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) 
         state = context.run(context.on.leader_elected(), state)
     else:
         state = dataclasses.replace(state, leader=False)
-        state = context.run(context.on.leader_settings_changed(), state)
 
     state = context.run(context.on.config_changed(), state)
 
