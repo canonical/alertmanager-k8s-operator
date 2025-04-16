@@ -6,7 +6,7 @@
 
 from unittest.mock import patch
 
-from scenario import Container, Context, ExecOutput, PeerRelation, Relation, State
+from scenario import Container, Context, Exec, PeerRelation, Relation, State
 
 
 def no_op(*_, **__) -> None:
@@ -41,9 +41,10 @@ def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) 
     container = Container(
         "alertmanager",
         can_connect=False,
-        exec_mock={
-            ("update-ca-certificates", "--fresh"): ExecOutput(  # this is the command we're mocking
-                return_code=0,  # this data structure contains all we need to mock the call.
+        execs={
+            Exec(
+                ["update-ca-certificates", "--fresh"],  # this is the command we're mocking
+                return_code=0,
                 stdout="OK",
             )
         },
