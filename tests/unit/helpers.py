@@ -70,7 +70,7 @@ def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) 
     # state = state.with_can_connect("alertmanger")
     container = dataclasses.replace(container, can_connect=True)
     state = dataclasses.replace(state, containers=[container])
-    state = context.run(container.pebble_ready_event, state)
+    state = context.run(context.on.pebble_ready(container), state)
 
     state = context.run(context.on.start(), state)
 
