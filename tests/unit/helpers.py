@@ -43,11 +43,12 @@ def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) 
         "alertmanager",
         can_connect=False,
         execs={
+            Exec(["update-ca-certificates", "--fresh"]),
             Exec(
-                ["update-ca-certificates", "--fresh"],  # this is the command we're mocking
-                return_code=0,
-                stdout="OK",
-            )
+                ["alertmanager", "--version"],
+                stdout="alertmanager, version 0.23.0 (branch: HEAD, ...",
+            ),
+            Exec(["/usr/bin/amtool", "check-config", "/etc/alertmanager/alertmanager.yml"]),
         },
     )
     state = State(config={"config_file": ""}, containers=[container])
