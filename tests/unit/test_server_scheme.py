@@ -35,7 +35,7 @@ class TestServerScheme:
             state = begin_with_initial_hooks_isolated(context, leader=leader)
 
             # Add relation
-            prom_rel = Relation("alerting", relation_id=10)
+            prom_rel = Relation("alerting", id=10)
             state = add_relation_sequence(context, state, prom_rel)
             yield state  # keep the patch active for so long as this fixture is needed  # pyright:ignore
 
@@ -52,7 +52,7 @@ class TestServerScheme:
         # WHEN a tls_certificates relation joins
         ca = Relation(
             "certificates",
-            relation_id=100,
+            id=100,
             remote_app_data={
                 "certificates": json.dumps(
                     [
