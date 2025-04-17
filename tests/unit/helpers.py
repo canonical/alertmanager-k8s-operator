@@ -80,7 +80,7 @@ def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) 
 def add_relation_sequence(context: Context, state: State, relation: Relation):
     """Helper to simulate a relation-added sequence."""
     # TODO consider adding to scenario.sequences
-    state_with_relation = dataclasses.replace(state, relations=state.relations | {relation})
+    state_with_relation = dataclasses.replace(state, relations={*state.relations, relation})
     state_after_relation_created = context.run(context.on.relation_created(relation), state_with_relation)
     state_after_relation_joined = context.run(context.on.relation_joined(relation), state_after_relation_created)
     state_after_relation_changed = context.run(
