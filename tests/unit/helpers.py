@@ -7,7 +7,7 @@
 import dataclasses
 from unittest.mock import patch
 
-from scenario import Container, Context, Exec, PeerRelation, Relation, State
+from ops.testing import Container, Context, Exec, PeerRelation, Relation, State
 
 
 def no_op(*_, **__) -> None:

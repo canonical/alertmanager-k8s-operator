@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 from helpers import add_relation_sequence, begin_with_initial_hooks_isolated
-from scenario import Relation, State
+from ops.testing import Relation, State
 
 
 @pytest.mark.parametrize("fqdn", ["localhost", "am-0.endpoints.cluster.local"])
