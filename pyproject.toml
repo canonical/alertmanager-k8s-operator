@@ -31,7 +31,7 @@ dev = [
   "deepdiff",
   "hypothesis",
   "validators>=0.21.2",
-  "ops-scenario<7",
+  "ops[testing]",
   "pytest-interface-tester>0.3",
   # Integration
   "juju<=3.3.0,>=3.0",

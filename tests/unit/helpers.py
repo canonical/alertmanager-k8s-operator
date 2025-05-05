@@ -4,9 +4,10 @@
 
 """Helper functions for writing tests."""
 
+import dataclasses
 from unittest.mock import patch
 
-from scenario import Container, Context, ExecOutput, PeerRelation, Relation, State
+from ops.testing import Container, Context, Exec, PeerRelation, Relation, State
 
 
 def no_op(*_, **__) -> None:
@@ -41,36 +42,37 @@ def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) 
     container = Container(
         "alertmanager",
         can_connect=False,
-        exec_mock={
-            ("update-ca-certificates", "--fresh"): ExecOutput(  # this is the command we're mocking
-                return_code=0,  # this data structure contains all we need to mock the call.
-                stdout="OK",
-            )
+        execs={
+            Exec(["update-ca-certificates", "--fresh"]),
+            Exec(
+                ["alertmanager", "--version"],
+                stdout="alertmanager, version 0.23.0 (branch: HEAD, ...",
+            ),
+            Exec(["/usr/bin/amtool", "check-config", "/etc/alertmanager/alertmanager.yml"]),
         },
     )
     state = State(config={"config_file": ""}, containers=[container])
     peer_rel = PeerRelation("replicas")
 
-    state = context.run("install", state)
+    state = context.run(context.on.install(), state)
 
-    state = state.replace(relations=[peer_rel])
-    state = context.run(peer_rel.created_event, state)
+    state = dataclasses.replace(state, relations=[peer_rel])
+    state = context.run(context.on.relation_created(peer_rel), state)
 
     if leader:
-        state = state.replace(leader=True)
-        state = context.run("leader-elected", state)
+        state = dataclasses.replace(state, leader=True)
+        state = context.run(context.on.leader_elected(), state)
     else:
-        state = state.replace(leader=False)
-        state = context.run("leader-settings-changed", state)
+        state = dataclasses.replace(state, leader=False)
 
-    state = context.run("config-changed", state)
+    state = context.run(context.on.config_changed(), state)
 
     # state = state.with_can_connect("alertmanger")
-    container = container.replace(can_connect=True)
-    state = state.replace(containers=[container])
-    state = context.run(container.pebble_ready_event, state)
+    container = dataclasses.replace(container, can_connect=True)
+    state = dataclasses.replace(state, containers=[container])
+    state = context.run(context.on.pebble_ready(container), state)
 
-    state = context.run("start", state)
+    state = context.run(context.on.start(), state)
 
     return state
 
@@ -78,8 +80,11 @@ def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) 
 def add_relation_sequence(context: Context, state: State, relation: Relation):
     """Helper to simulate a relation-added sequence."""
     # TODO consider adding to scenario.sequences
-    state_with_relation = state.replace(relations=state.relations + [relation])
-    state_after_relation_created = context.run(relation.created_event, state_with_relation)
-    state_after_relation_joined = context.run(relation.joined_event, state_after_relation_created)
-    state_after_relation_changed = context.run(relation.changed_event, state_after_relation_joined)
+    state_with_relation = dataclasses.replace(state, relations={*state.relations, relation})
+    state_after_relation_created = context.run(context.on.relation_created(relation), state_with_relation)
+    state_after_relation_joined = context.run(context.on.relation_joined(relation), state_after_relation_created)
+    state_after_relation_changed = context.run(
+        context.on.relation_changed(state_after_relation_joined.get_relation(relation.id)),
+        state_after_relation_joined,
+    )
     return state_after_relation_changed
