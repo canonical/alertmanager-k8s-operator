@@ -16,9 +16,12 @@ import logging
 from pathlib import Path
 
 import pytest
+import sh
 import yaml
 from helpers import is_alertmanager_up
 from pytest_operator.plugin import OpsTest
+
+# pyright: reportAttributeAccessIssue = false
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +43,15 @@ async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_und
     """Build the charm-under-test, deploy the charm from charmhub, and upgrade from path."""
     logger.info("deploy charm from charmhub")
     assert ops_test.model
-    await ops_test.model.deploy(
-        "ch:alertmanager-k8s", application_name=app_name, channel="edge", trust=True
+    sh.juju.deploy(
+        app_name, model=ops_test.model.name, channel="edge", base="ubuntu@20.04", trust=True
     )
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
 
     logger.info("upgrade deployed charm with local charm %s", charm_under_test)
     application = ops_test.model.applications[app_name]
     assert application
-    await application.refresh(path=charm_under_test, resources=resources)
+    sh.juju.refresh(app_name, model=ops_test.model.name, path=charm_under_test)
     await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=1000, raise_on_error=False
     )
@@ -76,7 +79,7 @@ async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_
     # Refresh from path
     application = ops_test.model.applications[app_name]
     assert application
-    await application.refresh(path=charm_under_test, resources=resources)
+    sh.juju.refresh(app_name, model=ops_test.model.name, path=charm_under_test)
     await ops_test.model.wait_for_idle(
         apps=[app_name, "prom", "karma"],
         status="active",
@@ -98,7 +101,7 @@ async def test_upgrade_with_multiple_units(ops_test: OpsTest, charm_under_test):
     )
 
     # Refresh from path
-    await application.refresh(path=charm_under_test, resources=resources)
+    sh.juju.refresh(app_name, model=ops_test.model.name, path=charm_under_test)
     await ops_test.model.wait_for_idle(
         apps=[app_name, "prom", "karma"], status="active", timeout=2500
     )
