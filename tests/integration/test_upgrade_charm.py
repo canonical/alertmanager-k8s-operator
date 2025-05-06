@@ -63,12 +63,8 @@ async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_und
 async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_under_test):
     # Deploy related apps
     assert ops_test.model
-    await asyncio.gather(
-        ops_test.model.deploy(
-            "ch:prometheus-k8s", application_name="prom", channel="edge", trust=True
-        ),
-        ops_test.model.deploy("ch:karma-k8s", application_name="karma", channel="edge"),
-    )
+    sh.juju.deploy("prometheus-k8s", "prom", channel="edge", trust=True)
+    sh.juju.deploy("karma-k8s", "karma", channel="edge", trust=True)
 
     # Relate apps
     await asyncio.gather(
