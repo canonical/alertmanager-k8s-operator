@@ -67,10 +67,8 @@ async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_
     sh.juju.deploy("karma-k8s", "karma", channel="edge", trust=True)
 
     # Relate apps
-    await asyncio.gather(
-        ops_test.model.add_relation(app_name, "prom:alertmanager"),
-        ops_test.model.add_relation(app_name, "karma"),
-    )
+    sh.juju.relate(app_name, "prom:alertmanager")
+    sh.juju.relate(app_name, "karma")
 
     # Refresh from path
     application = ops_test.model.applications[app_name]
