@@ -62,12 +62,12 @@ async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_und
 async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_under_test):
     # Deploy related apps
     assert ops_test.model
-    sh.juju.deploy("prometheus-k8s", "prom", channel="edge", trust=True)
-    sh.juju.deploy("karma-k8s", "karma", channel="edge", trust=True)
+    sh.juju.deploy("prometheus-k8s", "prom", model=ops_test.model.name, channel="edge", trust=True)
+    sh.juju.deploy("karma-k8s", "karma", model=ops_test.model.name, channel="edge", trust=True)
 
     # Relate apps
-    sh.juju.relate(app_name, "prom:alertmanager")
-    sh.juju.relate(app_name, "karma")
+    sh.juju.relate(app_name, "prom:alertmanager", model=ops_test.model.name)
+    sh.juju.relate(app_name, "karma", model=ops_test.model.name)
 
     # Refresh from path
     application = ops_test.model.applications[app_name]
