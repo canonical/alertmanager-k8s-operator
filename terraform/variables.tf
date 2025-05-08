@@ -35,3 +35,9 @@ variable "revision" {
   nullable    = true
   default     = null
 }
+
+variable "units" {
+  description = "Number of units to run"
+  type        = number
+  default     = 1
+}

@@ -20,6 +20,7 @@ The module offers the following configurable inputs:
 | `constraints` | string | Constraints to be applied | "" |
 | `model_name` | string | Name of the model that the charm is deployed on | ""  |
 | `revision` | number | Charm revision | null |
+| `units` | number | Number of units to run | 1 |
 
 
 ### Outputs
