@@ -8,4 +8,5 @@ resource "juju_application" "alertmanager" {
     revision = var.revision
   }
   config = var.config
+  units  = var.units
 }
