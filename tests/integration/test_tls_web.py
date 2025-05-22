@@ -4,13 +4,12 @@
 
 import logging
 from pathlib import Path
-from textwrap import dedent
 from types import SimpleNamespace
 
 import pytest
 import sh
 import yaml
-from helpers import curl, deploy_literal_bundle, get_unit_address
+from helpers import curl, get_unit_address
 from pytest_operator.plugin import OpsTest
 
 # pyright: reportAttributeAccessIssue = false
