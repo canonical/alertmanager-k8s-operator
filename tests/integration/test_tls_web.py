@@ -42,7 +42,11 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     sh.juju.relate("alertmanager:certificates", "ca", model=ops_test.model.name)
 
     await ops_test.model.wait_for_idle(
-        status="active", raise_on_error=False, timeout=600, idle_period=30
+        apps=["alertmanager", "ca"],
+        status="active",
+        raise_on_error=False,
+        timeout=600,
+        idle_period=30,
     )
 
 
@@ -116,6 +120,10 @@ async def test_https_still_reachable_after_refresh(ops_test: OpsTest, charm_unde
     assert ops_test.model
     sh.juju.refresh("alertmanager", model=ops_test.model.name, path=charm_under_test)
     await ops_test.model.wait_for_idle(
-        status="active", raise_on_error=False, timeout=600, idle_period=30
+        apps=["alertmanager", "ca"],
+        status="active",
+        raise_on_error=False,
+        timeout=600,
+        idle_period=30,
     )
     await test_https_reachable(ops_test, temp_dir)
