@@ -7,11 +7,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import sh
 import yaml
 from helpers import get_unit_address, is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 
 from src.alertmanager_client import Alertmanager
+
+# pyright: reportAttributeAccessIssue = false
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +28,7 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     assert ops_test.model
     # deploy alertmanager charm from charmhub
     logger.info("deploy charm from charmhub")
-    await ops_test.model.deploy(
-        "ch:alertmanager-k8s", application_name=app_name, channel="edge", trust=True
-    )
+    sh.juju.deploy("alertmanager-k8s", model=ops_test.model.name, channel="2/edge", trust=True)
     await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=1000, raise_on_error=False
     )
@@ -58,7 +59,7 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
 
     # upgrade alertmanger using charm built locally
     logger.info("upgrade deployed charm with local charm %s", charm_under_test)
-    await application.refresh(path=charm_under_test, resources=resources)
+    sh.juju.refresh(app_name, model=ops_test.model.name, path=charm_under_test)
     await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=1000, raise_on_error=False
     )

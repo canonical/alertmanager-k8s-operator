@@ -42,9 +42,7 @@ async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_und
     """Build the charm-under-test, deploy the charm from charmhub, and upgrade from path."""
     logger.info("deploy charm from charmhub")
     assert ops_test.model
-    sh.juju.deploy(
-        app_name, model=ops_test.model.name, channel="edge", base="ubuntu@20.04", trust=True
-    )
+    sh.juju.deploy(app_name, model=ops_test.model.name, channel="2/edge", trust=True)
     await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
 
     logger.info("upgrade deployed charm with local charm %s", charm_under_test)
@@ -62,8 +60,10 @@ async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_und
 async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_under_test):
     # Deploy related apps
     assert ops_test.model
-    sh.juju.deploy("prometheus-k8s", "prom", model=ops_test.model.name, channel="edge", trust=True)
-    sh.juju.deploy("karma-k8s", "karma", model=ops_test.model.name, channel="edge", trust=True)
+    sh.juju.deploy(
+        "prometheus-k8s", "prom", model=ops_test.model.name, channel="2/edge", trust=True
+    )
+    sh.juju.deploy("karma-k8s", "karma", model=ops_test.model.name, channel="2/edge", trust=True)
 
     # Relate apps
     sh.juju.relate(app_name, "prom:alertmanager", model=ops_test.model.name)
