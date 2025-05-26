@@ -24,14 +24,14 @@ dev = [
   "ruff",
   "codespell",
   # Static
-  "pyright",
+  "pyright<1.1.399", # 1.1.399 vendors typeshed that dropped Python 3.8 support
   # Unit
   "pytest",
   "coverage[toml]",
   "deepdiff",
   "hypothesis",
   "validators>=0.21.2",
-  "ops-scenario<7",
+  "ops[testing]",
   "pytest-interface-tester>0.3",
   # Integration
   "juju<=3.3.0,>=3.0",

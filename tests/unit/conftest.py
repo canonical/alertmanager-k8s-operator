@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 from charms.tempo_coordinator_k8s.v0.charm_tracing import charm_tracing_disabled
-from scenario import Context
+from ops.testing import Context
 
 from src.alertmanager import WorkloadManager
 from src.charm import AlertmanagerCharm
