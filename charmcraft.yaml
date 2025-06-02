@@ -79,6 +79,10 @@ provides:
     optional: true
     description: |
       Configures Grafana to be able to use this Alertmanager instance as a datasource.
+  provide-cmr-mesh:
+    interface: cross_model_mesh
+    description: |
+      Allows cross model access control via service mesh
 
 requires:
   ingress:
@@ -109,6 +113,15 @@ requires:
     limit: 1
     description: |
       Enables sending workload traces to a distributed tracing backend such as Tempo.
+  service-mesh:
+    limit: 1
+    interface: service_mesh
+    description: |
+      Integrates with a service mesh for access control
+  require-cmr-mesh:
+    interface: cross_model_mesh
+    description: |
+      Allows cross model access control via service mesh
 
 peers:
   replicas:
