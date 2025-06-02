@@ -32,6 +32,7 @@ from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer, charm_tracing_config
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
+from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, Policy, ServiceMeshConsumer
 from ops.charm import ActionEvent, CharmBase
 from ops.main import main
 from ops.model import (
@@ -166,6 +167,23 @@ class AlertmanagerCharm(CharmBase):
         )
 
         self.catalog = CatalogueConsumer(charm=self, item=self._catalogue_item)
+
+        self._mesh = ServiceMeshConsumer(
+            self,
+            policies=[
+                Policy(
+                    relation="self-metrics-endpoint",
+                    endpoints=[
+                        Endpoint(
+                            hosts=[hostname for hostname in self._get_peer_hostnames(include_this_unit=True)],
+                            ports=[self.api_port],
+                            methods=["GET"],
+                            paths=["/metrics"],
+                        ),
+                    ],
+                ),
+            ],
+        )
 
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
