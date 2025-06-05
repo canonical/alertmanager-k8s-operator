@@ -20,7 +20,7 @@ from charms.alertmanager_k8s.v1.alertmanager_dispatch import AlertmanagerProvide
 from charms.catalogue_k8s.v1.catalogue import CatalogueConsumer, CatalogueItem
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
-from charms.istio_beacon_k8s.v0.service_mesh import Method, Endpoint, Policy, ServiceMeshConsumer
+from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, Method, Policy, ServiceMeshConsumer
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     K8sResourcePatchFailedEvent,
