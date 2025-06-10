@@ -82,7 +82,8 @@ provides:
   provide-cmr-mesh:
     interface: cross_model_mesh
     description: |
-      Allows cross model access control via service mesh
+      Access a cross-model application from catalogue via the service mesh.
+      This relation provides additional data required by the service mesh to enforce cross-model authorization policies
 
 requires:
   ingress:
@@ -117,11 +118,12 @@ requires:
     limit: 1
     interface: service_mesh
     description: |
-      Integrates with a service mesh for access control
+      Subscribe this charm into a service mesh to enforce authorization policies.
   require-cmr-mesh:
     interface: cross_model_mesh
     description: |
-      Allows cross model access control via service mesh
+      Allow a cross-model application access to catalogue via the service mesh.
+      This relation provides additional data required by the service mesh to enforce cross-model authorization policies.
 
 peers:
   replicas:
