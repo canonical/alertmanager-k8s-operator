@@ -181,6 +181,24 @@ class AlertmanagerCharm(CharmBase):
                         ),
                     ],
                 ),
+                Policy(
+                    relation="alerting",
+                    endpoints=[
+                        Endpoint(
+                            ports=[self.api_port],
+                            methods=[Method.post],
+                        )
+                    ]
+                ),
+                Policy(
+                    relation="grafana-source",
+                    endpoints=[
+                        Endpoint(
+                            port=[self.api_port],
+                            methods=[Method.get],
+                        )
+                    ]
+                )
             ],
         )
 
