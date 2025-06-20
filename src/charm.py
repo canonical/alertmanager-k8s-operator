@@ -194,7 +194,7 @@ class AlertmanagerCharm(CharmBase):
                     relation="grafana-source",
                     endpoints=[
                         Endpoint(
-                            port=[self.api_port],
+                            ports=[self.api_port],
                             methods=[Method.get],
                         )
                     ]
