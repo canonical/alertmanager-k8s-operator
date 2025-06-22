@@ -1,105 +1,147 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""#Service Mesh Library.
+"""# Service Mesh Library.
 
-The service mesh library is used to facilitate adding your charmed application to a service mesh.
-The library leverages the `service_mesh` and `cross_model_mesh` interfaces.
+This library facilitates adding your charmed application to a service mesh, leveraging the
+`service_mesh` and `cross_model_mesh` interfaces to provide secure, policy-driven traffic
+management between applications.
 
-##Consumer
+## Overview
 
-Service meshes provide a range of capabilities for routing, controlling, and monitoring traffic.  A key feature of many service meshes is the ability to restrict traffic between Pods based on L4 and L7 criteria.  For example, defining that a Pod MetricsScraper can `GET` from Pod MetricsProducer at `/metrics` on port `9090`, but SomeOtherPod cannot.
+Service meshes provide capabilities for routing, controlling, and monitoring traffic between
+applications. A key feature is the ability to restrict traffic between Pods. For example, you can define that Pod MetricsScraper can `GET` from Pod MetricsProducer
+at `/metrics` on port `9090`, while preventing SomeOtherPod from accessing it.
 
-The ServiceMeshConsumer object is used to subscribe a charm and its workloads to a related service mesh.  Since it is common for a relation between applications to indicate traffic flow (ex: if DbConsumer Requires a DbProducer), the ServiceMeshConsumer provides an optional way to automate creation of traffic rules based on app relations.
+## Consumer
 
-To add service mesh support to your charm, you must add 3 relations in your charmcraft.yaml.
+The ServiceMeshConsumer object subscribes a charm and its workloads to a related service mesh.
+Since application relations often indicate traffic flow patterns (e.g., DbConsumer requiring
+DbProducer), ServiceMeshConsumer provides automated creation of traffic rules based on
+application relations. \
 
-```
+The ServiceMeshConsumer implements the `requirer` side of the juju relation.
+
+### Setup
+
+First, add the required relations to your `charmcraft.yaml`:
+
+```yaml
 requires:
   service-mesh:
     limit: 1
     interface: service_mesh
+    description: |
+      Subscribe this charm into a service mesh to enforce authorization policies.
   require-cmr-mesh:
     interface: cross_model_mesh
+    description: |
+      Allow a cross-model application access to catalogue via the service mesh.
+      This relation provides additional data required by the service mesh to enforce cross-model authorization policies.
+
 provides:
   provide-cmr-mesh:
     interface: cross_model_mesh
+    description: |
+      Access a cross-model application from catalogue via the service mesh.
+      This relation provides additional data required by the service mesh to enforce cross-model authorization policies.
 ```
 
-Then instantiate a ServiceMeshConsumer object in the
-`__init__` method of your charm:
+Instantiate a ServiceMeshConsumer object in your charm's `__init__` method:
 
-```
-from charms.istio_beacon_k8s.v0.service_mesh import Policy, ServiceMeshConsumer
+```python
+from charms.istio_beacon_k8s.v0.service_mesh import Method, Endpoint, Policy, ServiceMeshConsumer
 
-...
-self._mesh = ServiceMeshConsumer(
-    self,
-    policies=[
-        Policy(
-            relation="metrics",
-            endpoints=[
-                Endpoint(
-                    hosts=[self._my_host_name],
-                    ports=[HTTP_LISTEN_PORT],
-                    methods=["GET"],
-                    paths=["/metrics"],
+class MyCharm(CharmBase):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self._mesh = ServiceMeshConsumer(
+            self,
+            policies=[
+                Policy(
+                    relation="metrics",
+                    endpoints=[
+                        Endpoint(
+                            ports=[HTTP_LISTEN_PORT],
+                            methods=[Method.get],
+                            paths=["/metrics"],
+                        ),
+                    ],
+                ),
+                Policy(
+                    relation="data",
+                    endpoints=[
+                        Endpoint(
+                            ports=[HTTP_LISTEN_PORT],
+                            methods=[Method.get],
+                            paths=["/data"],
+                        ),
+                    ],
                 ),
             ],
-        ),
-        Policy(
-            relation="data",
-            endpoint=[
-                Endpoint(
-                    hosts=[self._my_host_name],
-                    ports[HTTP_LISTEN_PORT],
-                    methods=["GET"]
-                    paths=["/data"],
-                ),
-            ],
-        ),
-    ],
-)
+        )
 ```
 
-The example above specifies two policies. The resulting behaviour would be that when related over the `metrics` relation, the service mesh will allow traffic to the `/metrics` endpoint for the remote application and when related over the `data` endpoint, the service mesh will allow traffic to the `/data` endpoint.
+This example creates two policies:
+- When related over the `metrics` relation allow the related application to `GET` this application's `/metrics` endpoint on the specified port
+- When related over the `data` relation allow the relation application to `GET` this application's `/data` endpoint on the specified port
 
-By using the above method, you can specify exactly which endpoints can be reached over which relations.
+### Cross-Model Relations
+To request service mesh policies for cross-model relations, additional information is required.
 
-###Cross Model relations
+For any charm that wants to grant access to a related application (say, the above example
+charm providing a `data` relation), these charms must also implement and relate over the
+`cross_model_mesh` relation.  For `cross_model_mesh`, the charm granting access should be the
+provider, and the charm trying to communicate should be the requirer.
 
-If a ServiceMeshConsumer is creating a Policy for a relation that is cross model, additional information is required to construct the policy. To facilitate this, the charms can also be related over the cross_model_mesh interface. When that relation is established, traffic will be allowed from the requirer to the provider.
+### Joining the Mesh
 
-###Joining the Mesh
+For most charms, instantiating ServiceMeshConsumer automatically configures the charm
+to join the mesh. For legacy "podspec" style charms or charms deploying custom
+Kubernetes resources, you must manually apply the labels returned by
+`ServiceMeshConsumer.labels()` to your pods.
 
-For most charms, simply instantiating ServiceMeshConsumer should automatically configure the charm to be on the mesh. If your charm is the one of the old "podspec" style charms or your charm deploys custom k8s resources there is an addition step. You must apply the labels returned by `ServiceMeshConsumer.labels()` to your pods.
+## Provider
 
-##Provider
+The ServiceMeshProvider implements the provider side of the juju relation. To provide a service mesh, instantiate ServiceMeshProvider in your charm's `__init__` method:
 
-To provide a service mesh, instantiate the ServiceMeshProvider object in the __init__ method
-of your charm:
-```
+```python
 from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshProvider
 
-...
-self._mesh = ServiceMeshProvider(
-    charm = self,
-    labels = {"my_service_mesh": "enable"},
-    mesh_relation_name = "service-mesh",
-)
+class MyServiceMeshCharm(CharmBase):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self._mesh = ServiceMeshProvider(
+            charm=self,
+            labels={"istio.io/dataplane-mode": "ambient"},
+            mesh_relation_name="service-mesh",
+        )
 ```
 
-The labels argument is the dict of labels that indicate to the service mesh that a Pod should be subscribed to the mesh.
-These will be sent to each related ServiceMeshConsumer to be used by the charm for per-Pod subscription.  These labels
-are service-mesh dependent - for example, for an Istio ambient mesh this should be
-{"istio.io/dataplane-mode": "ambient"}.
+### Configuration
 
-The provider also exposes the method `mesh_info` that returns a list of MeshPolicy objects. These MeshPolicy objects can be used to configure the service mesh.
+The `labels` argument specifies the labels that indicate to the service mesh that a Pod
+should be subscribed to the mesh. These labels are service-mesh specific, for eg.:
+- For Istio ambient mesh: `{"istio.io/dataplane-mode": "ambient"}`
+- For Istio sidecar mesh: `{"istio-injection": "enabled"}`
 
-```
+### Accessing Mesh Policies
+
+The provider exposes the `mesh_info()` method that returns a list of MeshPolicy objects
+for configuring the service mesh:
+
+```python
 for policy in self._mesh.mesh_info():
-    set_up_my_mesh(policy)
+    configure_service_mesh_policy(policy)
 ```
+
+## Data Models
+
+- **Method**: Defines enum for HTTP methods (GET, POST, PUT, etc.)
+- **Endpoint**: Defines traffic endpoints with hosts, ports, methods, and paths
+- **Policy**: Defines authorization policy for the consumer
+- **MeshPolicy**: Contains complete policy information for mesh configuration
+- **CMRData**: Contains cross-model relation metadata
 """
 
 import enum
@@ -109,19 +151,23 @@ from typing import Dict, List, Optional
 
 import httpx
 import pydantic
-from lightkube.core.client import Client
+from lightkube import Client
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
-from lightkube.resources.core_v1 import ConfigMap
-from ops import CharmBase, Object, Relation
+from lightkube.resources.core_v1 import ConfigMap, Service
+from ops import CharmBase, Object, RelationMapping
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 2
+LIBPATCH = 5
 
 PYDEPS = ["lightkube", "pydantic"]
 
 logger = logging.getLogger(__name__)
+
+# Juju application names are limited to 63 characters, so we can use the app_name directly here and still keep under
+# Kubernetes's 253 character limit.
+label_configmap_name_template = "juju-service-mesh-{app_name}-labels"
 
 
 class Method(str, enum.Enum):
@@ -203,7 +249,8 @@ class ServiceMeshConsumer(Object):
         self._relation = self._charm.model.get_relation(mesh_relation_name)
         self._cmr_relations = self._charm.model.relations[cross_model_mesh_provides_name]
         self._policies = policies or []
-        self._label_configmap_name = f"juju-service-mesh-{self._charm.app.name}-labels"
+        self._label_configmap_name = label_configmap_name_template.format(app_name=self._charm.app.name)
+        self._lightkube_client = None
         if auto_join:
             self.framework.observe(
                 self._charm.on[mesh_relation_name].relation_changed, self._update_labels
@@ -250,55 +297,22 @@ class ServiceMeshConsumer(Object):
         if self._relation is None:
             return
         logger.debug("Updating service mesh policies.")
-        mesh_policies = []
-        for policy in self._policies:
-            for relation in self._charm.model.relations[policy.relation]:
-                if cmr_relation := self._check_cmr(relation):
-                    logger.debug(f"Found cross model relation: {relation.name}. Creating policy.")
-                    cmr_data = CMRData.model_validate(
-                        json.loads(cmr_relation.data[cmr_relation.app]["cmr_data"])
-                    )
-                    mesh_policies.append(
-                        MeshPolicy(
-                            source_app_name=cmr_data.app_name,
-                            source_namespace=cmr_data.juju_model_name,
-                            target_app_name=self._charm.app.name,
-                            target_namespace=self._my_namespace(),
-                            target_service=policy.service,
-                            endpoints=policy.endpoints,
-                        ).model_dump()
-                    )
-                else:
-                    logger.debug(f"Found relation: {relation.name}. Creating policy.")
-                    mesh_policies.append(
-                        MeshPolicy(
-                            source_app_name=relation.app.name,
-                            source_namespace=self._my_namespace(),
-                            target_app_name=self._charm.app.name,
-                            target_namespace=self._my_namespace(),
-                            target_service=policy.service,
-                            endpoints=policy.endpoints,
-                        ).model_dump()
-                    )
+
+        # Collect the remote data from any fully established cross_model_relation integrations
+        # {remote application name: cmr relation data}
+        cmr_application_data = {
+            cmr.app.name: CMRData.model_validate(json.loads(cmr.data[cmr.app]["cmr_data"]))
+            for cmr in self._cmr_relations if "cmr_data" in cmr.data[cmr.app]
+        }
+
+        mesh_policies = build_mesh_policies(
+            relation_mapping=self._charm.model.relations,
+            target_app_name=self._charm.app.name,
+            target_namespace=self._my_namespace(),
+            policies=self._policies,
+            cmr_application_data=cmr_application_data
+        )
         self._relation.data[self._charm.app]["policies"] = json.dumps(mesh_policies)
-
-    def _check_cmr(self, mesh_relation: Relation) -> Optional[Relation]:
-        """Check if the given relation is a cmr. If so return the associated cross_model_mesh relation.
-
-        Returns:
-            Return an instance of the cmr relation if it is found and has data. If there is no
-            data or the relation does not exist, return None.
-        """
-        for cmr_rel in self._cmr_relations:
-            # These are the app names as seen by the consumer and are local to the model. When
-            # establishing cross-model relations, it is not possible to represent the app with an
-            # already existing name. Thus these names will always be unique.
-            if cmr_rel.app.name == mesh_relation.app.name:
-                if "cmr_data" not in cmr_rel.data[cmr_rel.app]:
-                    # Data has not yet been provided
-                    return None
-                return cmr_rel
-        return None
 
     def _my_namespace(self):
         """Return the namespace of the running charm."""
@@ -320,42 +334,35 @@ class ServiceMeshConsumer(Object):
         self._set_labels(self.labels())
 
     def _set_labels(self, labels: dict) -> None:
-        client = Client(namespace=self._charm.model.name, field_manager=self._charm.app.name)
-        stateful_set = client.get(res=StatefulSet, name=self._charm.app.name)
-        try:
-            config_map = client.get(ConfigMap, self._label_configmap_name)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                config_map = self._create_label_configmap(client)
-            else:
-                raise
-        if config_map.data:
-            config_map_labels = json.loads(config_map.data["labels"])
-            for label in config_map_labels:
-                if label not in labels:
-                    # The label was previously set. Setting it to None will delete it.
-                    labels[label] = None
-        if stateful_set.spec:
-            stateful_set.spec.template.metadata.labels.update(labels)  # type: ignore
-        config_map.data = {"labels": json.dumps(labels)}
-        client.patch(res=ConfigMap, name=self._label_configmap_name, obj=config_map)
-        client.patch(res=StatefulSet, name=self._charm.app.name, obj=stateful_set)
-
-    def _create_label_configmap(self, client) -> ConfigMap:
-        """Create an empty ConfigMap unique to this charm."""
-        obj = ConfigMap(
-            data={"labels": "{}"},
-            metadata=ObjectMeta(
-                name=self._label_configmap_name,
-                namespace=self._charm.model.name,
-            ),
+        """Add labels to the charm's Pods (via StatefulSet) and Service to put the charm on the mesh."""
+        reconcile_charm_labels(
+            client=self.lightkube_client,
+            app_name=self._charm.app.name,
+            namespace=self._charm.model.name,
+            label_configmap_name=self._label_configmap_name,
+            labels=labels
         )
-        client.create(obj=obj)
-        return obj
 
     def _delete_label_configmap(self) -> None:
-        client = Client(namespace=self._charm.model.name, field_manager=self._charm.app.name)
+        client = self.lightkube_client
         client.delete(res=ConfigMap, name=self._label_configmap_name)
+
+    @property
+    def lightkube_client(self):
+        """Returns a lightkube client configured for this library.
+
+        This indirection is implemented to avoid complex mocking in integration tests, allowing the integration tests to
+        do something equivalent to:
+            ```python
+           mesh_consumer = ServiceMeshConsumer(...)
+           mesh_consumer._lightkube_client = mocked_lightkube_client
+           ```
+        """
+        if self._lightkube_client is None:
+            self._lightkube_client = Client(
+                namespace=self._charm.model.name, field_manager=self._charm.app.name
+            )
+        return self._lightkube_client
 
 
 class ServiceMeshProvider(Object):
@@ -397,3 +404,111 @@ class ServiceMeshProvider(Object):
             policies = [MeshPolicy.model_validate(policy) for policy in policies_data]
             mesh_info.extend(policies)
         return mesh_info
+
+
+def build_mesh_policies(
+        relation_mapping: RelationMapping,
+        target_app_name: str,
+        target_namespace: str,
+        policies: List[Policy],
+        cmr_application_data: Dict[str, CMRData]
+) -> List[MeshPolicy]:
+    """Generate MeshPolicy that implement the given policies for the currently related applications.
+
+    Args:
+        relation_mapping: Charm's RelatioMapping object, for example self.model.relations.
+        target_app_name: The name of the target application, for example self.app.name.
+        target_namespace: The namespace of the target application, for example self.model.name.
+        policies: List of Policy objects defining the access rules.
+        cmr_application_data: Data for cross-model relations, mapping app names to CMRData.
+    """
+    mesh_policies = []
+    for policy in policies:
+        for relation in relation_mapping[policy.relation]:
+            if relation.app.name in cmr_application_data:
+                logger.debug(f"Found cross model relation: {relation.name}. Creating policy.")
+                source_app_name = cmr_application_data[relation.app.name].app_name
+                source_namespace = cmr_application_data[relation.app.name].juju_model_name
+            else:
+                logger.debug(f"Found in-model relation: {relation.name}. Creating policy.")
+                source_app_name = relation.app.name
+                source_namespace = target_namespace
+
+            mesh_policies.append(
+                MeshPolicy(
+                    source_app_name=source_app_name,
+                    source_namespace=source_namespace,
+                    target_app_name=target_app_name,
+                    target_namespace=target_namespace,
+                    target_service=policy.service,
+                    endpoints=policy.endpoints,
+                ).model_dump()
+            )
+    return mesh_policies
+
+
+def reconcile_charm_labels(client: Client, app_name: str, namespace: str,  label_configmap_name: str, labels: Dict[str, str]) -> None:
+    """Reconciles zero or more user-defined additional Kubernetes labels that are put on a Charm's Kubernetes objects.
+
+    This function manages a group of user-defined labels that are added to a Charm's Kubernetes objects (the charm Pods
+    (via editing the StatefulSet) and Service).  Its primary uses are:
+    * adding labels to a Charm's objects
+    * updating or removing labels on a Charm's Kubernetes objects that were previously set by this method
+
+    To enable removal of labels, we also create a ConfigMap that stores the labels we last set.  This way the function
+    itself can be stateless.
+
+    This function takes a little care to avoid removing labels added by other means, but it does not provide exhaustive
+    guarantees for safety.  It is up to the caller to ensure that the labels they pass in are not already in use.
+
+    Args:
+        client: The lightkube Client to use for Kubernetes API calls.
+        app_name: The name of the application (Charm) to reconcile labels for.
+        namespace: The namespace in which the application is running.
+        label_configmap_name: The name of the ConfigMap that stores the labels.
+        labels: A dictionary of labels to set on the Charm's Kubernetes objects. Any labels that were previously created
+                by this method but omitted in `labels` now will be removed from the Kubernetes objects.
+    """
+    patch_labels = {}
+    patch_labels.update(labels)
+    stateful_set = client.get(res=StatefulSet, name=app_name)
+    service = client.get(res=Service, name=app_name)
+    try:
+        config_map = client.get(ConfigMap, label_configmap_name)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            config_map = _init_label_configmap(client, label_configmap_name, namespace)
+        else:
+            raise
+    if config_map.data:
+        config_map_labels = json.loads(config_map.data["labels"])
+        for label in config_map_labels:
+            if label not in patch_labels:
+                # The label was previously set. Setting it to None will delete it.
+                patch_labels[label] = None
+    if stateful_set.spec:
+        stateful_set.spec.template.metadata.labels.update(patch_labels)  # type: ignore
+    if service.metadata:
+        service.metadata.labels = service.metadata.labels or {}
+        service.metadata.labels.update(patch_labels)
+
+    # Store our actively managed labels in a ConfigMap so next call we know which we might need to delete.
+    # This should not include any labels that are nulled out as they're now out of scope.
+    config_map_labels = {k: v for k, v in patch_labels.items() if v is not None}
+    config_map.data = {"labels": json.dumps(config_map_labels)}
+    client.patch(res=ConfigMap, name=label_configmap_name, obj=config_map)
+    client.patch(res=StatefulSet, name=app_name, obj=stateful_set)
+    client.patch(res=Service, name=app_name, obj=service)
+
+
+def _init_label_configmap(client, name, namespace) -> ConfigMap:
+    """Create a ConfigMap with data of {labels: {}}, returning the lightkube ConfigMap object."""
+    obj = ConfigMap(
+        data={"labels": "{}"},
+        metadata=ObjectMeta(
+            name=name,
+            namespace=namespace,
+        ),
+    )
+    client.create(obj=obj)
+    return obj
