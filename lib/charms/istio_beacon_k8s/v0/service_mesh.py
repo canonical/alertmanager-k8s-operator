@@ -159,7 +159,7 @@ from ops import CharmBase, Object, RelationMapping
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 5
+LIBPATCH = 6
 
 PYDEPS = ["lightkube", "pydantic"]
 
@@ -392,9 +392,11 @@ class ServiceMeshProvider(Object):
 
     def update_relations(self):
         """Update all relations with the labels needed to use the mesh."""
-        rel_data = json.dumps(self._labels)
-        for relation in self._charm.model.relations[self._relation_name]:
-            relation.data[self._charm.app]["labels"] = rel_data
+        # Only the leader unit can update the application data bag
+        if self._charm.unit.is_leader():
+            rel_data = json.dumps(self._labels)
+            for relation in self._charm.model.relations[self._relation_name]:
+                relation.data[self._charm.app]["labels"] = rel_data
 
     def mesh_info(self) -> List[MeshPolicy]:
         """Return the relation data that defines Policies requested by the related applications."""
