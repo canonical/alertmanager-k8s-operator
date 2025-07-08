@@ -32,7 +32,9 @@ class Alertmanager:
         timeout=2,
         cafile: Optional[str] = None,
     ):
-        self.base_url = endpoint_url.rstrip("/")
+        # NOTE: urljoin replaces the whole path if base_url doesn't end with a /
+        # so we make sure it does
+        self.base_url = endpoint_url.rstrip("/") + "/"
         self.timeout = timeout
 
         self.ssl_context = ssl.create_default_context(cafile=cafile)
