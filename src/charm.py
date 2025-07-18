@@ -131,6 +131,7 @@ class AlertmanagerCharm(CharmBase):
                 self.on.update_status,
                 self.server_cert.on.cert_changed,
             ],
+            is_ingressed=self.ingress.is_ready(),
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
         self.remote_configuration = RemoteConfigurationRequirer(self)
@@ -188,7 +189,7 @@ class AlertmanagerCharm(CharmBase):
                             ports=[self.api_port],
                             methods=[Method.post],
                         )
-                    ]
+                    ],
                 ),
                 Policy(
                     relation="grafana-source",
@@ -197,8 +198,8 @@ class AlertmanagerCharm(CharmBase):
                             ports=[self.api_port],
                             methods=[Method.get],
                         )
-                    ]
-                )
+                    ],
+                ),
             ],
         )
 
@@ -558,8 +559,7 @@ class AlertmanagerCharm(CharmBase):
         try:
             status = self.alertmanager_workload.api.status()
             logger.info(
-                "alertmanager %s is up and running (uptime: %s); "
-                "cluster mode: %s, with %d peers",
+                "alertmanager %s is up and running (uptime: %s); cluster mode: %s, with %d peers",
                 status["versionInfo"]["version"],
                 status["uptime"],
                 status["cluster"]["status"],
