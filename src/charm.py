@@ -7,6 +7,7 @@
 import logging
 import socket
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import List, Optional, Tuple, cast
@@ -28,10 +29,13 @@ from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     ResourceRequirements,
     adjust_resource_requirements,
 )
-from charms.observability_libs.v1.cert_handler import CertHandler
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer, charm_tracing_config
+from charms.tls_certificates_interface.v4.tls_certificates import (
+    CertificateRequestAttributes,
+    TLSCertificatesRequiresV4,
+)
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
 from ops.charm import ActionEvent, CharmBase
 from ops.main import main
@@ -55,13 +59,20 @@ from config_builder import ConfigBuilder, ConfigError
 
 logger = logging.getLogger(__name__)
 
+@dataclass
+class TLSConfig:
+    """TLS configuration received by the charm over the `certificates` relation."""
+
+    server_cert: str
+    ca_cert: str
+    private_key: str
 
 @trace_charm(
     tracing_endpoint="_charm_tracing_endpoint",
     server_cert="_charm_tracing_ca_cert",
     extra_types=(
         AlertmanagerProvider,
-        CertHandler,
+        TLSCertificatesRequiresV4,
         IngressPerAppRequirer,
         KubernetesComputeResourcesPatch,
         RemoteConfigurationRequirer,
@@ -93,15 +104,23 @@ class AlertmanagerCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         self.container = self.unit.get_container(self._container_name)
+        self._fqdn = socket.getfqdn()
 
-        self.server_cert = CertHandler(
-            self,
-            key="am-server-cert",
-            sans=[socket.getfqdn()],
+        self._csr_attributes = CertificateRequestAttributes(
+            # the `common_name` field is required but limited to 64 characters.
+            # since it's overridden by sans, we can use a short,
+            # constrained value like app name.
+            common_name=self.app.name,
+            sans_dns=frozenset((self._fqdn,)),
+        )
+        self._cert_requirer = TLSCertificatesRequiresV4(
+            charm=self,
+            relationship_name="certificates",
+            certificate_requests=[self._csr_attributes],
         )
         self.framework.observe(
-            self.server_cert.on.cert_changed,  # pyright: ignore
-            self._on_server_cert_changed,
+            self._cert_requirer.on.certificate_available,  # pyright: ignore
+            self._on_certificate_available,
         )
 
         self.ingress = IngressPerAppRequirer(
@@ -129,7 +148,7 @@ class AlertmanagerCharm(CharmBase):
                 self.ingress.on.ready,
                 self.ingress.on.revoked,
                 self.on.update_status,
-                self.server_cert.on.cert_changed,
+                self._cert_requirer.on.certificate_available,
             ],
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
@@ -158,7 +177,7 @@ class AlertmanagerCharm(CharmBase):
                 self.ingress.on.revoked,  # pyright: ignore
                 self.on["ingress"].relation_changed,
                 self.on["ingress"].relation_departed,
-                self.server_cert.on.cert_changed,  # pyright: ignore
+                self._cert_requirer.on.certificate_available,  # pyright: ignore
             ],
         )
         self._tracing = TracingEndpointRequirer(self, protocols=["otlp_http"])
@@ -221,7 +240,7 @@ class AlertmanagerCharm(CharmBase):
             web_route_prefix="/",
             config_path=self._config_path,
             web_config_path=self._web_config_path,
-            tls_enabled=self._is_tls_ready,
+            tls_enabled=lambda: self._tls_available,
             cafile=self._ca_cert_path if Path(self._ca_cert_path).exists() else None,
         )
         self.framework.observe(
@@ -438,6 +457,7 @@ class AlertmanagerCharm(CharmBase):
             .set_templates(raw_templates, self._templates_path)
             .build()
         )
+        tls_config = self._tls_config
 
         return ConfigFileSystemState(
             {
@@ -445,9 +465,9 @@ class AlertmanagerCharm(CharmBase):
                 self._web_config_path: config_suite.web,
                 self._templates_path: config_suite.templates,
                 self._amtool_config_path: config_suite.amtool,
-                self._server_cert_path: self.server_cert.server_cert,
-                self._key_path: self.server_cert.private_key,
-                self._ca_cert_path: self.server_cert.ca_cert,
+                self._server_cert_path: tls_config.server_cert if tls_config else None,
+                self._key_path: tls_config.private_key if tls_config else None,
+                self._ca_cert_path: tls_config.ca_cert if tls_config else None,
             }
         )
 
@@ -462,7 +482,7 @@ class AlertmanagerCharm(CharmBase):
             self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
             return
 
-        if update_ca_certs or (self.server_cert.available and not self._certs_on_disk):
+        if update_ca_certs:
             self._update_ca_certs()
 
         # Make sure the external url is valid
@@ -517,7 +537,7 @@ class AlertmanagerCharm(CharmBase):
 
         self.unit.status = ActiveStatus()
 
-    def _on_server_cert_changed(self, _):
+    def _on_certificate_available(self, _):
         self._common_exit_hook(update_ca_certs=True)
 
     def _on_pebble_ready(self, _):
@@ -579,16 +599,16 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _update_ca_certs(self):
-        # Workload container
-        self.container.exec(["update-ca-certificates", "--fresh"], timeout=30).wait()
-
-        # Charm container
         ca_cert_path = Path(self._ca_cert_path)
-        if self.server_cert.ca_cert:
+        if tls_config := self._tls_config:
             ca_cert_path.parent.mkdir(exist_ok=True, parents=True)
-            ca_cert_path.write_text(self.server_cert.ca_cert)  # pyright: ignore
+            ca_cert_path.write_text(tls_config.ca_cert)
         else:
             ca_cert_path.unlink(missing_ok=True)
+
+        # Workload container
+        self.container.exec(["update-ca-certificates", "--fresh"], timeout=30).wait()
+        # Charm container
         subprocess.run(["update-ca-certificates", "--fresh"], check=True)
 
     def _get_peer_hostnames(self, include_this_unit=True) -> List[str]:
@@ -612,26 +632,22 @@ class AlertmanagerCharm(CharmBase):
         return hostnames
 
     @property
-    def _certs_on_disk(self) -> bool:
-        """Check if the TLS setup is ready on disk."""
-        return (
-            self.container.can_connect()
-            and self.container.exists(self._server_cert_path)
-            and self.container.exists(self._key_path)
-            and self.container.exists(self._ca_cert_path)
+    def _tls_config(self) -> Optional[TLSConfig]:
+        certificates, key = self._cert_requirer.get_assigned_certificate(
+            certificate_request=self._csr_attributes
         )
+        if not (key and certificates):
+            return None
+        return TLSConfig(certificates.certificate.raw, certificates.ca.raw, key.raw)
 
-    def _is_tls_ready(self) -> bool:
-        """Returns True if the workload is ready to operate in TLS mode."""
-        return self.server_cert.available and self._certs_on_disk
-
-    def _is_waiting_for_cert(self) -> bool:
-        return self.server_cert.enabled and not self.server_cert.available
+    @property
+    def _tls_available(self) -> bool:
+        return bool(self._tls_config)
 
     @property
     def _internal_url(self) -> str:
         """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server."""
-        return f"{self._scheme}://{socket.getfqdn()}:{self._ports.api}"
+        return f"{self._scheme}://{self._fqdn}:{self._ports.api}"
 
     @property
     def _external_url(self) -> str:
@@ -640,7 +656,7 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _scheme(self) -> str:
-        return "https" if self._is_tls_ready() else "http"
+        return "https" if self._tls_available else "http"
 
 
 if __name__ == "__main__":
