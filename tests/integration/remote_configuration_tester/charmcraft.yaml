@@ -1,14 +1,46 @@
+# Copyright 2022 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: remote-configuration-tester
 type: charm
-bases:
-  - build-on:
-    - name: "ubuntu"
-      channel: "20.04"
-    run-on:
-    - name: "ubuntu"
-      channel: "20.04"
+summary: A charm to test the Alertmanager Remote Configuration library
+description: A charm to test the Alertmanager Remote Configuration library
+
+platforms:
+  ubuntu@20.04:amd64:
+
 parts:
   charm:
-    charm-binary-python-packages:
-    - jsonschema
-    build-packages:
-    - git
+    source: .
+    plugin: uv
+    build-packages: [git]
+    build-snaps: [astral-uv]
+
+containers:
+  remote-configuration-tester:
+    resource: remote-configuration-tester-image
+    mounts:
+      - storage: config
+        location: /etc/alertmanager
+
+storage:
+  config:
+    type: filesystem
+    location: /etc/alertmanager
+
+resources:
+  remote-configuration-tester-image:
+    type: oci-image
+    description: upstream docker image for remote-configuration-tester
+    upstream-source: python:slim
+
+provides:
+  remote-configuration:
+    interface: alertmanager_remote_configuration
+
+config:
+  options:
+    config_file:
+      type: string
+      default: ""
+      description: |
+        Alertmanager configuration file (yaml).

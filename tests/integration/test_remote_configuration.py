@@ -27,7 +27,7 @@ RESOURCES = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["
 
 TESTER_CHARM_PATH = "./tests/integration/remote_configuration_tester"
 TESTER_APP_METADATA = yaml.safe_load(
-    Path(os.path.join(TESTER_CHARM_PATH, "metadata.yaml")).read_text()
+    Path(os.path.join(TESTER_CHARM_PATH, "charmcraft.yaml")).read_text()
 )
 TESTER_APP_NAME = TESTER_APP_METADATA["name"]
 TESTER_APP_RESOURCES = {

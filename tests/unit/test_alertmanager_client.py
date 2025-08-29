@@ -16,7 +16,11 @@ class TestAlertmanagerAPIClient(unittest.TestCase):
         self.api = Alertmanager(f"http://address:12345/{self.path}/")
 
     def test_base_url(self):
-        self.assertEqual(f"http://address:12345/{self.path}", self.api.base_url)
+        """Check that regardless of the passed url, base_url ends with a slash."""
+        api_with_slash = Alertmanager(f"http://address:12345/{self.path}/")
+        self.assertEqual(f"http://address:12345/{self.path}/", api_with_slash.base_url)
+        api_without_slash = Alertmanager(f"http://address:12345/{self.path}")
+        self.assertEqual(f"http://address:12345/{self.path}/", api_without_slash.base_url)
 
     @patch("alertmanager_client.urllib.request.urlopen")
     def test_reload_succeed(self, urlopen_mock):
