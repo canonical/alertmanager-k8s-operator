@@ -16,10 +16,10 @@ links:
 
 assumes:
   - k8s-api
-  - juju >= 3.0.3  # Juju 3.0.3+ needed for secrets and open-port
+  - juju >= 3.6
 
 platforms:
-  ubuntu@20.04:amd64:
+  ubuntu@24.04:amd64:
 
 parts:
   charm:
@@ -46,8 +46,6 @@ storage:
     type: filesystem
     description: >
       Storage path passed to alertmanager via --storage.path argument and used for nflog and silences snapshot
-
-
 
 provides:
   alerting:
@@ -81,6 +79,18 @@ provides:
     optional: true
     description: |
       Configures Grafana to be able to use this Alertmanager instance as a datasource.
+  provide-cmr-mesh:  # server-side-for-cmr-mesh
+    interface: cross_model_mesh
+    description: |
+      Allow cross-model applications to make HTTP requests to alertmanager via the service mesh.
+      This relation provides additional data required by the service mesh to create cross-model authorization policies
+
+      Announce a subset of juju topology to the other side because a CMR obfuscates identity.
+      Each pair of charm would need a separate relation of this kind, e.g. otelcol to loki and to prom.
+
+      To make use of this relation, you also must have either the service-mesh relation in place (e.g. istio-beacon) or
+      have the istio-beacon enroll the entire model (via its config option).
+      (The service_mesh charm library manages both of these relations.)
 
 requires:
   ingress:
@@ -111,6 +121,21 @@ requires:
     limit: 1
     description: |
       Enables sending workload traces to a distributed tracing backend such as Tempo.
+  service-mesh:
+    limit: 1
+    interface: service_mesh
+    description: |
+      Subscribe this charm into a service mesh and create authorization policies.
+      We forward to the beacon our authorization policies.
+      The beacon sends the pod and service labels required by this charm to join the mesh.
+      This relation is a pre-requisite for using the provide-cmr-mesh relation.
+  require-cmr-mesh:
+    # TODO: remove this relation when this is fixed:
+    #   https://github.com/canonical/istio-beacon-k8s-operator/issues/91
+    interface: cross_model_mesh
+    description: |
+      Allow a cross-model application access to alertmanager via the service mesh.
+      This relation provides additional data required by the service mesh to enforce cross-model authorization policies.
 
 peers:
   replicas:

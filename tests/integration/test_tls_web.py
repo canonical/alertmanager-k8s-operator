@@ -4,18 +4,21 @@
 
 import logging
 from pathlib import Path
-from textwrap import dedent
 from types import SimpleNamespace
 
 import pytest
+import sh
 import yaml
-from helpers import curl, deploy_literal_bundle, get_unit_address
+from helpers import curl, get_unit_address
 from pytest_operator.plugin import OpsTest
+
+# pyright: reportAttributeAccessIssue = false
 
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
-am = SimpleNamespace(name="am", scale=1)
+alertmanager_image_rev = METADATA["resources"]["alertmanager-image"]["upstream-source"]
+am = SimpleNamespace(name="alertmanager", scale=1)
 ca = SimpleNamespace(name="ca")
 
 # FIXME change scale to 2 once the tls_certificate lib issue is fixed
@@ -26,33 +29,25 @@ ca = SimpleNamespace(name="ca")
 async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     """Deploy 2 alertmanager units, related to a local CA."""
     assert ops_test.model
-    test_bundle = dedent(
-        f"""
-        ---
-        bundle: kubernetes
-        applications:
-          {am.name}:
-            charm: {charm_under_test}
-            series: focal
-            scale: {am.scale}
-            trust: true
-            resources:
-              alertmanager-image: {METADATA["resources"]["alertmanager-image"]["upstream-source"]}
-          {ca.name}:
-            charm: self-signed-certificates
-            channel: edge
-            scale: 1
-        relations:
-        - [am:certificates, ca:certificates]
-        """
-    )
-
     # Deploy the charm and wait for active/idle status
-    await deploy_literal_bundle(ops_test, test_bundle)  # See appendix below
-    await ops_test.model.wait_for_idle(
-        status="active", raise_on_error=False, timeout=600, idle_period=30
+    sh.juju.deploy(
+        charm_under_test,
+        "alertmanager",
+        f"--num-units={am.scale}",
+        model=ops_test.model.name,
+        resource=f"alertmanager-image={alertmanager_image_rev}",
+        trust=True,
     )
-    await ops_test.model.wait_for_idle(status="active")
+    sh.juju.deploy("self-signed-certificates", "ca", model=ops_test.model.name, channel="edge")
+    sh.juju.relate("alertmanager:certificates", "ca", model=ops_test.model.name)
+
+    await ops_test.model.wait_for_idle(
+        apps=["alertmanager", "ca"],
+        status="active",
+        raise_on_error=False,
+        timeout=600,
+        idle_period=30,
+    )
 
 
 @pytest.mark.abort_on_fail
@@ -123,11 +118,12 @@ async def test_https_reachable(ops_test: OpsTest, temp_dir):
 async def test_https_still_reachable_after_refresh(ops_test: OpsTest, charm_under_test, temp_dir):
     """Make sure alertmanager's https endpoint is still reachable after an upgrade."""
     assert ops_test.model
-    application = ops_test.model.applications[am.name]
-    assert application
-    await application.refresh(path=charm_under_test)
+    sh.juju.refresh("alertmanager", model=ops_test.model.name, path=charm_under_test)
     await ops_test.model.wait_for_idle(
-        status="active", raise_on_error=False, timeout=600, idle_period=30
+        apps=["alertmanager", "ca"],
+        status="active",
+        raise_on_error=False,
+        timeout=600,
+        idle_period=30,
     )
-    await ops_test.model.wait_for_idle(status="active")
     await test_https_reachable(ops_test, temp_dir)

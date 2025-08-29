@@ -38,7 +38,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 8
+LIBPATCH = 9
 
 PYDEPS = ["pydantic < 2"]
 
@@ -58,9 +58,7 @@ class _KarmaDashboardProviderUnitDataV0(BaseModel):
         json_encoders = {
             # We need this because relation data values must be strings, not <class 'bool'>
             # Note: In pydantic>=2, can use `field_serializer`.
-            bool: lambda v: "true"
-            if v
-            else "false"
+            bool: lambda v: "true" if v else "false"
         }
 
 
