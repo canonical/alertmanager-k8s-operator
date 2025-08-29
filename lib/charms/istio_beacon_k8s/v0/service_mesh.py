@@ -158,7 +158,7 @@ from ops import CharmBase, Object, RelationMapping
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 7
+LIBPATCH = 8
 
 PYDEPS = ["lightkube", "pydantic"]
 
@@ -315,12 +315,16 @@ class ServiceMeshConsumer(Object):
 
     def _send_cmr_data(self, event):
         """Send app and model information for CMR."""
+        if not self._charm.unit.is_leader():
+            return
         data = CMRData(
             app_name=self._charm.app.name, juju_model_name=self._charm.model.name
         ).model_dump()
         event.relation.data[self._charm.app]["cmr_data"] = json.dumps(data)
 
     def _relations_changed(self, _event):
+        if not self._charm.unit.is_leader():
+            return
         self.update_service_mesh()
 
     def update_service_mesh(self):
@@ -362,6 +366,8 @@ class ServiceMeshConsumer(Object):
         return json.loads(self._relation.data[self._relation.app]["labels"])
 
     def _on_mesh_broken(self, _event):
+        if not self._charm.unit.is_leader():
+            return
         self._set_labels({})
         self._delete_label_configmap()
 
