@@ -32,7 +32,9 @@ class Alertmanager:
         timeout=2,
         cafile: Optional[str] = None,
     ):
-        self.base_url = endpoint_url.rstrip("/")
+        # NOTE: urljoin replaces the whole path if base_url doesn't end with a /
+        # so we make sure it does
+        self.base_url = endpoint_url.rstrip("/") + "/"
         self.timeout = timeout
 
         self.ssl_context = ssl.create_default_context(cafile=cafile)
@@ -210,7 +212,7 @@ class Alertmanager:
         Returns:
             urllib response object.
         """
-        url = urllib.parse.urljoin(self.base_url, "/api/v1/alerts")
+        url = urllib.parse.urljoin(self.base_url, "api/v1/alerts")
         headers = {"Content-Type": "application/json"}
         post_data = json.dumps(alerts).encode("utf-8")
         response = self._post(url, post_data, headers=headers)
@@ -223,7 +225,7 @@ class Alertmanager:
         Returns:
             list of alerts.
         """
-        url = urllib.parse.urljoin(self.base_url, "/api/v2/alerts")
+        url = urllib.parse.urljoin(self.base_url, "api/v2/alerts")
         response = self._get(url) or "[]"
         alerts = json.loads(response)
 
@@ -246,7 +248,7 @@ class Alertmanager:
         Returns:
             urllib response object.
         """
-        url = urllib.parse.urljoin(self.base_url, "/api/v2/silences")
+        url = urllib.parse.urljoin(self.base_url, "api/v2/silences")
         headers = {"Content-Type": "application/json"}
         silences = {
             "matchers": matchers,
@@ -267,7 +269,7 @@ class Alertmanager:
         Returns:
             list of silences.
         """
-        url = urllib.parse.urljoin(self.base_url, "/api/v2/silences")
+        url = urllib.parse.urljoin(self.base_url, "api/v2/silences")
 
         response = self._get(url) or "[]"
         silences = json.loads(response)
@@ -284,7 +286,7 @@ class Alertmanager:
         Returns:
             urllib response object.
         """
-        url = urllib.parse.urljoin(self.base_url, f"/api/v2/silence/{silence_id}")
+        url = urllib.parse.urljoin(self.base_url, f"api/v2/silence/{silence_id}")
 
         response = self._delete(url)
 
