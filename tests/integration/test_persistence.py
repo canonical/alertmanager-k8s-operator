@@ -26,7 +26,7 @@ async def test_silences_persist_across_upgrades(ops_test: OpsTest, charm_under_t
     # deploy alertmanager charm from charmhub
     logger.info("deploy charm from charmhub")
     await ops_test.model.deploy(
-        "ch:alertmanager-k8s", application_name=app_name, channel="edge", trust=True
+        "alertmanager-k8s", application_name=app_name, channel="1/edge", trust=True
     )
     await ops_test.model.wait_for_idle(
         apps=[app_name], status="active", timeout=1000, raise_on_error=False
