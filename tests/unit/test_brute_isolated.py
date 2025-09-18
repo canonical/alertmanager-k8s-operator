@@ -15,7 +15,7 @@ def test_startup_shutdown_sequence(context: Context):
     state = context.run(context.on.update_status(), state)
 
     for peer_rel in state.get_relations("replicas"):
-        state = context.run(context.on.relation_departed(peer_rel), state)
+        state = context.run(context.on.relation_departed(peer_rel, remote_unit=2), state)
 
     state = context.run(context.on.stop(), state)
     context.run(context.on.remove(), state)
