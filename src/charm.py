@@ -489,6 +489,8 @@ class AlertmanagerCharm(CharmBase):
         #  - https://github.com/canonical/prometheus-k8s-operator/issues/530,
         self.alertmanager_provider.update(external_url=self._internal_url)
 
+        self.grafana_source_provider.update_source(self._external_url)
+
         self.ingress.provide_ingress_requirements(scheme=self._scheme, port=self.api_port)
         self._scraping.update_scrape_job_spec(self.self_scraping_job)
 
