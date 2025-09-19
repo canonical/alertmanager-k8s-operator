@@ -280,6 +280,10 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _catalogue_item(self) -> CatalogueItem:
+        api_endpoints = {
+            "Alerts": "/api/v2/alerts"
+        }
+
         return CatalogueItem(
             name="Alertmanager",
             icon="bell-alert",
@@ -289,6 +293,8 @@ class AlertmanagerCharm(CharmBase):
                 "Prometheus or Loki, then deduplicates, groups and routes them to "
                 "the configured receiver(s)."
             ),
+            api_docs="https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml",
+            api_endpoints={key: f"{self._external_url}{path}" for key, path in api_endpoints.items()},
         )
 
     @property
