@@ -9,5 +9,4 @@ on:
 jobs:
   pull-request:
     name: PR
-    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v1
-    secrets: inherit
+    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@feat/tf-ci # FIXME: use a tag when available
