@@ -143,6 +143,7 @@ for policy in self._mesh.mesh_info():
 """
 
 import enum
+import hashlib
 import json
 import logging
 import warnings
@@ -150,23 +151,63 @@ from typing import Dict, List, Literal, Optional, Union
 
 import httpx
 import pydantic
+from charmed_service_mesh_helpers.models import (
+    AuthorizationPolicySpec,
+    From,
+    Operation,
+    PolicyTargetReference,
+    Rule,
+    Source,
+    To,
+    WorkloadSelector,
+)
 from lightkube import Client
+from lightkube.generic_resource import create_namespaced_resource
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import ConfigMap, Service
+from lightkube_extensions.batch import KubernetesResourceManager
+from lightkube_extensions.types import (
+    LightkubeResourcesList,
+    LightkubeResourceTypesSet,
+)
 from ops import CharmBase, Object, RelationMapping
+from pydantic import Field
+
+RESOURCE_TYPES = {  # type: ignore
+    "AuthorizationPolicy": create_namespaced_resource(
+        "security.istio.io",
+        "v1",
+        "AuthorizationPolicy",
+        "authorizationpolicies",
+    ),
+}
+POLICY_RESOURCE_TYPES = {  # type: ignore
+    "istio": {RESOURCE_TYPES["AuthorizationPolicy"]},
+}
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 9
+LIBPATCH = 15
 
-PYDEPS = ["lightkube", "pydantic"]
+PYDEPS = [
+    "lightkube",
+    "pydantic",
+    "charmed-service-mesh-helpers",
+    "lightkube-extensions@git+https://github.com/canonical/lightkube-extensions.git@main",
+]
 
 logger = logging.getLogger(__name__)
 
 # Juju application names are limited to 63 characters, so we can use the app_name directly here and still keep under
 # Kubernetes's 253 character limit.
 label_configmap_name_template = "juju-service-mesh-{app_name}-labels"
+
+
+class MeshType(str, enum.Enum):
+    """Supported mesh types."""
+
+    istio = "istio"
 
 
 class Method(str, enum.Enum):
@@ -236,15 +277,62 @@ class UnitPolicy(pydantic.BaseModel):
 
 
 class MeshPolicy(pydantic.BaseModel):
-    """Data type for storage service mesh policy information."""
+    """A Generic MeshPolicy data type that describes mesh policies in a way that is agnostic to the mesh type.
 
-    source_app_name: str
+    This is also used as the data type for storing service mesh policy information and there by
+    defining a standard interface for charmed mesh managed policies.
+    """
+
     source_namespace: str
-    target_app_name: str
+    source_app_name: str
     target_namespace: str
+    target_app_name: Optional[str] = None
+    target_selector_labels: Optional[Dict[str, str]] = None
     target_service: Optional[str] = None
     target_type: Literal[PolicyTargetType.app, PolicyTargetType.unit] = PolicyTargetType.app
-    endpoints: List[Endpoint]
+    endpoints: List[Endpoint] = Field(default_factory=list)
+
+    @pydantic.model_validator(mode="after")
+    def _validate(self):
+        """Validate cross field constraints for the mesh policy."""
+        if self.target_type == PolicyTargetType.app:
+            self._validate_app_policy()
+        elif self.target_type == PolicyTargetType.unit:
+            self._validate_unit_policy()
+        return self
+
+    def _validate_app_policy(self) -> None:
+        """Validate app-targeted policy constraints."""
+        if not any([self.target_app_name, self.target_service]):
+            raise ValueError(
+                f"Bad policy configuration. Neither target_app_name nor target_service "
+                f"specified for MeshPolicy with target_type {self.target_type}"
+            )
+        if self.target_selector_labels:
+            raise ValueError(
+                f"Bad policy configuration. MeshPolicy with target_type {self.target_type} "
+                f"does not support target_selector_labels."
+            )
+
+    def _validate_unit_policy(self) -> None:
+        """Validate unit-targeted policy constraints."""
+        if self.target_app_name and self.target_selector_labels:
+            raise ValueError(
+                f"Bad policy configuration. MeshPolicy with target_type {self.target_type} "
+                f"cannot specify both target_app_name and target_selector_labels."
+            )
+        if self.target_service:
+            raise ValueError(
+                f"Bad policy configuration. MeshPolicy with target_type {self.target_type} "
+                f"does not support target_service."
+            )
+
+
+class ServiceMeshProviderAppData(pydantic.BaseModel):
+    """Data type for the application data provided by the provider side of the service-mesh interface."""
+
+    labels: Dict[str, str]
+    mesh_type: MeshType
 
 
 class CMRData(pydantic.BaseModel):
@@ -359,11 +447,32 @@ class ServiceMeshConsumer(Object):
         # should consider if there is a better way to do this.
         return self._charm.model.name
 
+    def _get_app_data(self) -> Optional[ServiceMeshProviderAppData]:
+        """Return the relation data for the remote application."""
+        if self._relation is None or not self._relation.app:
+            return None
+
+        raw_data = self._relation.data[self._relation.app]
+        if len(raw_data) == 0:
+            return None
+
+        raw_data = {k: json.loads(v) for k, v in raw_data.items()}
+        return ServiceMeshProviderAppData.model_validate(raw_data)
+
+
     def labels(self) -> dict:
         """Labels required for a pod to join the mesh."""
-        if self._relation is None or "labels" not in self._relation.data[self._relation.app]:
+        app_data = self._get_app_data()
+        if app_data is None:
             return {}
-        return json.loads(self._relation.data[self._relation.app]["labels"])
+        return app_data.labels
+
+    def mesh_type(self) -> Optional[MeshType]:
+        """Return the type of the service mesh."""
+        app_data = self._get_app_data()
+        if app_data is None:
+            return None
+        return app_data.mesh_type
 
     def _on_mesh_broken(self, _event):
         if not self._charm.unit.is_leader():
@@ -410,20 +519,26 @@ class ServiceMeshProvider(Object):
     """Provide a service mesh to applications."""
 
     def __init__(
-        self, charm: CharmBase, labels: Dict[str, str], mesh_relation_name: str = "service-mesh"
+        self,
+        charm: CharmBase,
+        labels: Dict[str, str],
+        mesh_type: MeshType,
+        mesh_relation_name: str = "service-mesh",
     ):
         """Class used to provide information needed to join the service mesh.
 
         Args:
             charm: The charm instantiating this object.
+            labels: The labels which related applications need to apply to use the mesh.
+            mesh_type: The type of this service mesh.
             mesh_relation_name: The relation name as defined in metadata.yaml or charmcraft.yaml
                 for the relation which uses the service_mesh interface.
-            labels: The labels which related applications need to apply to use the mesh.
         """
         super().__init__(charm, mesh_relation_name)
         self._charm = charm
         self._relation_name = mesh_relation_name
         self._labels = labels
+        self._mesh_type = mesh_type
         self.framework.observe(
             self._charm.on[mesh_relation_name].relation_created, self._relation_created
         )
@@ -435,15 +550,20 @@ class ServiceMeshProvider(Object):
         """Update all relations with the labels needed to use the mesh."""
         # Only the leader unit can update the application data bag
         if self._charm.unit.is_leader():
-            rel_data = json.dumps(self._labels)
+            data = ServiceMeshProviderAppData(
+                labels=self._labels,
+                mesh_type=self._mesh_type
+            ).model_dump(mode="json", by_alias=True, exclude_defaults=True, round_trip=True)
+            # Flatten any nested objects, since relation databags are str:str mappings
+            data = {k: json.dumps(v) for k, v in data.items()}
             for relation in self._charm.model.relations[self._relation_name]:
-                relation.data[self._charm.app]["labels"] = rel_data
+                relation.data[self._charm.app].update(data)
 
     def mesh_info(self) -> List[MeshPolicy]:
         """Return the relation data that defines Policies requested by the related applications."""
         mesh_info = []
         for relation in self._charm.model.relations[self._relation_name]:
-            policies_data = json.loads(relation.data[relation.app]["policies"])
+            policies_data = json.loads(relation.data[relation.app].get("policies", "[]"))
             policies = [MeshPolicy.model_validate(policy) for policy in policies_data]
             mesh_info.extend(policies)
         return mesh_info
@@ -480,10 +600,10 @@ def build_mesh_policies(
             if isinstance(policy, UnitPolicy):
                 mesh_policies.append(
                     MeshPolicy(
-                        source_app_name=source_app_name,
                         source_namespace=source_namespace,
-                        target_app_name=target_app_name,
+                        source_app_name=source_app_name,
                         target_namespace=target_namespace,
+                        target_app_name=target_app_name,
                         target_service=None,
                         target_type=PolicyTargetType.unit,
                         endpoints=[
@@ -498,10 +618,10 @@ def build_mesh_policies(
             else:
                mesh_policies.append(
                     MeshPolicy(
-                        source_app_name=source_app_name,
                         source_namespace=source_namespace,
-                        target_app_name=target_app_name,
+                        source_app_name=source_app_name,
                         target_namespace=target_namespace,
+                        target_app_name=target_app_name,
                         target_service=policy.service,
                         target_type=PolicyTargetType.app,
                         endpoints=policy.endpoints,
@@ -576,3 +696,437 @@ def _init_label_configmap(client, name, namespace) -> ConfigMap:
     )
     client.create(obj=obj)
     return obj
+
+
+########################################
+#  MESH NETWORK POLICY MANAGER HELPERS #
+########################################
+def _get_peer_identity_for_juju_application(app_name, namespace):
+    """Return a Juju application's peer identity.
+
+    Format returned is defined by `principals` in
+    [this reference](https://istio.io/latest/docs/reference/config/security/authorization-policy/#Source):
+
+    This function relies on the Juju convention that each application gets a ServiceAccount of the same name in the same
+    namespace.
+    """
+    service_account = app_name
+    return _get_peer_identity_for_service_account(service_account, namespace)
+
+
+def _get_peer_identity_for_service_account(service_account, namespace):
+    """Return a ServiceAccount's peer identity.
+
+    Format returned is defined by `principals` in
+    [this reference](https://istio.io/latest/docs/reference/config/security/authorization-policy/#Source):
+        "cluster.local/ns/{namespace}/sa/{service_account}"
+    """
+    return f"cluster.local/ns/{namespace}/sa/{service_account}"
+
+
+def _hash_pydantic_model(model: pydantic.BaseModel) -> str:
+    """Hash a pydantic BaseModel object.
+
+    This is a simple hashing of the json model dump of the pydantic model.  Items that are excluded from this dump will
+    will not affect the output.
+    """
+
+    def _stable_hash(data):
+        return hashlib.sha256(str(data).encode()).hexdigest()
+
+    # Note: This hash will be affected by changes in how pydandic stringifies data, so if they change things our hash
+    # will change too.  If that proves an issue, we could implement something more controlled here.
+    return _stable_hash(model)
+
+
+def _generate_network_policy_name(app_name: str, model_name: str, mesh_policy: MeshPolicy) -> str:
+        """Generate a unique name for the network policy resource, suffixing a hash of the MeshPolicy to avoid collisions.
+
+        The name has the following general format:
+            {app_name}-{model_name}-policy-{source_app_name}-{source_namespace}-{target_app_name/target_service/custom-selector}-{hash}
+        but source_app_name and the name of the target will be truncated if the total name exceeds Kubernetes's limit of 253
+        characters.
+        """
+        # omit target_app_namespace from the name here because that will be the namespace the policy is generated in, so
+        # adding it here is redundant
+        target = mesh_policy.target_app_name or mesh_policy.target_service or "custom-selector"
+
+        name = "-".join(
+            [
+                app_name,
+                model_name,
+                "policy",
+                mesh_policy.source_app_name,
+                mesh_policy.source_namespace,
+                target,
+                _hash_pydantic_model(mesh_policy)[:8],
+            ]
+        )
+        if len(name) > 253:
+            # Truncate the name to fit within Kubernetes's 253-character limit
+            # juju app names and models must be <= 63 characters each and we have ~20 characters of static text, so
+            # if name is too long just take the first 30 characters of source_app_name, source_namespace, and
+            # target_app_name to be safe.
+            name = "-".join(
+                [
+                    app_name,
+                    model_name,
+                    "policy",
+                    mesh_policy.source_app_name[:30],
+                    mesh_policy.source_namespace[:30],
+                    target[:30],
+                    _hash_pydantic_model(mesh_policy)[:8],
+                ]
+            )
+        return name
+
+
+def _build_policy_resources_istio(app_name: str, model_name: str, policies: List[MeshPolicy]) -> Union[LightkubeResourcesList, List[None]]:
+        """Build the required authorization policy resources for istio service mesh."""
+        authorization_policies = [None] * len(policies)
+        for i, policy in enumerate(policies):
+            # L4 policy created for target Juju units (workloads)
+            if policy.target_type == PolicyTargetType.unit:
+                # if the mesh policy of type unit contain any of the L7 attributes, warn and dont create the policy
+                valid_unit_policy = not any(
+                    endpoint.methods or endpoint.paths or endpoint.hosts
+                    for endpoint in policy.endpoints
+                )
+                if not valid_unit_policy:
+                    logger.error(
+                        f"UnitPolicy requested between {policy.source_app_name} and {policy.target_app_name} is not created as it contains some disallowed policy attributes."
+                        "UnitPolicy for Istio service mesh cannot contain paths, methods or hosts"
+                    )
+                    continue
+
+                # Build match labels based on policy definition
+                workload_selector = None
+                if policy.target_app_name:
+                    workload_selector = WorkloadSelector(
+                        matchLabels={
+                            "app.kubernetes.io/name": policy.target_app_name,
+                        }
+                    )
+                if policy.target_selector_labels:
+                    workload_selector = WorkloadSelector(
+                        matchLabels=policy.target_selector_labels
+                    )
+
+                authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
+                    metadata=ObjectMeta(
+                        name=_generate_network_policy_name(app_name, model_name, policy),
+                        namespace=policy.target_namespace,
+                    ),
+                    spec=AuthorizationPolicySpec(
+                        selector=workload_selector,
+                        rules=[
+                            Rule(
+                                from_=[  # type: ignore # this is accessible via an alias
+                                    From(
+                                        source=Source(
+                                            principals=[
+                                                _get_peer_identity_for_juju_application(
+                                                    policy.source_app_name, policy.source_namespace
+                                                )
+                                            ]
+                                        )
+                                    )
+                                ],
+                                to=[
+                                    To(
+                                        operation=Operation(
+                                            # TODO: Make these ports strings instead of ints in endpoint?
+                                            ports=[str(p) for p in endpoint.ports]
+                                            if endpoint.ports
+                                            else [],
+                                        )
+                                    )
+                                    for endpoint in policy.endpoints
+                                ],
+                            ),
+                        ],
+                    ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+                )
+
+            # L7 policy created for target Juju applications (services)
+            elif policy.target_type == PolicyTargetType.app:
+                target_service = policy.target_service or policy.target_app_name
+                if policy.target_service is None:
+                    logger.info(
+                        f"Got policy for application '{policy.target_app_name}' that has no target_service. "
+                        f"Defaulting to application name."
+                    )
+                if all([policy.target_service, policy.target_app_name]):
+                    logger.info(
+                        f"Got policy for application '{policy.target_app_name}' that has both target_service and target_app_name. "
+                        f"Using {target_service} for policy target definition."
+                    )
+
+                authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
+                    metadata=ObjectMeta(
+                        name=_generate_network_policy_name(app_name, model_name, policy),
+                        namespace=policy.target_namespace,
+                    ),
+                    spec=AuthorizationPolicySpec(
+                        targetRefs=[
+                            PolicyTargetReference(
+                                kind="Service",
+                                group="",
+                                name=target_service,  # type: ignore
+                            )
+                        ],
+                        rules=[
+                            Rule(
+                                from_=[  # type: ignore # this is accessible via an alias
+                                    From(
+                                        source=Source(
+                                            principals=[
+                                                _get_peer_identity_for_juju_application(
+                                                    policy.source_app_name, policy.source_namespace
+                                                )
+                                            ]
+                                        )
+                                    )
+                                ],
+                                to=[
+                                    To(
+                                        operation=Operation(
+                                            # TODO: Make these ports strings instead of ints in endpoint?
+                                            ports=[str(p) for p in endpoint.ports]
+                                            if endpoint.ports
+                                            else [],
+                                            hosts=endpoint.hosts,
+                                            methods=endpoint.methods,  # type: ignore
+                                            paths=endpoint.paths,
+                                        )
+                                    )
+                                    for endpoint in policy.endpoints
+                                ],
+                            )
+                        ],
+                        # by_alias=True because the model includes an alias for the `from` field
+                        # exclude_unset=True because unset fields will be treated as their default values in Kubernetes
+                        # exclude_none=True because null values in this data always mean the Kubernetes default
+                    ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+                )
+
+            else:
+                raise ValueError("Failed to build requested istio authorization policy. Unknown target_typre for policy.")
+
+        return authorization_policies
+
+
+class PolicyResourceManager():
+    """A Mesh agnostic policy resource manager that manages manifests of different policy manifests in Kubernetes.
+
+    This can be used by the charms to create and manage their own policy resources under circumstances like but not limited to
+        i.   Using Canonical Service Mesh in a non-managed model_name
+        ii.  Managing highly custom policies that cannot be defined in the ServiceMeshConsumer
+        iii. Managing authorization policies between charms that are not related to the charmed service mesh's beacon.
+
+    The PolicyResourceManager provides a reconcile method that can be used in the charm's own reconciler methods for reconciling
+    the polcies managed by the charm to the desired state.
+
+    Example:
+    ```python
+    from charms.istio_beacon_k8s.v0.service_mesh import (
+        MeshPolicy,
+        PolicyTargetType,
+        Endpoint,
+        PolicyResourceManager,
+        MeshType,
+    )
+
+    class MyCharm(CharmBase):
+
+        def __init__(self, *args):
+            super().__init__(*args)
+            self._mesh = ServiceMeshConsumer(self)
+
+            self.observe_everything()
+
+        def _get_policy_manager(self):
+            prm = PolicyResourceManager(
+                charm=self,
+                lightkube_client=self.lightkube_client,
+                labels={
+                    "label-key": "label-value-that-helps-identify-this-resource",
+                },
+            )
+            return prm
+
+        def _get_policies_i_manage(self):
+            policies=[
+                # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_b in juju_app_b_model with a service
+                # name juju_app_b_service through its service address in ports 8080 and 443 to GET /foo and /bar paths.
+                MeshPolicy[
+                    source_namespace="juju_app_a_model",
+                    source_app_name="juju_app_a",
+                    target_namespace="juju_app_b_model",
+                    target_app_name="juju_app_b",
+                    target_service="juju_app_b_service",
+                    target_type=PolicyTargetType.app,
+                    endpoints=[
+                        Endpoint(
+                            ports=[8080, 443],
+                            methods=[Method.get],
+                            paths=["/foo", "/bar"]
+                        )
+                    ]
+                ],
+                # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_c in juju_app_c_model with a service
+                # name same as the app name through its service address in ports 8080 and 443 to GET /foo.
+                MeshPolicy[
+                    source_namespace="juju_app_a_model",
+                    source_app_name="juju_app_a",
+                    target_namespace="juju_app_c_model",
+                    target_app_name="juju_app_c",
+                    target_type=PolicyTargetType.app,
+                    endpoints=[
+                        Endpoint(
+                            ports=[8080, 443],
+                            methods=[Method.get],
+                            paths=["/foo"]
+                        )
+                    ]
+                ],
+                # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_d in juju_app_d_model with a service
+                # through its pod address in ports 8080. For unit type policies paths and methods restrictions dont apply.
+                MeshPolicy[
+                    source_namespace="juju_app_a_model",
+                    source_app_name="juju_app_a",
+                    target_namespace="juju_app_d_model",
+                    target_app_name="juju_app_d",
+                    target_type=PolicyTargetType.unit,
+                    endpoints=[
+                        Endpoint(
+                            ports=[8080]
+                        )
+                    ]
+                ]
+            ]
+            return policies
+
+        def _on_remove(self):
+            prm = self._get_policy_manager()
+            prm.delete()
+
+        def _reconcile(self):
+            prm = self._get_policy_manager()
+            policies = self._get_policies_i_manager()
+            prm.reconcile(policies, MeshType.istio)
+    ````
+    Args:
+        charm (ops.CharmBase): The charm instantiating this object.
+        lightkube_client (lightkube.Client): Lightkube Client to use for all k8s operations.
+                                             This Client must be instantiated with a
+                                             field_manager, otherwise it cannot be used to
+                                             .apply() resources because the kubernetes server
+                                             side apply patch method requires it. A good option
+                                             for this is to use the application name (eg:
+                                             `self.model.app.name` or
+                                             `self.model.app.name +'_' self.model.name`).
+        mesh_type (charms.istio_beacon_k8s.v0.service_mesh.MeshType): The type of caanonical service mesh
+                                                                      for which the policy resources are to be
+                                                                      generated. (eg: MeshType.istio)
+        labels (dict): A dict of labels to use as a label selector for all resources
+                           managed by this KRM.  These will be added to any applied resources at
+                           .apply() time and will be used to find existing resources in
+                           .get_deployed_resources().
+                           Recommended input for this is:
+                             labels = {
+                              'app.kubernetes.io/name': f"{self.model.app.name}-{self.model.name}",
+                              'kubernetes-resource-handler-scope': 'some-user-chosen-scope'
+                             }
+                           See `get_default_labels` for a helper to generate this label dict.
+        logger (logging.Logger): (Optional) A logger to use for logging (so that log messages
+                                 emitted here will appear under the caller's log namespace).
+                                 If not provided, a default logger will be created.
+    """
+    def __init__(
+        self,
+        charm: CharmBase,
+        lightkube_client: Client,
+        labels: Optional[Dict] = None,
+        logger: Optional[logging.Logger] = None,
+    ):
+        self._app_name = charm.app.name
+        self._model_name = charm.model.name
+        resource_types = self._get_all_supported_policy_resource_types()
+
+        if logger is None:
+            self.log = logging.getLogger(__name__)
+        else:
+            self.log = logger
+        self._krm = KubernetesResourceManager(
+            labels=labels,
+            resource_types=resource_types,  # type: ignore
+            lightkube_client=lightkube_client,
+            logger=self.log,
+        )
+
+    @staticmethod
+    def _get_all_supported_policy_resource_types() -> LightkubeResourceTypesSet:  # type: ignore
+        """Return all the resource types supported by the PRM class."""
+        return set(RESOURCE_TYPES.values())
+
+    @staticmethod
+    def _get_policy_resource_builder(mesh_type: MeshType):
+        if mesh_type == MeshType.istio:
+            return _build_policy_resources_istio
+        raise ValueError(f"PolicyResourceManager instantiated with an unknown mesh type: {mesh_type}. Check Canonical Service Mesh documentation for currently supported mesh types.")
+
+    def _build_policy_resources(self, policies: List[MeshPolicy], mesh_type: MeshType) -> LightkubeResourcesList:
+        """Build the Lightkube resources for the managed policies."""
+        policy_resource_builder = self._get_policy_resource_builder(mesh_type)
+        return policy_resource_builder(self._app_name, self._model_name, policies)  # type: ignore
+
+    def reconcile(self,
+        policies: List[MeshPolicy],
+        mesh_type: MeshType,
+        force=True,
+        ignore_missing=True
+    ) -> None:
+        """Reconcile the given policies, removing, updating, or creating objects as required.
+
+        The MeshPolicy objects are first converted into manifests for Kubernetes policy resources that the
+        service mesh can understand. eg: AuthorizationPolicy resources for Istio service mesh.
+
+        This method will:
+        * create a list of policy resources containing a policy resource for every provided MeshPolicy object
+        * get all resources currently deployed that match the label selector in self.labels
+        * compare the existing resources to the desired resources provided, deleting any resources
+          that exist but are not in the desired resource list
+        * call krm.apply() to create any new resources and update any remaining existing ones to the
+          desired state
+
+        Args:
+            policies (list): A list of MeshPolicy objects that define the required behaviour of the policy resources.
+            mesh_type (MeshType): The type of service mesh the charm is connected to. This information can be obtained from ServiceMeshConsumer.
+            force: *(optional)* Passed to self.apply().  This will force apply over any resources
+                   marked as managed by another field manager.
+            ignore_missing: *(optional)* Avoid raising 404 errors on deletion (defaults to True)
+        """
+        if not policies:
+            self.delete(ignore_missing=ignore_missing)
+            return
+        policy_resources = self._build_policy_resources(policies, mesh_type)  # type: ignore
+        self._krm.reconcile(policy_resources, force=force, ignore_missing=ignore_missing)  # type: ignore
+
+    def delete(self, ignore_missing=True):
+        """Delete all the policy resources handled by this manager.
+
+        Requires that self.labels and self.resource_types be set.
+
+        Args:
+            ignore_missing: *(optional)* Avoid raising 404 errors on deletion (defaults to True)
+        """
+        try:
+            self._krm.delete(ignore_missing=ignore_missing)
+        # FIXME: this is a workaround and should be handled by the upstream krm. Issue exists: https://github.com/canonical/lightkube-extensions/issues/4
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404 and ignore_missing:
+                # CRD doesn't exist, nothing to delete (only when ignore_missing=True)
+                self.log.info("CRD not found, skipping deletion")
+                return
+            raise
