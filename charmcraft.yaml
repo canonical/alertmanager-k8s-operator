@@ -149,7 +149,7 @@ resources:
       OCI image for alertmanager. This charms makes the following assumptions about the image:
       - location of executable "alertmanager" is in the path
       - has `update-ca-certificates`
-    upstream-source: ubuntu/alertmanager:0-22.04
+    upstream-source: ubuntu/alertmanager@sha256:368985dfd680291f1888cc339afa7a097981ccb33b3398598e18f0dda2027573  # renovate: oci-image tag: 0.28.0-24.04
 
 config:
   options:
