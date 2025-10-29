@@ -107,7 +107,6 @@ class AlertmanagerCharm(CharmBase):
         super().__init__(*args)
         self.container = self.unit.get_container(self._container_name)
         self._fqdn = socket.getfqdn()
-        self._service_fqdn = socket.getfqdn().split(".", 1)[1]
 
         self._csr_attributes = CertificateRequestAttributes(
             # the `common_name` field is required but limited to 64 characters.
@@ -647,7 +646,13 @@ class AlertmanagerCharm(CharmBase):
     @property
     def _service_url(self) -> str:
         """Return the fqdn dns-based in-cluster (private) address of the service for alertmanager."""
-        return f"{self._scheme}://{self._service_fqdn}:{self._ports.api}"
+        fqdn = self._fqdn
+        try:
+            fqdn = fqdn.split(".", 1)[1]
+        except IndexError:
+            pass
+
+        return f"{self._scheme}://{fqdn}:{self._ports.api}"
 
     @property
     def _external_url(self) -> str:
