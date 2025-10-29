@@ -59,6 +59,7 @@ from config_builder import ConfigBuilder, ConfigError
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class TLSConfig:
     """TLS configuration received by the charm over the `certificates` relation."""
@@ -66,6 +67,7 @@ class TLSConfig:
     server_cert: str
     ca_cert: str
     private_key: str
+
 
 @trace_charm(
     tracing_endpoint="_charm_tracing_endpoint",
@@ -105,6 +107,7 @@ class AlertmanagerCharm(CharmBase):
         super().__init__(*args)
         self.container = self.unit.get_container(self._container_name)
         self._fqdn = socket.getfqdn()
+        self._service_fqdn = socket.getfqdn().split(".", 1)[1]
 
         self._csr_attributes = CertificateRequestAttributes(
             # the `common_name` field is required but limited to 64 characters.
@@ -143,7 +146,8 @@ class AlertmanagerCharm(CharmBase):
         self.grafana_source_provider = GrafanaSourceProvider(
             charm=self,
             source_type="alertmanager",
-            source_url=self._external_url,
+            source_url=self.ingress.url or self._service_url,
+            is_ingress_per_app=True,
             refresh_event=[
                 self.ingress.on.ready,
                 self.ingress.on.revoked,
@@ -280,9 +284,7 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _catalogue_item(self) -> CatalogueItem:
-        api_endpoints = {
-            "Alerts": "/api/v2/alerts"
-        }
+        api_endpoints = {"Alerts": "/api/v2/alerts"}
 
         return CatalogueItem(
             name="Alertmanager",
@@ -294,7 +296,9 @@ class AlertmanagerCharm(CharmBase):
                 "the configured receiver(s)."
             ),
             api_docs="https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml",
-            api_endpoints={key: f"{self._external_url}{path}" for key, path in api_endpoints.items()},
+            api_endpoints={
+                key: f"{self._external_url}{path}" for key, path in api_endpoints.items()
+            },
         )
 
     @property
@@ -570,8 +574,7 @@ class AlertmanagerCharm(CharmBase):
         try:
             status = self.alertmanager_workload.api.status()
             logger.info(
-                "alertmanager %s is up and running (uptime: %s); "
-                "cluster mode: %s, with %d peers",
+                "alertmanager %s is up and running (uptime: %s); cluster mode: %s, with %d peers",
                 status["versionInfo"]["version"],
                 status["uptime"],
                 status["cluster"]["status"],
@@ -640,6 +643,11 @@ class AlertmanagerCharm(CharmBase):
     def _internal_url(self) -> str:
         """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server."""
         return f"{self._scheme}://{self._fqdn}:{self._ports.api}"
+
+    @property
+    def _service_url(self) -> str:
+        """Return the fqdn dns-based in-cluster (private) address of the service for alertmanager."""
+        return f"{self._scheme}://{self._service_fqdn}:{self._ports.api}"
 
     @property
     def _external_url(self) -> str:
