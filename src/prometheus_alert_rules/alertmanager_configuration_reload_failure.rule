@@ -8,7 +8,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: Alertmanager configuration reload failure (instance {{ $labels.instance }})
+      summary: Alertmanager configuration reload failure (charm {{ $labels.juju_application }} in model {{ $labels.juju_model }})
       description: |
         Alertmanager configuration reload error
         VALUE = {{ $value }}

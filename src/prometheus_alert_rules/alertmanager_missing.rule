@@ -8,8 +8,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: Alertmanager job missing (instance {{ $labels.instance }})
+      summary: Alertmanager job in model {{ $labels.juju_model }} missing.
       description: |
-        A Alertmanager job has disappeared
-        VALUE = {{ $value }}
-        LABELS = {{ $labels }}
+        Unknown scrape status for application {{ $labels.juju_application }} of charm type {{ $labels.juju_charm }} in model {{ $labels.juju_model }}
+
