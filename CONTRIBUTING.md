@@ -151,7 +151,7 @@ juju deploy ./alertmanager-k8s.charm \
   service restart, to minimize downtime.
 
 
-[Alertmanager API browser]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml
+[Alertmanager API browser]: https://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/main/api/v2/openapi.yaml
 [gh:Prometheus operator]: https://github.com/canonical/prometheus-operator
 [Prometheus operator]: https://charmhub.io/prometheus-k8s
 [COS Lite]: https://charmhub.io/cos-lite
