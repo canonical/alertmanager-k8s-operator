@@ -7,7 +7,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: Alertmanager notifications failure (charm {{ $labels.juju_application }} in model {{ $labels.juju_model }})
+      summary: Alertmanager notifications failure (application {{ $labels.juju_application }} in model {{ $labels.juju_model }})
       description: |
         Alertmanager notifications failure
         VALUE = {{ $value }}
