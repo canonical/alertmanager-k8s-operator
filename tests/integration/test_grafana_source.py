@@ -27,10 +27,10 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
         ops_test.model.deploy(charm_under_test, "am", resources=resources, trust=True, num_units=2),
         ops_test.model.deploy("grafana-k8s", "grafana", channel="2/edge", trust=True),
     )
-    
+
     await ops_test.model.add_relation("grafana:grafana-source", "am")
     await ops_test.model.wait_for_idle(apps=["am", "grafana"], status="active")
-    
+
 @retry(wait=wait_fixed(10), stop=stop_after_attempt(6))
 async def test_grafana_datasources(ops_test: OpsTest):
     # We have 2 units of Alertmanager, but only one datasource should be shown as a Grafana source.
