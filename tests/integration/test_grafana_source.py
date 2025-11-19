@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from pathlib import Path
 
 import pytest
@@ -41,3 +42,22 @@ async def test_grafana_datasources(ops_test: OpsTest):
     # The datasource URL should point to the service, not to a specific pod unit.
     # This check is safe, because we name the application `am` and we're not using TLS, so the service will always start with `http://am-endpoints`.
     assert datasources[0]["url"].startswith("http://am-endpoints")
+
+@pytest.mark.abort_on_fail
+async def test_deploy_and_integrate_traefik(ops_test: OpsTest):
+    """Build the charm-under-test, deploy the charm from charmhub, and upgrade from path."""
+    await ops_test.model.deploy("traefik-k8s", "traefik", channel="edge", trust=True)
+
+    await ops_test.model.add_relation("traefik:ingress", "am")
+    await ops_test.model.wait_for_idle(apps=["am", "grafana", "traefik"], status="active")
+
+async def test_grafana_datasources_when_ingress_available(ops_test: OpsTest):
+    # We have 2 units of Alertmanager, but only one datasource should be shown as a Grafana source.
+    datasources = await grafana_datasources(ops_test, "grafana")
+    assert len(datasources) == 1
+
+    # Match ingress URL pattern
+    ip_url_regex = r'^http://(\d{1,3}\.){3}\d{1,3}(/.*)?$'
+    pattern = re.compile(ip_url_regex)
+
+    assert pattern.match(datasources[0]["url"])
