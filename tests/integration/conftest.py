@@ -10,6 +10,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+import juju.utils
 import pytest
 from pytest_operator.plugin import OpsTest
 
@@ -94,3 +95,13 @@ async def setup_env(ops_test: OpsTest):
 @pytest.fixture(scope="module")
 def temp_dir(tmp_path_factory):
     return tmp_path_factory.mktemp("data")
+
+@pytest.fixture(scope="module", autouse=True)
+def patch_pylibjuju_series_2404():
+    juju.utils.ALL_SERIES_VERSIONS["noble"] = "24.04"
+    juju.utils.UBUNTU_SERIES["noble"] = "24.04"
+
+    yield
+
+    del juju.utils.ALL_SERIES_VERSIONS["noble"]
+    del juju.utils.UBUNTU_SERIES["noble"]

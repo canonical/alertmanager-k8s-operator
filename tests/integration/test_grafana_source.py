@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import grafana_datasource_count
+from helpers import grafana_datasources
 from pytest_operator.plugin import OpsTest
 from tenacity import retry, stop_after_attempt, wait_fixed
 
@@ -35,5 +35,8 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
 @retry(wait=wait_fixed(10), stop=stop_after_attempt(6))
 async def test_grafana_datasources(ops_test: OpsTest):
     # We have 2 units of Alertmanager, but only one datasource should be shown as a Grafana source.
-    count = await grafana_datasource_count(ops_test, "grafana")
-    assert count == 1
+    datasources = await grafana_datasources(ops_test, "grafana")
+    assert len(datasources) == 1
+
+    # The datasource URL should point to the service, not to a specific pod unit.
+    assert datasources[0]["url"].startswith("http://am-endpoints")

@@ -645,7 +645,13 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _service_url(self) -> str:
-        """Return the fqdn dns-based in-cluster (private) address of the service for alertmanager."""
+        """Return the FQDN DNS-based in-cluster (private) address of the service for Alertmanager.
+
+        Since our goal is to ensure that we only send one datasource to Grafana when we have multiple units, we can't use the socket FQDN because that would include the AM unit e.g. `http://am-0.am-endpoints.otel.svc.cluster.local:9093`.
+        The service URL as defined will remove the pod unit so (when ingress missing) the request goes to the K8s service at: http://am-endpoints.otel.svc.cluster.local:9093
+        The service will then load balance between the units.
+        TODO: This assumes that the FQDN is the interal FQDN for the socket and that the pod unit is always on the left side of the first ".". If those change, this code will need to be updated.
+        """
         fqdn = self._fqdn
         try:
             fqdn = fqdn.split(".", 1)[1]

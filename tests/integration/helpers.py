@@ -176,7 +176,7 @@ async def curl(ops_test: OpsTest, *, cert_dir: str, cert_path: str, ip_addr: str
     return stdout
 
 async def grafana_password(ops_test: OpsTest, app_name: str) -> str:
-    """Get the admin password . Memoize it to reduce turnaround time.
+    """Get the admin password. Memoize it to reduce turnaround time.
 
     Args:
         ops_test: pytest-operator plugin
@@ -197,7 +197,7 @@ async def grafana_password(ops_test: OpsTest, app_name: str) -> str:
     action = await action.wait()
     return action.results["admin-password"]
 
-async def grafana_datasource_count(ops_test: OpsTest, app_name: str) -> int:
+async def grafana_datasources(ops_test: OpsTest, app_name: str) -> "list[dict]":
     """Get the number of datasources configured in Grafana.
 
     Args:
@@ -216,4 +216,4 @@ async def grafana_datasource_count(ops_test: OpsTest, app_name: str) -> int:
     )
     response.raise_for_status()
     datasources = response.json()
-    return len(datasources)
+    return datasources
