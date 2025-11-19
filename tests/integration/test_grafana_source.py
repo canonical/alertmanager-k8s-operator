@@ -39,4 +39,5 @@ async def test_grafana_datasources(ops_test: OpsTest):
     assert len(datasources) == 1
 
     # The datasource URL should point to the service, not to a specific pod unit.
+    # This check is safe, because we name the application `am` and we're not using TLS, so the service will always start with `http://am-endpoints`.
     assert datasources[0]["url"].startswith("http://am-endpoints")
