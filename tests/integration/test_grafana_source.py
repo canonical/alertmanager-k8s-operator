@@ -9,6 +9,7 @@ from pytest_operator.plugin import OpsTest
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 # pyright: reportAttributeAccessIssue = false
+# pyright: reportOptionalMemberAccess = false
 
 logger = logging.getLogger(__name__)
 
