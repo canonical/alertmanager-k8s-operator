@@ -198,7 +198,15 @@ async def grafana_password(ops_test: OpsTest, app_name: str) -> str:
     return action.results["admin-password"]
 
 async def grafana_datasources(ops_test: OpsTest, app_name: str) -> "list[dict]":
-    """Get the number of datasources configured in Grafana.
+    """Get the datasources configured in Grafana.
+
+    A sample response from Grafana's /api/datasources endpoint is a list of datasources, similar to below.
+
+    [{"id":1,"uid":"ABC","orgId":1,"name":"<name>",
+    "type":"alertmanager","typeName":"Alertmanager",
+    "typeLogoUrl":"public/app/plugins/datasource/alertmanager/img/logo.svg","access":"proxy",
+    "url":"<AM-address>","user":"","database":"","basicAuth":false,"isDefault":false,
+    "jsonData":{"implementation":"prometheus","timeout":300},"readOnly":true}}, ...]
 
     Args:
         ops_test: pytest-operator plugin
