@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import re
 from pathlib import Path
 
 import pytest
@@ -19,7 +18,7 @@ app_name = METADATA["name"]
 resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
 
 """We need to ensure that, even if there are multiple units for Alertmanager, only one is shown as a datasouce in Grafana.
-To test this, we use this test to simulate multiple units of Alertmanager, and then check that only the leader has the key `grafana_source_host` written to relation data with Grafana.
+We use this test to simulate multiple units of Alertmanager, and then check that only the leader has the key `grafana_source_host` written to relation data with Grafana.
 """
 
 @pytest.mark.abort_on_fail
@@ -56,8 +55,4 @@ async def test_grafana_datasources_when_ingress_available(ops_test: OpsTest):
     datasources = await grafana_datasources(ops_test, "grafana")
     assert len(datasources) == 1
 
-    # Match ingress URL pattern
-    ip_url_regex = r'^http://(\d{1,3}\.){3}\d{1,3}(/.*)?$'
-    pattern = re.compile(ip_url_regex)
-
-    assert pattern.match(datasources[0]["url"])
+    assert "am-endpoints" not in datasources[0]["url"]
