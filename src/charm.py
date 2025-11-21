@@ -59,6 +59,7 @@ from config_builder import ConfigBuilder, ConfigError
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class TLSConfig:
     """TLS configuration received by the charm over the `certificates` relation."""
@@ -66,6 +67,7 @@ class TLSConfig:
     server_cert: str
     ca_cert: str
     private_key: str
+
 
 @trace_charm(
     tracing_endpoint="_charm_tracing_endpoint",
@@ -143,7 +145,8 @@ class AlertmanagerCharm(CharmBase):
         self.grafana_source_provider = GrafanaSourceProvider(
             charm=self,
             source_type="alertmanager",
-            source_url=self._external_url,
+            source_url=self.ingress.url or self._service_url,
+            is_ingress_per_app=True, # We want only one alertmanager datasource (unit) to be listed in grafana.
             refresh_event=[
                 self.ingress.on.ready,
                 self.ingress.on.revoked,
@@ -280,9 +283,7 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _catalogue_item(self) -> CatalogueItem:
-        api_endpoints = {
-            "Alerts": "/api/v2/alerts"
-        }
+        api_endpoints = {"Alerts": "/api/v2/alerts"}
 
         return CatalogueItem(
             name="Alertmanager",
@@ -294,7 +295,9 @@ class AlertmanagerCharm(CharmBase):
                 "the configured receiver(s)."
             ),
             api_docs="https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml",
-            api_endpoints={key: f"{self._external_url}{path}" for key, path in api_endpoints.items()},
+            api_endpoints={
+                key: f"{self._external_url}{path}" for key, path in api_endpoints.items()
+            },
         )
 
     @property
@@ -570,8 +573,7 @@ class AlertmanagerCharm(CharmBase):
         try:
             status = self.alertmanager_workload.api.status()
             logger.info(
-                "alertmanager %s is up and running (uptime: %s); "
-                "cluster mode: %s, with %d peers",
+                "alertmanager %s is up and running (uptime: %s); cluster mode: %s, with %d peers",
                 status["versionInfo"]["version"],
                 status["uptime"],
                 status["cluster"]["status"],
@@ -640,6 +642,19 @@ class AlertmanagerCharm(CharmBase):
     def _internal_url(self) -> str:
         """Return the fqdn dns-based in-cluster (private) address of the alertmanager api server."""
         return f"{self._scheme}://{self._fqdn}:{self._ports.api}"
+
+    @property
+    def _service_url(self) -> str:
+        """Return the FQDN DNS-based in-cluster (private) address of the service for Alertmanager.
+
+        Since our goal is to ensure that we only send one datasource to Grafana when we have multiple units, we can't use the socket FQDN because that would include the AM unit e.g. `http://am-0.am-endpoints.otel.svc.cluster.local:9093`.
+        The service URL as defined will remove the pod unit so (when ingress missing) the request goes to the K8s service at: http://am-endpoints.otel.svc.cluster.local:9093
+        The service will then load balance between the units.
+        This assumes that the FQDN is the interal FQDN for the socket and that the pod unit is always on the left side of the first ".". If those change, this code will need to be updated.
+        """
+        fqdn = self._fqdn.split(".", 1)[-1]
+
+        return f"{self._scheme}://{fqdn}:{self._ports.api}"
 
     @property
     def _external_url(self) -> str:

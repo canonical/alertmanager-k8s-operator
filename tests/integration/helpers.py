@@ -11,7 +11,10 @@ import urllib.request
 from typing import Dict, Optional, Tuple
 from urllib.parse import urlparse
 
+import requests
+from juju.unit import Unit
 from pytest_operator.plugin import OpsTest
+from requests.auth import HTTPBasicAuth
 
 logger = logging.getLogger(__name__)
 
@@ -171,3 +174,54 @@ async def curl(ops_test: OpsTest, *, cert_dir: str, cert_path: str, ip_addr: str
         "non-zero return code means curl encountered a >= 400 HTTP code"
     )
     return stdout
+
+async def grafana_password(ops_test: OpsTest, app_name: str) -> str:
+    """Get the admin password. Memoize it to reduce turnaround time.
+
+    Args:
+        ops_test: pytest-operator plugin
+        app_name: string name of application
+
+    Returns:
+        admin password as a string
+    """
+    leader: Optional[Unit] = None
+    for unit in ops_test.model.applications[app_name].units:  # type: ignore
+        is_leader = await unit.is_leader_from_status()
+        if is_leader:
+            leader = unit
+            break
+
+    assert leader
+    action = await leader.run_action("get-admin-password")
+    action = await action.wait()
+    return action.results["admin-password"]
+
+async def grafana_datasources(ops_test: OpsTest, app_name: str) -> "list[dict]":
+    """Get the datasources configured in Grafana.
+
+    A sample response from Grafana's /api/datasources endpoint is a list of datasources, similar to below.
+
+    [{"id":1,"uid":"ABC","orgId":1,"name":"<name>",
+    "type":"alertmanager","typeName":"Alertmanager",
+    "typeLogoUrl":"public/app/plugins/datasource/alertmanager/img/logo.svg","access":"proxy",
+    "url":"<AM-address>","user":"","database":"","basicAuth":false,"isDefault":false,
+    "jsonData":{"implementation":"prometheus","timeout":300},"readOnly":true}}, ...]
+
+    Args:
+        ops_test: pytest-operator plugin
+        app_name: string name of application
+    Returns:
+        number of datasources as an integer
+    """
+    address = await get_unit_address(ops_test, app_name, 0)
+    url = f"http://{address}:3000/api/datasources"
+
+    admin_password = await grafana_password(ops_test, app_name)
+    response = requests.get(
+        url,
+        auth=HTTPBasicAuth("admin", admin_password),
+    )
+    response.raise_for_status()
+    datasources = response.json()
+    return datasources
