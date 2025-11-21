@@ -652,7 +652,6 @@ class AlertmanagerCharm(CharmBase):
         The service will then load balance between the units.
         This assumes that the FQDN is the interal FQDN for the socket and that the pod unit is always on the left side of the first ".". If those change, this code will need to be updated.
         """
-
         fqdn = self._fqdn.split(".", 1)[-1]
 
         return f"{self._scheme}://{fqdn}:{self._ports.api}"
