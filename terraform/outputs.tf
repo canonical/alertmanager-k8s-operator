@@ -19,3 +19,7 @@ output "endpoints" {
     grafana_source        = "grafana-source"
   }
 }
+
+output "foo" {
+  value = "this is the branch"
+}
