@@ -17,7 +17,7 @@ dependencies = [
   "tenacity",
   "cosl",
   "charmed-service-mesh-helpers>=0.2.0",
-  "lightkube-extensions@git+https://github.com/canonical/lightkube-extensions.git@main",
+  "lightkube-extensions",
 ]
 
 [project.optional-dependencies]
