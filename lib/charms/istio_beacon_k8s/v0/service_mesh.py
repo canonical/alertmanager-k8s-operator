@@ -180,7 +180,7 @@ POLICY_RESOURCE_TYPES = {
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 16
+LIBPATCH = 17
 
 PYDEPS = [
     "lightkube",
@@ -419,10 +419,7 @@ class ServiceMeshConsumer(Object):
 
         # Collect the remote data from any fully established cross_model_relation integrations
         # {remote application name: cmr relation data}
-        cmr_application_data = {
-            cmr.app.name: CMRData.model_validate(json.loads(cmr.data[cmr.app]["cmr_data"]))
-            for cmr in self._cmr_relations if "cmr_data" in cmr.data[cmr.app]
-        }
+        cmr_application_data = get_data_from_cmr_relation(self._cmr_relations)
 
         mesh_policies = build_mesh_policies(
             relation_mapping=self._charm.model.relations,
@@ -431,7 +428,7 @@ class ServiceMeshConsumer(Object):
             policies=self._policies,
             cmr_application_data=cmr_application_data,
         )
-        self._relation.data[self._charm.app]["policies"] = json.dumps(mesh_policies)
+        self._relation.data[self._charm.app]["policies"] = json.dumps([p.model_dump() for p in mesh_policies])
 
     def _my_namespace(self):
         """Return the namespace of the running charm."""
@@ -566,7 +563,7 @@ def build_mesh_policies(
         target_app_name: str,
         target_namespace: str,
         policies: List[Union[Policy, AppPolicy, UnitPolicy]],
-        cmr_application_data: Dict[str, CMRData],
+        cmr_application_data: Optional[Dict[str, CMRData]] = None,
 ) -> List[MeshPolicy]:
     """Generate MeshPolicy that implement the given policies for the currently related applications.
 
@@ -577,9 +574,14 @@ def build_mesh_policies(
         policies: List of AppPolicy, or UnitPolicy objects defining the access rules.
         cmr_application_data: Data for cross-model relations, mapping app names to CMRData.
     """
+    if not cmr_application_data:
+        cmr_application_data = {}
+
     mesh_policies = []
     for policy in policies:
+        logger.debug(f"Processing policy for relation endpoint '{policy.relation}'.")
         for relation in relation_mapping[policy.relation]:
+            logger.debug(f"Processing policy for related application '{relation.app.name}'.")
             if relation.app.name in cmr_application_data:
                 logger.debug(f"Found cross model relation: {relation.name}. Creating policy.")
                 source_app_name = cmr_application_data[relation.app.name].app_name
@@ -605,7 +607,7 @@ def build_mesh_policies(
                         ]
                         if policy.ports
                         else [],
-                    ).model_dump()
+                    )
                 )
             else:
                mesh_policies.append(
@@ -617,7 +619,7 @@ def build_mesh_policies(
                         target_service=policy.service,
                         target_type=PolicyTargetType.app,
                         endpoints=policy.endpoints,
-                    ).model_dump()
+                    )
                 )
 
     return mesh_policies
@@ -1159,3 +1161,16 @@ class PolicyResourceManager():
                 self.log.info("CRD not found, skipping deletion")
                 return
             raise
+
+
+def get_data_from_cmr_relation(cmr_relations) -> Dict[str, CMRData]:
+    """Return a dictionary of CMRData from the established cross-model relations."""
+    cmr_data = {}
+    for cmr in cmr_relations:
+        if "cmr_data" in cmr.data[cmr.app]:
+            try:
+                cmr_data[cmr.app.name] = CMRData.model_validate(json.loads(cmr.data[cmr.app]["cmr_data"]))
+            except pydantic.ValidationError as e:
+                logger.error(f"Invalid CMR data for {cmr.app.name}: {e}")
+                continue
+    return cmr_data
