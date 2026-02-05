@@ -14,6 +14,6 @@ resource "juju_application" "alertmanager" {
   }
 
   resources = {
-    "alertmanager-image" : "ubuntu/alertmanager@sha256:0a7be6fa837357c3076838ae08fdedfcbf70901a0b35cbf3945c967c9f5bfccf"
+    "alertmanager-image" : "ghcr.io/canonical/alertmanager:dev"
   }
 }
