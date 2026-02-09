@@ -180,7 +180,7 @@ POLICY_RESOURCE_TYPES = {
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 17
+LIBPATCH = 18
 
 PYDEPS = [
     "lightkube",
@@ -531,8 +531,14 @@ class ServiceMeshProvider(Object):
         self.framework.observe(
             self._charm.on[mesh_relation_name].relation_created, self._relation_created
         )
+        self.framework.observe(
+            self._charm.on.config_changed, self._on_config_changed
+        )
 
     def _relation_created(self, _event):
+        self.update_relations()
+
+    def _on_config_changed(self, _event):
         self.update_relations()
 
     def update_relations(self):
