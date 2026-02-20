@@ -180,7 +180,7 @@ POLICY_RESOURCE_TYPES = {
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 18
+LIBPATCH = 19
 
 PYDEPS = [
     "lightkube",
@@ -653,10 +653,7 @@ def reconcile_charm_labels(client: Client, app_name: str, namespace: str,  label
         labels: A dictionary of labels to set on the Charm's Kubernetes objects. Any labels that were previously created
                 by this method but omitted in `labels` now will be removed from the Kubernetes objects.
     """
-    patch_labels = {}
-    patch_labels.update(labels)
-    stateful_set = client.get(res=StatefulSet, name=app_name)
-    service = client.get(res=Service, name=app_name)
+    patch_labels: Dict[str, Optional[str]] = dict(labels)
     try:
         config_map = client.get(ConfigMap, label_configmap_name)
     except httpx.HTTPStatusError as e:
@@ -670,19 +667,22 @@ def reconcile_charm_labels(client: Client, app_name: str, namespace: str,  label
             if label not in patch_labels:
                 # The label was previously set. Setting it to None will delete it.
                 patch_labels[label] = None
-    if stateful_set.spec:
-        stateful_set.spec.template.metadata.labels.update(patch_labels)  # type: ignore
-    if service.metadata:
-        service.metadata.labels = service.metadata.labels or {}
-        service.metadata.labels.update(patch_labels)
+
+    # Patch just the labels instead of the entire resource defintion.
+    # This minimal approach reduces the chance of 409 conflicts when other actors are modifying the resources.
+    # Retrying here is a bad idea as we WANT to get a 409 when someone else patches OUR labels. We shouldn't mask that.
+    client.patch(res=StatefulSet, name=app_name, obj={
+        "spec": {"template": {"metadata": {"labels": patch_labels}}}
+    })
+    client.patch(res=Service, name=app_name, obj={
+        "metadata": {"labels": patch_labels}
+    })
 
     # Store our actively managed labels in a ConfigMap so next call we know which we might need to delete.
     # This should not include any labels that are nulled out as they're now out of scope.
     config_map_labels = {k: v for k, v in patch_labels.items() if v is not None}
     config_map.data = {"labels": json.dumps(config_map_labels)}
     client.patch(res=ConfigMap, name=label_configmap_name, obj=config_map)
-    client.patch(res=StatefulSet, name=app_name, obj=stateful_set)
-    client.patch(res=Service, name=app_name, obj=service)
 
 
 def _init_label_configmap(client, name, namespace) -> ConfigMap:
