@@ -3,7 +3,7 @@
 name: alertmanager-k8s
 type: charm
 summary: Alertmanager handles alerts sent by client applications.
-description: >
+description: |
   Alertmanager K8s is a Juju charm that deploys and manages Prometheus Alertmanager on Kubernetes.
   It is a core component of the Canonical Observability Stack (COS):
   https://documentation.ubuntu.com/observability
