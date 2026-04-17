@@ -3,4 +3,5 @@
   "extends": [
     "github>canonical/observability//.github/renovate/charms.json5",
   ],
+  "baseBranches": ["main", "track/2"] 
 }
