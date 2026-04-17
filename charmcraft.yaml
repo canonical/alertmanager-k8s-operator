@@ -3,10 +3,24 @@
 name: alertmanager-k8s
 type: charm
 summary: Alertmanager handles alerts sent by client applications.
-description: >
-  Alertmanager handles alerts sent by client applications such as the Prometheus server.
-  It takes care of deduplicating, grouping, and routing them to the correct receiver integrations
-  such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
+description: |
+  Alertmanager K8s is a Juju charm that deploys and manages Prometheus Alertmanager on Kubernetes.
+  It is a core component of the Canonical Observability Stack (COS):
+  https://documentation.ubuntu.com/observability
+
+  Alertmanager receives alerts from sources such as Prometheus and Loki, and takes care of
+  deduplicating, grouping, and routing them to the appropriate receiver integrations — including
+  email, PagerDuty, and others. It also supports silencing and inhibition of alerts.
+
+  Key features:
+
+  - Native high-availability clustering by simply scaling the application with Juju.
+  - Seamless integration with Prometheus, Loki, Grafana, Karma, Traefik, and other charms
+    in the COS ecosystem through Juju relations.
+  - Built-in Grafana dashboards and Prometheus alert rules for self-monitoring.
+  - TLS support via the certificates relation.
+  - Distributed tracing support via integration with Tempo.
+  - Configurable Kubernetes resource limits for CPU and memory.
 
 links:
   documentation: https://discourse.charmhub.io/t/alertmanager-k8s-docs-index/5788
