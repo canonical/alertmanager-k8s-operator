@@ -33,13 +33,13 @@ assumes:
   - juju >= 3.6
 
 platforms:
-  ubuntu@24.04:amd64:
+  ubuntu@26.04:amd64:
 
 parts:
   charm:
     source: .
     plugin: uv
-    build-packages: [git]
+    build-packages: [git, libffi-dev]
     build-snaps: [astral-uv]
     override-build: |
       craftctl default
