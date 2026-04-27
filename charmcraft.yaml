@@ -39,7 +39,7 @@ parts:
   charm:
     source: .
     plugin: uv
-    build-packages: [git, libffi-dev]
+    build-packages: [git]
     build-snaps: [astral-uv]
     override-build: |
       craftctl default
