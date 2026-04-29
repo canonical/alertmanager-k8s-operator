@@ -172,8 +172,8 @@ class AlertmanagerCharm(CharmBase):
                 self._cert_requirer.on.certificate_available,  # pyright: ignore
             ],
         )
-        self._tracing = TracingEndpointRequirer(self, protocols=["otlp_http"])
-        self.tracing = ops_tracing.Tracing(
+        self.workload_tracing = TracingEndpointRequirer(self, protocols=["otlp_http"])
+        self.charm_tracing = ops_tracing.Tracing(
             self,
             tracing_relation_name="charm-tracing",
             ca_relation_name="receive-ca-cert",
