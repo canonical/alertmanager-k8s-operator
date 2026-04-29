@@ -30,7 +30,7 @@ async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
     """Deploy the alertmanager charm and loki, then integrate via logging."""
     await asyncio.gather(
         ops_test.model.deploy(charm_under_test, app_name, resources=resources, trust=True),
-        ops_test.model.deploy("loki-k8s", "loki", channel="dev/edges", trust=True),
+        ops_test.model.deploy("loki-k8s", "loki", channel="dev/edge", trust=True),
     )
     await ops_test.model.wait_for_idle(apps=[app_name, "loki"], status="active")
 
