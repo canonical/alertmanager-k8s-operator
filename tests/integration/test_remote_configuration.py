@@ -64,7 +64,6 @@ async def tester_charm(ops_test: OpsTest):
 
 
 @pytest.fixture(scope="module")
-@pytest.mark.abort_on_fail
 async def setup(ops_test: OpsTest, charm_under_test, tester_charm):
     assert ops_test.model
     await ops_test.model.deploy(
