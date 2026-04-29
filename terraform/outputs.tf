@@ -17,6 +17,7 @@ output "requires" {
     catalogue            = "catalogue",
     certificates         = "certificates",
     ingress              = "ingress",
+    logging              = "logging",
     tracing              = "tracing",
     remote_configuration = "remote-configuration"
   }

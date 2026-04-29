@@ -23,6 +23,7 @@ from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshConsumer, UnitPolicy
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
+from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     K8sResourcePatchFailedEvent,
     KubernetesComputeResourcesPatch,
@@ -155,6 +156,7 @@ class AlertmanagerCharm(CharmBase):
             ],
         )
         self.karma_provider = KarmaProvider(self, "karma-dashboard")
+        self._log_forwarding = LogForwarder(self, relation_name="logging")
         self.remote_configuration = RemoteConfigurationRequirer(self)
 
         self.set_ports()
