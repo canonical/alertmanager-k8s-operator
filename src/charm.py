@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from typing import List, Optional, Tuple, cast
 from urllib.parse import urlparse
 
+import ops_tracing
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
@@ -30,8 +31,7 @@ from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     adjust_resource_requirements,
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
-from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer, charm_tracing_config
+from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 from charms.tls_certificates_interface.v4.tls_certificates import (
     CertificateRequestAttributes,
     TLSCertificatesRequiresV4,
@@ -69,17 +69,6 @@ class TLSConfig:
     private_key: str
 
 
-@trace_charm(
-    tracing_endpoint="_charm_tracing_endpoint",
-    server_cert="_charm_tracing_ca_cert",
-    extra_types=(
-        AlertmanagerProvider,
-        TLSCertificatesRequiresV4,
-        IngressPerAppRequirer,
-        KubernetesComputeResourcesPatch,
-        RemoteConfigurationRequirer,
-    ),
-)
 class AlertmanagerCharm(CharmBase):
     """A Juju charm for alertmanager."""
 
@@ -184,8 +173,10 @@ class AlertmanagerCharm(CharmBase):
             ],
         )
         self._tracing = TracingEndpointRequirer(self, protocols=["otlp_http"])
-        self._charm_tracing_endpoint, self._charm_tracing_ca_cert = charm_tracing_config(
-            self._tracing, self._ca_cert_path
+        self.tracing = ops_tracing.Tracing(
+            self,
+            tracing_relation_name="charm-tracing",
+            ca_relation_name="receive-ca-cert",
         )
 
         self.catalog = CatalogueConsumer(charm=self, item=self._catalogue_item)

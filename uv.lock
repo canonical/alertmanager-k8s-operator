@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.8, <4"
 resolution-markers = [
     "python_full_version >= '3.11'",
@@ -21,8 +21,7 @@ dependencies = [
     { name = "lightkube" },
     { name = "lightkube-extensions" },
     { name = "lightkube-models" },
-    { name = "opentelemetry-exporter-otlp-proto-http" },
-    { name = "ops" },
+    { name = "ops", extra = ["tracing"] },
     { name = "pydantic", version = "2.10.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "pydantic", version = "2.11.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "pyyaml" },
@@ -71,9 +70,8 @@ requires-dist = [
     { name = "lightkube", specifier = ">=0.11" },
     { name = "lightkube-extensions" },
     { name = "lightkube-models" },
-    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.21.0" },
-    { name = "ops" },
     { name = "ops", extras = ["testing"], marker = "extra == 'dev'" },
+    { name = "ops", extras = ["tracing"] },
     { name = "pydantic", specifier = ">=2" },
     { name = "pyright", marker = "extra == 'dev'", specifier = "<1.1.399" },
     { name = "pytest", marker = "extra == 'dev'" },
@@ -816,18 +814,6 @@ wheels = [
 ]
 
 [[package]]
-name = "googleapis-common-protos"
-version = "1.70.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "protobuf" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/39/24/33db22342cf4a2ea27c9955e6713140fedd51e8b141b5ce5260897020f1a/googleapis_common_protos-1.70.0.tar.gz", hash = "sha256:0e1b44e0ea153e6594f9f394fef15193a68aaaea2d843f83e2742717ca753257", size = 145903, upload-time = "2025-04-14T10:17:02.924Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/f1/62a193f0227cf15a920390abe675f386dec35f7ae3ffe6da582d3ade42c7/googleapis_common_protos-1.70.0-py3-none-any.whl", hash = "sha256:b8bfcca8c25a2bb253e0e0b0adaf8c00773e5e6af6fd92397576680b807e0fd8", size = 294530, upload-time = "2025-04-14T10:17:01.271Z" },
-]
-
-[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1473,48 +1459,6 @@ wheels = [
 ]
 
 [[package]]
-name = "opentelemetry-exporter-otlp-proto-common"
-version = "1.33.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "opentelemetry-proto" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7a/18/a1ec9dcb6713a48b4bdd10f1c1e4d5d2489d3912b80d2bcc059a9a842836/opentelemetry_exporter_otlp_proto_common-1.33.1.tar.gz", hash = "sha256:c57b3fa2d0595a21c4ed586f74f948d259d9949b58258f11edb398f246bec131", size = 20828, upload-time = "2025-05-16T18:52:43.795Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/09/52/9bcb17e2c29c1194a28e521b9d3f2ced09028934c3c52a8205884c94b2df/opentelemetry_exporter_otlp_proto_common-1.33.1-py3-none-any.whl", hash = "sha256:b81c1de1ad349785e601d02715b2d29d6818aed2c809c20219f3d1f20b038c36", size = 18839, upload-time = "2025-05-16T18:52:22.447Z" },
-]
-
-[[package]]
-name = "opentelemetry-exporter-otlp-proto-http"
-version = "1.33.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "deprecated" },
-    { name = "googleapis-common-protos" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-exporter-otlp-proto-common" },
-    { name = "opentelemetry-proto" },
-    { name = "opentelemetry-sdk" },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/60/48/e4314ac0ed2ad043c07693d08c9c4bf5633857f5b72f2fefc64fd2b114f6/opentelemetry_exporter_otlp_proto_http-1.33.1.tar.gz", hash = "sha256:46622d964a441acb46f463ebdc26929d9dec9efb2e54ef06acdc7305e8593c38", size = 15353, upload-time = "2025-05-16T18:52:45.522Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/63/ba/5a4ad007588016fe37f8d36bf08f325fe684494cc1e88ca8fa064a4c8f57/opentelemetry_exporter_otlp_proto_http-1.33.1-py3-none-any.whl", hash = "sha256:ebd6c523b89a2ecba0549adb92537cc2bf647b4ee61afbbd5a4c6535aa3da7cf", size = 17733, upload-time = "2025-05-16T18:52:25.137Z" },
-]
-
-[[package]]
-name = "opentelemetry-proto"
-version = "1.33.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "protobuf" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f6/dc/791f3d60a1ad8235930de23eea735ae1084be1c6f96fdadf38710662a7e5/opentelemetry_proto-1.33.1.tar.gz", hash = "sha256:9627b0a5c90753bf3920c398908307063e4458b287bb890e5c1d6fa11ad50b68", size = 34363, upload-time = "2025-05-16T18:52:52.141Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c4/29/48609f4c875c2b6c80930073c82dd1cafd36b6782244c01394007b528960/opentelemetry_proto-1.33.1-py3-none-any.whl", hash = "sha256:243d285d9f29663fc7ea91a7171fcc1ccbbfff43b48df0774fd64a37d98eda70", size = 55854, upload-time = "2025-05-16T18:52:36.269Z" },
-]
-
-[[package]]
 name = "opentelemetry-sdk"
 version = "1.33.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1561,6 +1505,9 @@ wheels = [
 testing = [
     { name = "ops-scenario" },
 ]
+tracing = [
+    { name = "ops-tracing" },
+]
 
 [[package]]
 name = "ops-scenario"
@@ -1573,6 +1520,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/2a/95/90312165f3e1d5876872ad64131be9c0f26b5aa09bd73a436a21b0752820/ops_scenario-7.21.1.tar.gz", hash = "sha256:534b407b34212161c3e74cb396b79ca7449932e483053e924146fdf0140876b9", size = 141631, upload-time = "2025-05-01T03:03:30.456Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/93/3b/4cc28ea9d77015ecf8fc5c3d362bb274e35ffaa2e6fbd87909a5384afa40/ops_scenario-7.21.1-py3-none-any.whl", hash = "sha256:eeb9def2c31a1db2429cf21bd9b8cbd2ac092cc1fbe5591e850e4aa192c542fa", size = 72451, upload-time = "2025-05-01T03:03:28.488Z" },
+]
+
+[[package]]
+name = "ops-tracing"
+version = "2.21.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-sdk" },
+    { name = "ops" },
+    { name = "pydantic", version = "2.10.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "pydantic", version = "2.11.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cd/1d/8c028b996ef5cc320064e63b8497cc95dbd4cb6be730012f12046ac50d43/ops_tracing-2.21.1.tar.gz", hash = "sha256:d1dc8ecd079a4d78f3d6978bda16b884d1dc00792db0d8e9273912a87cf2cafc", size = 27871, upload-time = "2025-05-01T03:03:18.482Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f3/22/d75274cd8775a016b925fd7a3a4040b890a3be797285d4f6c56ab0c2b471/ops_tracing-2.21.1-py3-none-any.whl", hash = "sha256:e84900361806481e74b0c1855c52a85552a3a3edaaea06f47846f934a2ffa5b2", size = 31177, upload-time = "2025-05-01T03:03:16.918Z" },
 ]
 
 [[package]]
