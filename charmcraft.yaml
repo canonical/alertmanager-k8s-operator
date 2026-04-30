@@ -135,6 +135,18 @@ requires:
     limit: 1
     description: |
       Enables sending workload traces to a distributed tracing backend such as Tempo.
+  charm-tracing:
+    interface: tracing
+    optional: true
+    limit: 1
+    description: |
+      Enables sending charm traces to a distributed tracing backend such as Tempo.
+  receive-ca-cert:
+    interface: certificate_transfer
+    optional: true
+    limit: 1
+    description: |
+      Receives a CA certificate to validate TLS connections for charm tracing.
   service-mesh:
     limit: 1
     interface: service_mesh
