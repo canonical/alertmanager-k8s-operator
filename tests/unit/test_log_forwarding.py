@@ -19,7 +19,12 @@ def test_charm_starts_with_logging_relation(context: Context):
     context.run(context.on.update_status(), state_after)
 
 
-def test_charm_starts_without_logging_relation(context: Context):
-    """The charm should start fine without a logging relation."""
+def test_charm_active_on_logging_departed(context: Context):
+    """The charm should handle logging relation departure without errors."""
     state = begin_with_initial_hooks_isolated(context)
-    context.run(context.on.update_status(), state)
+
+    logging_rel = Relation("logging")
+    state_with_logging = dataclasses.replace(state, relations=[*state.relations, logging_rel])
+    state_after = context.run(context.on.relation_created(logging_rel), state_with_logging)
+    state_after = context.run(context.on.relation_departed(logging_rel), state_after)
+    context.run(context.on.update_status(), state_after)
