@@ -20,6 +20,9 @@ from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
 )
 from charms.alertmanager_k8s.v1.alertmanager_dispatch import AlertmanagerProvider
 from charms.catalogue_k8s.v1.catalogue import CatalogueConsumer, CatalogueItem
+from charms.certificate_transfer_interface.v1.certificate_transfer import (
+    CertificateTransferRequires,
+)
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
 from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshConsumer, UnitPolicy
@@ -91,6 +94,7 @@ class AlertmanagerCharm(CharmBase):
     _server_cert_path = "/etc/alertmanager/alertmanager.cert.pem"
     _key_path = "/etc/alertmanager/alertmanager.key.pem"
     _ca_cert_path = "/usr/local/share/ca-certificates/cos-ca.crt"
+    _recv_ca_cert_folder_path = "/usr/local/share/ca-certificates/juju_receive-ca-cert"
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -109,9 +113,18 @@ class AlertmanagerCharm(CharmBase):
             relationship_name="certificates",
             certificate_requests=[self._csr_attributes],
         )
+        self._cert_transfer = CertificateTransferRequires(self, "receive-ca-cert")
         self.framework.observe(
             self._cert_requirer.on.certificate_available,  # pyright: ignore
             self._on_certificate_available,
+        )
+        self.framework.observe(
+            self._cert_transfer.on.certificate_set_updated,  # pyright: ignore
+            self._on_receive_ca_cert,
+        )
+        self.framework.observe(
+            self._cert_transfer.on.certificates_removed,  # pyright: ignore
+            self._on_receive_ca_cert,
         )
 
         self.ingress = IngressPerAppRequirer(
@@ -526,6 +539,9 @@ class AlertmanagerCharm(CharmBase):
     def _on_certificate_available(self, _):
         self._common_exit_hook(update_ca_certs=True)
 
+    def _on_receive_ca_cert(self, _):
+        self._common_exit_hook(update_ca_certs=True)
+
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
         self._common_exit_hook()
@@ -590,6 +606,27 @@ class AlertmanagerCharm(CharmBase):
             ca_cert_path.write_text(tls_config.ca_cert)
         else:
             ca_cert_path.unlink(missing_ok=True)
+
+        # Handle certificates received via the receive-ca-cert relation
+        recv_ca_folder = Path(self._recv_ca_cert_folder_path)
+        ca_certs = self._cert_transfer.get_all_certificates()
+
+        # Workload container: clean up and write current certs
+        try:
+            self.container.remove_path(self._recv_ca_cert_folder_path, recursive=True)
+        except (PathError, ProtocolError):
+            pass
+        for i, cert in enumerate(ca_certs):
+            self.container.push(f"{self._recv_ca_cert_folder_path}/{i}.crt", cert, make_dirs=True)
+
+        # Charm container: clean up and write current certs
+        if recv_ca_folder.exists():
+            for f in recv_ca_folder.iterdir():
+                f.unlink()
+        if ca_certs:
+            recv_ca_folder.mkdir(parents=True, exist_ok=True)
+            for i, cert in enumerate(ca_certs):
+                (recv_ca_folder / f"{i}.crt").write_text(cert)
 
         # Workload container
         self.container.exec(["update-ca-certificates", "--fresh"], timeout=30).wait()
