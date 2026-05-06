@@ -155,6 +155,11 @@ requires:
       We forward to the beacon our authorization policies.
       The beacon sends the pod and service labels required by this charm to join the mesh.
       This relation is a pre-requisite for using the provide-cmr-mesh relation.
+  logging:
+    interface: loki_push_api
+    optional: true
+    description: |
+      Receives Loki's push api endpoint address to push logs to, and forwards charm's built-in alert rules to Loki.
   require-cmr-mesh:
     # TODO: remove this relation when this is fixed:
     #   https://github.com/canonical/istio-beacon-k8s-operator/issues/91
