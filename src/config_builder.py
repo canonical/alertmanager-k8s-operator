@@ -60,6 +60,9 @@ class ConfigBuilder:
         self._cert_file_path = None
         self._key_file_path = None
 
+        self._tracing_endpoint: Optional[str] = None
+        self._tracing_ca_cert_path: Optional[str] = None
+
     def set_config(self, config: Optional[dict]):
         """Set the main config file contents."""
         if config is not None:
@@ -72,6 +75,23 @@ class ConfigBuilder:
             self._templates = templates
             if path:
                 self._templates_path = path
+        return self
+
+    def set_workload_tracing(
+        self, *, endpoint: Optional[str], ca_cert_path: Optional[str] = None
+    ) -> "ConfigBuilder":
+        """Set workload tracing config.
+
+        Args:
+            endpoint: OTLP HTTP endpoint URL.
+                Pass None to disable tracing.
+            ca_cert_path: Path to the CA certificate file inside the workload container.
+                Required when ``endpoint`` uses ``https``.  The certificate must already
+                be present on disk (written by the charm before replanning). Leave None
+                for plain HTTP endpoints.
+        """
+        self._tracing_endpoint = endpoint
+        self._tracing_ca_cert_path = ca_cert_path
         return self
 
     def set_tls_server_config(self, *, cert_file_path: str, key_file_path: str):
@@ -107,6 +127,17 @@ class ConfigBuilder:
             group_by = list(group_by.union(["juju_application", "juju_model", "juju_model_uuid"]))
         route["group_by"] = list(group_by)
         config["route"] = route
+
+        if self._tracing_endpoint:
+            tracing_cfg: dict = {
+                "client_type": "http",
+                "endpoint": self._tracing_endpoint,
+                "sampling_fraction": 1.0,
+            }
+            if self._tracing_ca_cert_path:
+                tracing_cfg["tls_config"] = {"ca_file": self._tracing_ca_cert_path}
+            config["tracing"] = tracing_cfg
+
         return yaml.safe_dump(config)
 
     @property

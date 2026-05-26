@@ -252,6 +252,14 @@ class AlertmanagerCharm(CharmBase):
             self._on_remote_configuration_changed,
         )
 
+        # Workload tracing relation events
+        self.framework.observe(
+            self.on["tracing"].relation_changed, self._on_workload_tracing_changed
+        )
+        self.framework.observe(
+            self.on["tracing"].relation_broken, self._on_workload_tracing_changed
+        )
+
         # Peer relation events
         self.framework.observe(
             self.on[self._relations.peer].relation_joined, self._on_peer_relation_joined
@@ -446,6 +454,8 @@ class AlertmanagerCharm(CharmBase):
     def _render_manifest(self) -> ConfigFileSystemState:
         raw_config, raw_templates = self._get_raw_config_and_templates()
 
+        tracing_endpoint = self._workload_tracing_endpoint
+
         # Note: A free function (with many args) would have the same functionality.
         config_suite = (
             ConfigBuilder(api_port=self.api_port)
@@ -454,6 +464,7 @@ class AlertmanagerCharm(CharmBase):
                 cert_file_path=self._server_cert_path, key_file_path=self._key_path
             )
             .set_templates(raw_templates, self._templates_path)
+            .set_workload_tracing(endpoint=tracing_endpoint, ca_cert_path=self._ca_cert_path if tracing_endpoint and urlparse(tracing_endpoint).scheme == "https" else None)
             .build()
         )
         tls_config = self._tls_config
@@ -574,6 +585,10 @@ class AlertmanagerCharm(CharmBase):
         """Event handler for remote configuration's RelationChangedEvent."""
         self._common_exit_hook()
 
+    def _on_workload_tracing_changed(self, _):
+        """Event handler for workload tracing relation changes."""
+        self._common_exit_hook()
+
     def _on_update_status(self, _):
         """Event handler for UpdateStatusEvent.
 
@@ -654,6 +669,15 @@ class AlertmanagerCharm(CharmBase):
         hostnames = sorted([urlparse(address).hostname for address in addresses])
 
         return hostnames
+
+    @property
+    def _workload_tracing_endpoint(self) -> Optional[str]:
+        if not self.workload_tracing.is_ready():
+            return None
+        try:
+            return self.workload_tracing.get_endpoint("otlp_http")
+        except Exception:
+            return None
 
     @property
     def _tls_config(self) -> Optional[TLSConfig]:
