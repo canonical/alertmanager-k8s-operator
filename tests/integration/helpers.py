@@ -64,7 +64,6 @@ def get_leader_unit_num(juju: Juju, app_name: str) -> int:
 def get_alertmanager_config_from_file(
     juju: Juju,
     app_name: str,
-    container_name: str,
     config_file_path: str,
 ) -> str:
     """Read a file from inside an alertmanager container and return its content."""
@@ -72,9 +71,6 @@ def get_alertmanager_config_from_file(
         "exec",
         "--unit",
         f"{app_name}/0",
-        "--container",
-        container_name,
-        "--",
         "cat",
         config_file_path,
     )

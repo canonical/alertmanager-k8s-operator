@@ -113,7 +113,6 @@ def test_remote_configuration_applied(juju):
     actual_config = get_alertmanager_config_from_file(
         juju,
         app_name=APP_NAME,
-        container_name="alertmanager",
         config_file_path="/etc/alertmanager/alertmanager.yml",
     )
     expected_config = _add_juju_details_to_alertmanager_config(TESTER_CHARM_CONFIG)
