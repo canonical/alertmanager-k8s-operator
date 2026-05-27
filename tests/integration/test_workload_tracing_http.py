@@ -14,7 +14,6 @@ from helpers import (
     assert_traces_in_tempo,
     deploy_tempo_stack,
 )
-from jubilant import Juju
 from pytest_bdd import given, scenario, then, when
 
 logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ def test_workload_tracing_http():
 
 
 @given("alertmanager and tempo are deployed", target_fixture="deployed_apps")
-def deploy_am_and_tempo(juju: Juju, charm_path: Path):
+def deploy_am_and_tempo(juju, charm_path: Path):
     juju.deploy(
         str(charm_path),
         AM_APP,
@@ -44,12 +43,12 @@ def deploy_am_and_tempo(juju: Juju, charm_path: Path):
 
 
 @when("alertmanager is related to tempo for workload tracing")
-def relate_am_to_tempo(juju: Juju):
+def relate_am_to_tempo(juju):
     juju.integrate(f"{AM_APP}:tracing", f"{TEMPO_APP}:tracing")
 
 
 @then("alertmanager and tempo reach active status")
-def wait_for_active(juju: Juju, deployed_apps):
+def wait_for_active(juju, deployed_apps):
     juju.wait(
         lambda status: jubilant.all_active(status, *deployed_apps)
         and jubilant.all_agents_idle(status, *deployed_apps),
@@ -58,7 +57,7 @@ def wait_for_active(juju: Juju, deployed_apps):
 
 
 @then("hitting the healthy endpoint produces a trace in tempo")
-def healthy_produces_trace(juju: Juju):
+def healthy_produces_trace(juju):
     # Trigger a span: curl /-/healthy from inside the alertmanager container.
     juju.exec("curl -sf http://localhost:9093/-/healthy", unit=f"{AM_APP}/0")
 

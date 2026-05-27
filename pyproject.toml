@@ -41,7 +41,6 @@ dev = [
   "pytest-operator",
   "pytest-httpserver",
   "jubilant",
-  "pytest-jubilant>=2,<3",
   "pytest-bdd",
   "tenacity",
   "sh",

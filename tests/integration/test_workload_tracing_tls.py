@@ -14,7 +14,6 @@ from helpers import (
     assert_traces_in_tempo,
     deploy_tempo_stack,
 )
-from jubilant import Juju
 from pytest_bdd import given, scenario, then, when
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ def test_workload_tracing_tls():
     "alertmanager, tempo, and self-signed-certificates are deployed",
     target_fixture="deployed_apps",
 )
-def deploy_all(juju: Juju, charm_path: Path):
+def deploy_all(juju, charm_path: Path):
     juju.deploy(
         str(charm_path),
         AM_APP,
@@ -53,7 +52,7 @@ def deploy_all(juju: Juju, charm_path: Path):
 
 
 @given("alertmanager is related to self-signed-certificates for TLS")
-def relate_am_to_ssc(juju: Juju, deployed_apps):
+def relate_am_to_ssc(juju, deployed_apps):
     juju.integrate(f"{AM_APP}:certificates", SSC_APP)
     juju.wait(
         lambda status: jubilant.all_active(status, *deployed_apps)
@@ -63,12 +62,12 @@ def relate_am_to_ssc(juju: Juju, deployed_apps):
 
 
 @when("alertmanager is related to tempo for workload tracing")
-def relate_am_to_tempo(juju: Juju):
+def relate_am_to_tempo(juju):
     juju.integrate(f"{AM_APP}:tracing", f"{TEMPO_APP}:tracing")
 
 
 @then("alertmanager and tempo reach active status")
-def wait_for_active(juju: Juju, deployed_apps):
+def wait_for_active(juju, deployed_apps):
     juju.wait(
         lambda status: jubilant.all_active(status, *deployed_apps)
         and jubilant.all_agents_idle(status, *deployed_apps),
@@ -77,7 +76,7 @@ def wait_for_active(juju: Juju, deployed_apps):
 
 
 @then("hitting the healthy endpoint produces a trace in tempo")
-def healthy_produces_trace(juju: Juju):
+def healthy_produces_trace(juju):
     # When TLS is enabled alertmanager listens on HTTPS; the CA cert is installed
     # under the system bundle path by the certificates relation handler.
     juju.exec(

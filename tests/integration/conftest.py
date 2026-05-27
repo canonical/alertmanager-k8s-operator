@@ -11,7 +11,8 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-import juju.utils
+import jubilant
+import juju.utils as juju_utils
 import pytest
 from pytest_operator.plugin import OpsTest
 
@@ -82,7 +83,7 @@ def httpserver_listen_address():
     return local_ip_address, PYTEST_HTTP_SERVER_PORT
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(autouse=True, scope="module")
 async def setup_env(ops_test: OpsTest):
     assert ops_test.model
     # Prevent "update-status" from interfering with the test:
@@ -99,19 +100,38 @@ def temp_dir(tmp_path_factory):
 
 @pytest.fixture(scope="module", autouse=True)
 def patch_pylibjuju_series_2404():
-    juju.utils.ALL_SERIES_VERSIONS["noble"] = "24.04"
-    juju.utils.UBUNTU_SERIES["noble"] = "24.04"
+    juju_utils.ALL_SERIES_VERSIONS["noble"] = "24.04"
+    juju_utils.UBUNTU_SERIES["noble"] = "24.04"
 
     yield
 
-    del juju.utils.ALL_SERIES_VERSIONS["noble"]
-    del juju.utils.UBUNTU_SERIES["noble"]
+    del juju_utils.ALL_SERIES_VERSIONS["noble"]
+    del juju_utils.UBUNTU_SERIES["noble"]
 
 
 # ---------------------------------------------------------------------------
 # jubilant fixtures
 # ---------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def juju(ops_test: OpsTest) -> jubilant.Juju:
+    """Return a jubilant Juju handle that targets the model created by pytest-operator.
 
+    pytest-jubilant's built-in ``juju`` fixture creates and tears down its own Juju
+    model independently of pytest-operator. When both plugins are present in the same
+    test session, their model lifecycles conflict: pytest-jubilant may attempt to
+    connect to (or destroy) a model before pytest-operator has finished setting it up,
+    or after pytest-operator has already torn it down.
+
+    This fixture sidesteps that conflict by:
+    1. Letting pytest-operator own the full model lifecycle (creation, configuration,
+       and teardown) via the ``ops_test`` fixture.
+    2. Constructing a ``jubilant.Juju`` handle that points at the model name that
+       pytest-operator already created, so jubilant-style step functions can issue
+       ``juju`` CLI commands against that model without any duplicate lifecycle
+       management.
+
+    """
+    return jubilant.Juju(model=ops_test.model.name if ops_test.model else None)
 
 @pytest.fixture(scope="module")
 def charm_path() -> Path:

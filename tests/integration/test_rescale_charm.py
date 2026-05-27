@@ -18,8 +18,6 @@ import yaml
 from helpers import block_until_leader_elected, get_leader_unit_num, is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 
-pytestmark = pytest.mark.usefixtures("setup_env", "patch_pylibjuju_series_2404")
-
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
