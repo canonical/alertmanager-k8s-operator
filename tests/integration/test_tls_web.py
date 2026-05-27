@@ -39,20 +39,19 @@ def test_deploy(juju, charm_path: Path):
 
 def test_tls_files_exist(juju):
     config_path = "/etc/alertmanager/"
-    stdout = juju.cli(
-        "exec", "--unit", f"{AM_APP}/0", "ls", config_path
-    )
+    stdout = juju.ssh(f"{AM_APP}/0", f"ls {config_path}", container="alertmanager")
     logger.info("Contents of %s: %s", config_path, stdout)
 
 
 def test_server_cert_san(juju):
     am_ip = get_unit_address(juju, AM_APP, 0)
-    result = juju.cli(
-        "exec",
-        "--unit", f"{AM_APP}/0",
-        "sh", "-c",
+    # Run from the charm container (ubuntu-based, has openssl); connects to the alertmanager
+    # pod IP which is reachable within the cluster from the same pod.
+    result = juju.ssh(
+        f"{AM_APP}/0",
         f"echo | openssl s_client -showcerts -servername {am_ip}:9093 -connect {am_ip}:9093 2>/dev/null"
         " | openssl x509 -inform pem -noout -text",
+        container="charm",
     )
     fqdn = f"{AM_APP}-0.{AM_APP}-endpoints.{juju.model}.svc.cluster.local"
     assert fqdn in result, f"Expected SAN {fqdn!r} not found in cert output"

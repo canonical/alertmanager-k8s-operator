@@ -73,16 +73,11 @@ def test_receiver_gets_alert_with_custom_callback_id(juju, httpserver):
 
     with httpserver.wait(timeout=120) as waiting:
         httpserver.expect_oneshot_request("/", method="POST").respond_with_handler(request_handler)
-        juju.cli(
-            "exec",
-            "--unit", f"{AM_APP}/0",
-            "amtool", "alert", "add", "foo",
-            "node=bar",
-            "status=firing",
-            "juju_model_uuid=1234",
-            f"juju_application={AM_APP}",
-            "juju_model=model_name",
-            "--annotation=summary=summary",
+        juju.ssh(
+            f"{AM_APP}/0",
+            f"amtool alert add foo node=bar status=firing juju_model_uuid=1234"
+            f" juju_application={AM_APP} juju_model=model_name --annotation=summary=summary",
+            container="alertmanager",
         )
 
     assert waiting.result, "Alertmanager did not send an alert to the Slack receiver"

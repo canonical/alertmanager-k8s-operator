@@ -67,13 +67,7 @@ def get_alertmanager_config_from_file(
     config_file_path: str,
 ) -> str:
     """Read a file from inside an alertmanager container and return its content."""
-    return juju.cli(
-        "exec",
-        "--unit",
-        f"{app_name}/0",
-        "cat",
-        config_file_path,
-    )
+    return juju.ssh(f"{app_name}/0", f"cat {config_file_path}", container="alertmanager")
 
 
 def grafana_password(juju: Juju, app_name: str) -> str:
