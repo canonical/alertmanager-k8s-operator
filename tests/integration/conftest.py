@@ -6,6 +6,7 @@ import functools
 import logging
 import os
 import socket
+import subprocess
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -81,7 +82,7 @@ def httpserver_listen_address():
     return local_ip_address, PYTEST_HTTP_SERVER_PORT
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(scope="module")
 async def setup_env(ops_test: OpsTest):
     assert ops_test.model
     # Prevent "update-status" from interfering with the test:
@@ -117,7 +118,6 @@ def charm_path() -> Path:
     """Return the path to the built charm, from CHARM_PATH env or built on the fly."""
     if charm_file := os.environ.get("CHARM_PATH"):
         return Path(charm_file)
-    import subprocess
 
     result = subprocess.run(
         ["charmcraft", "pack", "--format=json"],

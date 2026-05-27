@@ -21,6 +21,8 @@ import yaml
 from deepdiff import DeepDiff  # type: ignore[import]
 from pytest_operator.plugin import OpsTest
 
+pytestmark = pytest.mark.usefixtures("setup_env", "patch_pylibjuju_series_2404")
+
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 APP_NAME = METADATA["name"]
 RESOURCES = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}

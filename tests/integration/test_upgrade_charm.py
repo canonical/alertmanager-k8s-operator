@@ -20,6 +20,8 @@ import yaml
 from helpers import is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 
+pytestmark = pytest.mark.usefixtures("setup_env", "patch_pylibjuju_series_2404")
+
 # pyright: reportAttributeAccessIssue = false
 
 logger = logging.getLogger(__name__)

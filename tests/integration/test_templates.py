@@ -14,6 +14,8 @@ from helpers import is_alertmanager_up
 from pytest_operator.plugin import OpsTest
 from werkzeug.wrappers import Request, Response
 
+pytestmark = pytest.mark.usefixtures("setup_env")
+
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())

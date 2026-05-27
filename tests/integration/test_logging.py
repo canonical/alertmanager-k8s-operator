@@ -18,6 +18,8 @@ from helpers import get_unit_address
 from pytest_operator.plugin import OpsTest
 from tenacity import retry, stop_after_attempt, wait_fixed
 
+pytestmark = pytest.mark.usefixtures("setup_env")
+
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())

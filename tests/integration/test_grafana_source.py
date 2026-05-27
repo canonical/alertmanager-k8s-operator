@@ -12,6 +12,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 # pyright: reportOptionalMemberAccess = false
 
 logger = logging.getLogger(__name__)
+pytestmark = pytest.mark.usefixtures("setup_env")
 
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 app_name = METADATA["name"]

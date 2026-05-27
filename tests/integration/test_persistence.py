@@ -16,6 +16,8 @@ from src.alertmanager_client import Alertmanager
 
 # pyright: reportAttributeAccessIssue = false
 
+pytestmark = pytest.mark.usefixtures("setup_env")
+
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
