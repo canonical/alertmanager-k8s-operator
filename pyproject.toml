@@ -13,7 +13,6 @@ dependencies = [
   "jsonschema", # traefik_k8s, tls_certificates
   "cryptography",  # tls_certificates
   "pydantic>=2",  # traefik_k8s.v2.ingress
-
   "tenacity",
   "cosl",
   "charmed-service-mesh-helpers>=0.2.0",
@@ -36,11 +35,12 @@ dev = [
   "ops[testing]",
   "pytest-interface-tester>0.3",
   # Integration
-  "juju<=3.3.0,>=3.0",
-  "websockets<14.0",
-  "pytest-operator",
+  "pytest-jubilant",
   "pytest-httpserver",
-  "sh",
+  "jubilant",
+  "pytest-bdd",
+  "tenacity",
+  "requests",
 ]
 
 # Testing tools configuration
@@ -83,7 +83,6 @@ exclude = [
 [tool.pytest.ini_options]
 minversion = "6.0"
 log_cli_level = "INFO"
-asyncio_mode = "auto"
 addopts = "--tb=native --verbose --capture=no --log-cli-level=INFO"
 
 [tool.codespell]

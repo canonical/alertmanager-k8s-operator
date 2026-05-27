@@ -9,6 +9,7 @@ import os
 import re
 from typing import Callable, Dict, List, Optional, Tuple
 
+from cosl import JujuTopology
 from ops.framework import Object
 from ops.model import Container
 from ops.pebble import (  # type: ignore
@@ -94,6 +95,7 @@ class WorkloadManager(Object):
         super().__init__(charm, f"{self.__class__.__name__}-{container_name}")
 
         self._unit = charm.unit
+        self._topology = JujuTopology.from_charm(charm)
 
         self._service_name = self._container_name = container_name
         self._container = charm.unit.get_container(container_name)
@@ -206,6 +208,13 @@ class WorkloadManager(Object):
                 "https_proxy": os.environ.get("JUJU_CHARM_HTTPS_PROXY", ""),
                 "http_proxy": os.environ.get("JUJU_CHARM_HTTP_PROXY", ""),
                 "no_proxy": os.environ.get("JUJU_CHARM_NO_PROXY", ""),
+                "OTEL_RESOURCE_ATTRIBUTES": (
+                    f"juju_application={self._topology.application},"
+                    f"juju_model={self._topology.model},"
+                    f"juju_model_uuid={self._topology.model_uuid},"
+                    f"juju_unit={self._topology.unit},"
+                    f"juju_charm={self._topology.charm_name}"
+                ),
             }
 
         return Layer(
