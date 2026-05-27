@@ -81,12 +81,12 @@ def wait_for_active(juju, deployed_apps):
 @then("hitting the healthy endpoint produces a trace in tempo")
 def healthy_produces_trace(juju):
     # Use juju.ssh targeting the charm container — curl is not available in the workload container.
-    # All containers in a K8s pod share the network namespace, so localhost:9093 reaches alertmanager.
-    # When TLS is enabled alertmanager listens on HTTPS; the CA cert is installed
-    # under the system bundle path by the certificates relation handler.
+    # The TLS certificate SAN is the pod FQDN, not localhost, so we must use the FQDN.
+    # The charm container shares the pod network namespace and the FQDN resolves within the cluster.
+    am_fqdn = f"{AM_APP}-0.{AM_APP}-endpoints.{juju.model}.svc.cluster.local"
     output = juju.ssh(
         f"{AM_APP}/0",
-        "curl -sf --cacert /usr/local/share/ca-certificates/cos-ca.crt https://localhost:9093/-/healthy",
+        f"curl -sf --cacert /usr/local/share/ca-certificates/cos-ca.crt https://{am_fqdn}:9093/-/healthy",
         container="charm",
     )
     assert output.strip(), "Expected non-empty response from alertmanager /-/healthy"
