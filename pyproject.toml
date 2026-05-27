@@ -17,7 +17,6 @@ dependencies = [
   "cosl",
   "charmed-service-mesh-helpers>=0.2.0",
   "lightkube-extensions",
-  "pytest-bdd>=8.1.0",
 ]
 
 [project.optional-dependencies]
@@ -36,14 +35,12 @@ dev = [
   "ops[testing]",
   "pytest-interface-tester>0.3",
   # Integration
-  "juju<=3.3.0,>=3.0",
-  "websockets<14.0",
-  "pytest-operator",
+  "pytest-jubilant",
   "pytest-httpserver",
   "jubilant",
   "pytest-bdd",
   "tenacity",
-  "sh",
+  "requests",
 ]
 
 # Testing tools configuration
@@ -86,7 +83,6 @@ exclude = [
 [tool.pytest.ini_options]
 minversion = "6.0"
 log_cli_level = "INFO"
-asyncio_mode = "auto"
 addopts = "--tb=native --verbose --capture=no --log-cli-level=INFO"
 
 [tool.codespell]

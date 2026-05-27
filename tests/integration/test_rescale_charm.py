@@ -4,84 +4,80 @@
 
 """This test module tests rescaling.
 
-1. Deploys multiple units of the charm under test and waits for them to become active
-2. Reset and repeat the above until the leader unit is not the zero unit
-3. Scales up the application by a few units and waits for them to become active
-4. Scales down the application to below the leader unit, to trigger a leadership change event
+1. Deploys multiple units of the charm under test and waits for them to become active.
+2. Asserts that the elected leader is not unit 0, which is required for this test to be meaningful.
+   If unit 0 is elected leader, the test is marked xfail and should be re-run.
+3. Scales down to 1 unit (crossing below the current leader) to trigger a leadership change event.
+4. Scales up by 2 units and back down by 2 units, verifying health throughout.
 """
 
 import logging
 from pathlib import Path
 
+import jubilant
 import pytest
-import yaml
-from helpers import block_until_leader_elected, get_leader_unit_num, is_alertmanager_up
-from pytest_operator.plugin import OpsTest
+from helpers import ALERTMANAGER_IMAGE, get_leader_unit_num, is_alertmanager_up
 
 logger = logging.getLogger(__name__)
 
-METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
-app_name = METADATA["name"]
-resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
+AM_APP = "alertmanager"
 
 
-# @pytest.mark.abort_on_fail
+@pytest.mark.juju_setup
 @pytest.mark.xfail
-async def test_deploy_multiple_units(ops_test: OpsTest, charm_under_test):
-    """Deploy the charm-under-test."""
-    assert ops_test.model
-    logger.info("build charm from local source folder")
-
-    logger.info("deploy charm")
-    await ops_test.model.deploy(
-        charm_under_test, application_name=app_name, resources=resources, num_units=10, trust=True
+def test_deploy(juju, charm_path: Path):
+    juju.deploy(
+        str(charm_path),
+        AM_APP,
+        resources={"alertmanager-image": ALERTMANAGER_IMAGE},
+        num_units=10,
+        trust=True,
     )
-    await block_until_leader_elected(ops_test, app_name)
+    juju.wait(lambda s: jubilant.all_agents_idle(s, AM_APP), timeout=1000)
 
-    if await get_leader_unit_num(ops_test, app_name) == 0:
-        # We're unlucky this time: unit/0 is the leader, which means no scale down could trigger a
-        # leadership change event.
-        # Fail the test instead of model.reset() and repeat, because this hangs on github actions.
-        logger.info("Elected leader is unit/0 - resetting and repeating")
-        assert 0, "No luck in electing a leader that is not the zero unit. Try re-running?"
+    if get_leader_unit_num(juju, AM_APP) == 0:
+        pytest.xfail(
+            "Elected leader is unit/0. No scale-down can trigger a leadership change. Try re-running."
+        )
 
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
+    juju.wait(
+        lambda s: jubilant.all_active(s, AM_APP) and jubilant.all_agents_idle(s, AM_APP),
+        timeout=1000,
+    )
 
 
-# @pytest.mark.abort_on_fail
 @pytest.mark.xfail
-async def test_scale_down_to_single_unit_with_leadership_change(ops_test: OpsTest):
-    """Scale down below current leader to trigger a leadership change event."""
-    assert ops_test.model
-    application = ops_test.model.applications[app_name]
-    assert application
-    await application.scale(scale=1)
-    await ops_test.model.wait_for_idle(
-        apps=[app_name], status="active", timeout=1000, wait_for_exact_units=1
+def test_scale_down_to_single_unit(juju):
+    current = len(juju.status().apps[AM_APP].units)
+    juju.remove_unit(AM_APP, num_units=current - 1)
+    juju.wait(
+        lambda s: len(s.apps[AM_APP].units) == 1
+        and jubilant.all_active(s, AM_APP)
+        and jubilant.all_agents_idle(s, AM_APP),
+        timeout=1000,
     )
-    assert await is_alertmanager_up(ops_test, app_name)
+    assert is_alertmanager_up(juju, AM_APP)
 
 
-# @pytest.mark.abort_on_fail
 @pytest.mark.xfail
-async def test_scale_up_from_single_unit(ops_test: OpsTest):
-    """Add a few more units."""
-    assert ops_test.model
-    application = ops_test.model.applications[app_name]
-    assert application
-    await application.scale(scale_change=2)
-    await ops_test.model.wait_for_idle(
-        apps=[app_name], status="active", timeout=1000, wait_for_exact_units=3
+def test_scale_up_by_two(juju):
+    juju.add_unit(AM_APP, num_units=2)
+    juju.wait(
+        lambda s: len(s.apps[AM_APP].units) == 3
+        and jubilant.all_active(s, AM_APP)
+        and jubilant.all_agents_idle(s, AM_APP),
+        timeout=1000,
     )
-    assert await is_alertmanager_up(ops_test, app_name)
+    assert is_alertmanager_up(juju, AM_APP)
 
 
-# @pytest.mark.abort_on_fail
 @pytest.mark.xfail
-async def test_scale_down_to_single_unit_without_leadership_change(ops_test):
-    """Remove a few units."""
-    await ops_test.model.applications[app_name].scale(scale_change=-2)
-    await ops_test.model.wait_for_idle(
-        apps=[app_name], status="active", timeout=1000, wait_for_exact_units=1
+def test_scale_down_by_two(juju):
+    juju.remove_unit(AM_APP, num_units=2)
+    juju.wait(
+        lambda s: len(s.apps[AM_APP].units) == 1
+        and jubilant.all_active(s, AM_APP)
+        and jubilant.all_agents_idle(s, AM_APP),
+        timeout=1000,
     )
-    assert await is_alertmanager_up(ops_test, app_name)
+    assert is_alertmanager_up(juju, AM_APP)

@@ -19,7 +19,7 @@ from pytest_bdd import given, scenario, then, when
 logger = logging.getLogger(__name__)
 
 
-@scenario("features/workload_tracing_http.feature", "Alertmanager sends traces over plain HTTP")
+@scenario("features/workload_tracing.feature", "Alertmanager sends traces over plain HTTP")
 def test_workload_tracing_http():
     """Alertmanager emits OTLP traces over plain HTTP to Tempo."""
 
@@ -58,9 +58,6 @@ def wait_for_active(juju, deployed_apps):
 
 @then("hitting the healthy endpoint produces a trace in tempo")
 def healthy_produces_trace(juju):
-    # Trigger a span: curl /-/healthy from inside the alertmanager container.
     juju.exec("curl -sf http://localhost:9093/-/healthy", unit=f"{AM_APP}/0")
-
     tempo_ip = juju.status().apps[TEMPO_APP].units[f"{TEMPO_APP}/0"].address
     assert_traces_in_tempo(tempo_ip, service_name=AM_APP)
-

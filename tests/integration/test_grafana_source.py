@@ -1,58 +1,73 @@
-import asyncio
+# Copyright 2021 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""Integration tests: Alertmanager as a Grafana datasource."""
+
 import logging
 from pathlib import Path
 
+import jubilant
 import pytest
-import yaml
-from helpers import grafana_datasources
-from pytest_operator.plugin import OpsTest
+from helpers import ALERTMANAGER_IMAGE, grafana_datasources
 from tenacity import retry, stop_after_attempt, wait_fixed
-
-# pyright: reportAttributeAccessIssue = false
-# pyright: reportOptionalMemberAccess = false
 
 logger = logging.getLogger(__name__)
 
-METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
-app_name = METADATA["name"]
-resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
+AM_APP = "am"
+GRAFANA_APP = "grafana"
+TRAEFIK_APP = "traefik"
 
-"""We need to ensure that, even if there are multiple units for Alertmanager, only one is shown as a datasouce in Grafana.
-We use this test to simulate multiple units of Alertmanager, and then check that only the leader has the key `grafana_source_host` written to relation data with Grafana.
-"""
 
-@pytest.mark.abort_on_fail
-async def test_build_and_deploy(ops_test: OpsTest, charm_under_test):
-    """Build the charm-under-test, deploy the charm from charmhub, and upgrade from path."""
-    await asyncio.gather(
-        ops_test.model.deploy(charm_under_test, "am", resources=resources, trust=True, num_units=2),
-        ops_test.model.deploy("grafana-k8s", "grafana", channel="2/edge", trust=True),
+@pytest.mark.juju_setup
+def test_deploy(juju, charm_path: Path):
+    juju.deploy(
+        str(charm_path),
+        AM_APP,
+        resources={"alertmanager-image": ALERTMANAGER_IMAGE},
+        num_units=2,
+        trust=True,
+    )
+    juju.deploy("grafana-k8s", GRAFANA_APP, channel="dev/edge", trust=True)
+    juju.integrate(f"{GRAFANA_APP}:grafana-source", AM_APP)
+    juju.wait(
+        lambda s: jubilant.all_active(s, AM_APP, GRAFANA_APP)
+        and jubilant.all_agents_idle(s, AM_APP, GRAFANA_APP),
+        timeout=600,
     )
 
-    await ops_test.model.add_relation("grafana:grafana-source", "am")
-    await ops_test.model.wait_for_idle(apps=["am", "grafana"], status="active")
 
-@retry(wait=wait_fixed(10), stop=stop_after_attempt(6))
-async def test_grafana_datasources(ops_test: OpsTest):
-    # We have 2 units of Alertmanager, but only one datasource should be shown as a Grafana source.
-    datasources = await grafana_datasources(ops_test, "grafana")
-    assert len(datasources) == 1
+@retry(wait=wait_fixed(10), stop=stop_after_attempt(6), reraise=True)
+def _get_datasources(juju) -> list:
+    sources = grafana_datasources(juju, GRAFANA_APP)
+    assert sources, "No datasources available yet"
+    return sources
 
-    # The datasource URL should point to the service, not to a specific pod unit.
-    # This check is safe, because we name the application `am` and we're not using TLS, so the service will always start with `http://am-endpoints`.
-    assert datasources[0]["url"].startswith("http://am-endpoints")
 
-@pytest.mark.abort_on_fail
-async def test_deploy_and_integrate_traefik(ops_test: OpsTest):
-    """Build the charm-under-test, deploy the charm from charmhub, and upgrade from path."""
-    await ops_test.model.deploy("traefik-k8s", "traefik", channel="edge", trust=True)
+def test_single_datasource(juju):
+    sources = _get_datasources(juju)
+    assert len(sources) == 1, f"Expected 1 datasource, got {len(sources)}: {sources}"
 
-    await ops_test.model.add_relation("traefik:ingress", "am")
-    await ops_test.model.wait_for_idle(apps=["am", "grafana", "traefik"], status="active")
 
-async def test_grafana_datasources_when_ingress_available(ops_test: OpsTest):
-    # We have 2 units of Alertmanager, but only one datasource should be shown as a Grafana source.
-    datasources = await grafana_datasources(ops_test, "grafana")
-    assert len(datasources) == 1
+def test_datasource_url_uses_service_endpoint(juju):
+    sources = _get_datasources(juju)
+    assert sources[0]["url"].startswith("http://am-endpoints"), (
+        f"Expected datasource URL to start with 'http://am-endpoints', got: {sources[0]['url']}"
+    )
 
-    assert "am-endpoints" not in datasources[0]["url"]
+
+def test_deploy_traefik_and_integrate(juju):
+    juju.deploy("traefik-k8s", TRAEFIK_APP, channel="edge", trust=True)
+    juju.integrate(f"{TRAEFIK_APP}:ingress", AM_APP)
+    juju.wait(
+        lambda s: jubilant.all_active(s, AM_APP, GRAFANA_APP, TRAEFIK_APP)
+        and jubilant.all_agents_idle(s, AM_APP, GRAFANA_APP, TRAEFIK_APP),
+        timeout=600,
+    )
+
+
+def test_datasource_url_not_pod_endpoint_after_ingress(juju):
+    sources = _get_datasources(juju)
+    assert len(sources) == 1, f"Expected 1 datasource after traefik, got {len(sources)}: {sources}"
+    assert "am-endpoints" not in sources[0]["url"], (
+        f"Expected datasource URL to not contain 'am-endpoints', got: {sources[0]['url']}"
+    )

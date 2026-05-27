@@ -14,88 +14,68 @@
 import logging
 from pathlib import Path
 
+import jubilant
 import pytest
-import sh
-import yaml
-from helpers import is_alertmanager_up
-from pytest_operator.plugin import OpsTest
-
-# pyright: reportAttributeAccessIssue = false
+from helpers import ALERTMANAGER_IMAGE, is_alertmanager_up
 
 logger = logging.getLogger(__name__)
 
-METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
-app_name = METADATA["name"]
-resources = {"alertmanager-image": METADATA["resources"]["alertmanager-image"]["upstream-source"]}
+AM_APP = "alertmanager-k8s"
+PROM_APP = "prom"
+KARMA_APP = "karma"
 
 
-@pytest.mark.abort_on_fail
-async def test_setup_env(ops_test: OpsTest):
-    assert ops_test.model
-    await ops_test.model.set_config(
-        {"update-status-hook-interval": "60m", "logging-config": "<root>=WARNING; unit=DEBUG"}
+@pytest.mark.juju_setup
+def test_deploy(juju):
+    juju.deploy(AM_APP, channel="dev/edge", trust=True)
+    juju.wait(
+        lambda s: jubilant.all_active(s, AM_APP) and jubilant.all_agents_idle(s, AM_APP),
+        timeout=1000,
     )
 
 
-@pytest.mark.abort_on_fail
-async def test_upgrade_edge_with_local_in_isolation(ops_test: OpsTest, charm_under_test):
-    """Build the charm-under-test, deploy the charm from charmhub, and upgrade from path."""
-    logger.info("deploy charm from charmhub")
-    assert ops_test.model
-    sh.juju.deploy(app_name, model=ops_test.model.name, channel="2/edge", trust=True)
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=1000)
-
-    logger.info("upgrade deployed charm with local charm %s", charm_under_test)
-    application = ops_test.model.applications[app_name]
-    assert application
-    sh.juju.refresh(app_name, model=ops_test.model.name, path=charm_under_test)
-    await ops_test.model.wait_for_idle(
-        apps=[app_name], status="active", timeout=1000, raise_on_error=False
+def test_upgrade_in_isolation(juju, charm_path: Path):
+    juju.refresh(AM_APP, path=str(charm_path), resources={"alertmanager-image": ALERTMANAGER_IMAGE})
+    juju.wait(
+        lambda s: jubilant.all_active(s, AM_APP) and jubilant.all_agents_idle(s, AM_APP),
+        timeout=1000,
     )
-    await ops_test.model.wait_for_idle(apps=[app_name], status="active", timeout=30)
-    assert await is_alertmanager_up(ops_test, app_name)
+    assert is_alertmanager_up(juju, AM_APP)
 
 
-@pytest.mark.abort_on_fail
-async def test_upgrade_local_with_local_with_relations(ops_test: OpsTest, charm_under_test):
-    # Deploy related apps
-    assert ops_test.model
-    sh.juju.deploy(
-        "prometheus-k8s", "prom", model=ops_test.model.name, channel="2/edge", trust=True
-    )
-    sh.juju.deploy("karma-k8s", "karma", model=ops_test.model.name, channel="2/edge", trust=True)
-
-    # Relate apps
-    sh.juju.relate(app_name, "prom:alertmanager", model=ops_test.model.name)
-    sh.juju.relate(app_name, "karma", model=ops_test.model.name)
-
-    # Refresh from path
-    application = ops_test.model.applications[app_name]
-    assert application
-    sh.juju.refresh(app_name, model=ops_test.model.name, path=charm_under_test)
-    await ops_test.model.wait_for_idle(
-        apps=[app_name, "prom", "karma"],
-        status="active",
+def test_upgrade_with_relations(juju, charm_path: Path):
+    juju.deploy("prometheus-k8s", PROM_APP, channel="dev/edge", trust=True)
+    juju.deploy("karma-k8s", KARMA_APP, channel="dev/edge", trust=True)
+    juju.integrate(AM_APP, f"{PROM_APP}:alertmanager")
+    juju.integrate(AM_APP, KARMA_APP)
+    juju.wait(
+        lambda s: jubilant.all_active(s, AM_APP, PROM_APP, KARMA_APP)
+        and jubilant.all_agents_idle(s, AM_APP, PROM_APP, KARMA_APP),
         timeout=2500,
-        raise_on_error=False,
-    )
-    assert await is_alertmanager_up(ops_test, app_name)
-
-
-@pytest.mark.abort_on_fail
-async def test_upgrade_with_multiple_units(ops_test: OpsTest, charm_under_test):
-    assert ops_test.model
-    # Add unit
-    application = ops_test.model.applications[app_name]
-    assert application
-    await application.scale(scale_change=1)
-    await ops_test.model.wait_for_idle(
-        apps=[app_name, "prom", "karma"], status="active", timeout=1000
     )
 
-    # Refresh from path
-    sh.juju.refresh(app_name, model=ops_test.model.name, path=charm_under_test)
-    await ops_test.model.wait_for_idle(
-        apps=[app_name, "prom", "karma"], status="active", timeout=2500
+    juju.refresh(AM_APP, path=str(charm_path), resources={"alertmanager-image": ALERTMANAGER_IMAGE})
+    juju.wait(
+        lambda s: jubilant.all_active(s, AM_APP, PROM_APP, KARMA_APP)
+        and jubilant.all_agents_idle(s, AM_APP, PROM_APP, KARMA_APP),
+        timeout=2500,
     )
-    assert await is_alertmanager_up(ops_test, app_name)
+    assert is_alertmanager_up(juju, AM_APP)
+
+
+def test_upgrade_with_multiple_units(juju, charm_path: Path):
+    juju.add_unit(AM_APP, num_units=1)
+    juju.wait(
+        lambda s: len(s.apps[AM_APP].units) == 2
+        and jubilant.all_active(s, AM_APP, PROM_APP, KARMA_APP)
+        and jubilant.all_agents_idle(s, AM_APP, PROM_APP, KARMA_APP),
+        timeout=1000,
+    )
+
+    juju.refresh(AM_APP, path=str(charm_path), resources={"alertmanager-image": ALERTMANAGER_IMAGE})
+    juju.wait(
+        lambda s: jubilant.all_active(s, AM_APP, PROM_APP, KARMA_APP)
+        and jubilant.all_agents_idle(s, AM_APP, PROM_APP, KARMA_APP),
+        timeout=2500,
+    )
+    assert is_alertmanager_up(juju, AM_APP)

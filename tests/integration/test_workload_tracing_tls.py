@@ -21,10 +21,7 @@ logger = logging.getLogger(__name__)
 SSC_APP = "self-signed-certificates"
 
 
-@scenario(
-    "features/workload_tracing_tls.feature",
-    "Alertmanager sends traces over TLS",
-)
+@scenario("features/workload_tracing.feature", "Alertmanager sends traces over TLS")
 def test_workload_tracing_tls():
     """Alertmanager emits OTLP traces over TLS to Tempo, with CA cert verification."""
 
@@ -77,13 +74,9 @@ def wait_for_active(juju, deployed_apps):
 
 @then("hitting the healthy endpoint produces a trace in tempo")
 def healthy_produces_trace(juju):
-    # When TLS is enabled alertmanager listens on HTTPS; the CA cert is installed
-    # under the system bundle path by the certificates relation handler.
     juju.exec(
         "curl -sf --cacert /usr/local/share/ca-certificates/cos-ca.crt https://localhost:9093/-/healthy",
         unit=f"{AM_APP}/0",
     )
-
     tempo_ip = juju.status().apps[TEMPO_APP].units[f"{TEMPO_APP}/0"].address
     assert_traces_in_tempo(tempo_ip, service_name=AM_APP)
-
