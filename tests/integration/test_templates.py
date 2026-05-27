@@ -58,6 +58,8 @@ def test_deploy(juju, charm_path: Path, httpserver):
     juju.wait(
         lambda s: jubilant.all_active(s, AM_APP) and jubilant.all_agents_idle(s, AM_APP),
         timeout=1000,
+        delay=30,
+        successes=3,
     )
     assert is_alertmanager_up(juju, AM_APP)
 
@@ -74,8 +76,6 @@ def test_receiver_gets_alert_with_custom_callback_id(juju, httpserver):
         juju.cli(
             "exec",
             "--unit", f"{AM_APP}/0",
-            "--container", "alertmanager",
-            "--",
             "amtool", "alert", "add", "foo",
             "node=bar",
             "status=firing",

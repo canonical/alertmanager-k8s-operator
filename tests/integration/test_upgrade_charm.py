@@ -31,6 +31,8 @@ def test_deploy(juju):
     juju.wait(
         lambda s: jubilant.all_active(s, AM_APP) and jubilant.all_agents_idle(s, AM_APP),
         timeout=1000,
+        delay=30,
+        successes=3,
     )
 
 
@@ -39,6 +41,8 @@ def test_upgrade_in_isolation(juju, charm_path: Path):
     juju.wait(
         lambda s: jubilant.all_active(s, AM_APP) and jubilant.all_agents_idle(s, AM_APP),
         timeout=1000,
+        delay=30,
+        successes=3,
     )
     assert is_alertmanager_up(juju, AM_APP)
 
@@ -52,6 +56,8 @@ def test_upgrade_with_relations(juju, charm_path: Path):
         lambda s: jubilant.all_active(s, AM_APP, PROM_APP, KARMA_APP)
         and jubilant.all_agents_idle(s, AM_APP, PROM_APP, KARMA_APP),
         timeout=2500,
+        delay=30,
+        successes=3,
     )
 
     juju.refresh(AM_APP, path=str(charm_path), resources={"alertmanager-image": ALERTMANAGER_IMAGE})
@@ -59,6 +65,8 @@ def test_upgrade_with_relations(juju, charm_path: Path):
         lambda s: jubilant.all_active(s, AM_APP, PROM_APP, KARMA_APP)
         and jubilant.all_agents_idle(s, AM_APP, PROM_APP, KARMA_APP),
         timeout=2500,
+        delay=30,
+        successes=3,
     )
     assert is_alertmanager_up(juju, AM_APP)
 
@@ -70,6 +78,8 @@ def test_upgrade_with_multiple_units(juju, charm_path: Path):
         and jubilant.all_active(s, AM_APP, PROM_APP, KARMA_APP)
         and jubilant.all_agents_idle(s, AM_APP, PROM_APP, KARMA_APP),
         timeout=1000,
+        delay=30,
+        successes=3,
     )
 
     juju.refresh(AM_APP, path=str(charm_path), resources={"alertmanager-image": ALERTMANAGER_IMAGE})
@@ -77,5 +87,7 @@ def test_upgrade_with_multiple_units(juju, charm_path: Path):
         lambda s: jubilant.all_active(s, AM_APP, PROM_APP, KARMA_APP)
         and jubilant.all_agents_idle(s, AM_APP, PROM_APP, KARMA_APP),
         timeout=2500,
+        delay=30,
+        successes=3,
     )
     assert is_alertmanager_up(juju, AM_APP)

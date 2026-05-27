@@ -33,7 +33,7 @@ def test_deploy(juju, charm_path: Path):
         num_units=10,
         trust=True,
     )
-    juju.wait(lambda s: jubilant.all_agents_idle(s, AM_APP), timeout=1000)
+    juju.wait(lambda s: jubilant.all_agents_idle(s, AM_APP), timeout=1000, delay=30, successes=3)
 
     if get_leader_unit_num(juju, AM_APP) == 0:
         pytest.xfail(
@@ -43,6 +43,8 @@ def test_deploy(juju, charm_path: Path):
     juju.wait(
         lambda s: jubilant.all_active(s, AM_APP) and jubilant.all_agents_idle(s, AM_APP),
         timeout=1000,
+        delay=30,
+        successes=3,
     )
 
 
@@ -55,6 +57,8 @@ def test_scale_down_to_single_unit(juju):
         and jubilant.all_active(s, AM_APP)
         and jubilant.all_agents_idle(s, AM_APP),
         timeout=1000,
+        delay=30,
+        successes=3,
     )
     assert is_alertmanager_up(juju, AM_APP)
 
@@ -67,6 +71,8 @@ def test_scale_up_by_two(juju):
         and jubilant.all_active(s, AM_APP)
         and jubilant.all_agents_idle(s, AM_APP),
         timeout=1000,
+        delay=30,
+        successes=3,
     )
     assert is_alertmanager_up(juju, AM_APP)
 
@@ -79,5 +85,7 @@ def test_scale_down_by_two(juju):
         and jubilant.all_active(s, AM_APP)
         and jubilant.all_agents_idle(s, AM_APP),
         timeout=1000,
+        delay=30,
+        successes=3,
     )
     assert is_alertmanager_up(juju, AM_APP)

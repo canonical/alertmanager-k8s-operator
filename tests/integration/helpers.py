@@ -142,8 +142,8 @@ def deploy_tempo_stack(juju: Juju) -> Set[str]:
     include them in ``juju.wait`` calls.
     """
     juju.deploy("seaweedfs-k8s", SEAWEED_APP, channel="edge", trust=True)
-    juju.deploy("tempo-coordinator-k8s", TEMPO_APP, channel="edge", trust=True)
-    juju.deploy("tempo-worker-k8s", TEMPO_WORKER_APP, channel="edge", trust=True)
+    juju.deploy("tempo-coordinator-k8s", TEMPO_APP, channel="dev/edge", trust=True)
+    juju.deploy("tempo-worker-k8s", TEMPO_WORKER_APP, channel="dev/edge", trust=True)
     juju.integrate(f"{TEMPO_APP}:s3", SEAWEED_APP)
     juju.integrate(f"{TEMPO_APP}:tempo-cluster", f"{TEMPO_WORKER_APP}:tempo-cluster")
     return {TEMPO_APP, TEMPO_WORKER_APP, SEAWEED_APP}

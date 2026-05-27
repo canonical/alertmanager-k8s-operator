@@ -44,6 +44,8 @@ def deploy_all(juju, charm_path: Path):
         lambda status: jubilant.all_active(status, *all_apps)
         and jubilant.all_agents_idle(status, *all_apps),
         timeout=900,
+        delay=30,
+        successes=3,
     )
     return all_apps
 
@@ -55,6 +57,8 @@ def relate_am_to_ssc(juju, deployed_apps):
         lambda status: jubilant.all_active(status, *deployed_apps)
         and jubilant.all_agents_idle(status, *deployed_apps),
         timeout=300,
+        delay=30,
+        successes=3,
     )
 
 
@@ -69,14 +73,22 @@ def wait_for_active(juju, deployed_apps):
         lambda status: jubilant.all_active(status, *deployed_apps)
         and jubilant.all_agents_idle(status, *deployed_apps),
         timeout=300,
+        delay=30,
+        successes=3,
     )
 
 
 @then("hitting the healthy endpoint produces a trace in tempo")
 def healthy_produces_trace(juju):
-    juju.exec(
+    # Use juju.ssh (charm container) — curl is not available in the workload container.
+    # All containers in a K8s pod share the network namespace, so localhost:9093 reaches alertmanager.
+    # When TLS is enabled alertmanager listens on HTTPS; the CA cert is installed
+    # under the system bundle path by the certificates relation handler.
+    output = juju.ssh(
+        f"{AM_APP}/0",
         "curl -sf --cacert /usr/local/share/ca-certificates/cos-ca.crt https://localhost:9093/-/healthy",
-        unit=f"{AM_APP}/0",
     )
+    assert output.strip(), "Expected non-empty response from alertmanager /-/healthy"
+
     tempo_ip = juju.status().apps[TEMPO_APP].units[f"{TEMPO_APP}/0"].address
     assert_traces_in_tempo(tempo_ip, service_name=AM_APP)

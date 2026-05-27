@@ -32,13 +32,15 @@ def test_deploy(juju, charm_path: Path):
         lambda s: jubilant.all_active(s, AM_APP, CA_APP)
         and jubilant.all_agents_idle(s, AM_APP, CA_APP),
         timeout=600,
+        delay=30,
+        successes=3,
     )
 
 
 def test_tls_files_exist(juju):
     config_path = "/etc/alertmanager/"
     stdout = juju.cli(
-        "exec", "--unit", f"{AM_APP}/0", "--container", "alertmanager", "--", "ls", config_path
+        "exec", "--unit", f"{AM_APP}/0", "ls", config_path
     )
     logger.info("Contents of %s: %s", config_path, stdout)
 
@@ -48,8 +50,6 @@ def test_server_cert_san(juju):
     result = juju.cli(
         "exec",
         "--unit", f"{AM_APP}/0",
-        "--container", "alertmanager",
-        "--",
         "sh", "-c",
         f"echo | openssl s_client -showcerts -servername {am_ip}:9093 -connect {am_ip}:9093 2>/dev/null"
         " | openssl x509 -inform pem -noout -text",
@@ -85,5 +85,7 @@ def test_https_still_reachable_after_refresh(juju, charm_path: Path):
         lambda s: jubilant.all_active(s, AM_APP, CA_APP)
         and jubilant.all_agents_idle(s, AM_APP, CA_APP),
         timeout=600,
+        delay=30,
+        successes=3,
     )
     _assert_https_reachable(juju)

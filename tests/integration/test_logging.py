@@ -32,6 +32,8 @@ def test_deploy(juju, charm_path: Path):
         lambda s: jubilant.all_active(s, APP_NAME, LOKI_APP)
         and jubilant.all_agents_idle(s, APP_NAME, LOKI_APP),
         timeout=600,
+        delay=30,
+        successes=3,
     )
 
 
@@ -41,6 +43,8 @@ def test_logging_integration(juju):
         lambda s: jubilant.all_active(s, APP_NAME, LOKI_APP)
         and jubilant.all_agents_idle(s, APP_NAME, LOKI_APP),
         timeout=300,
+        delay=30,
+        successes=3,
     )
 
     @retry(wait=wait_fixed(15), stop=stop_after_attempt(20), reraise=True)

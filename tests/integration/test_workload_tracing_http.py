@@ -38,6 +38,8 @@ def deploy_am_and_tempo(juju, charm_path: Path):
         lambda status: jubilant.all_active(status, *all_apps)
         and jubilant.all_agents_idle(status, *all_apps),
         timeout=900,
+        delay=30,
+        successes=3,
     )
     return all_apps
 
@@ -53,11 +55,17 @@ def wait_for_active(juju, deployed_apps):
         lambda status: jubilant.all_active(status, *deployed_apps)
         and jubilant.all_agents_idle(status, *deployed_apps),
         timeout=300,
+        delay=30,
+        successes=3,
     )
 
 
 @then("hitting the healthy endpoint produces a trace in tempo")
-def healthy_produces_trace(juju):
-    juju.exec("curl -sf http://localhost:9093/-/healthy", unit=f"{AM_APP}/0")
+def healthy_produces_trace(juju: jubilant.Juju):
+    # Use juju.ssh (charm container) — curl is not available in the workload container.
+    # All containers in a K8s pod share the network namespace, so localhost:9093 reaches alertmanager.
+    output = juju.ssh(f"{AM_APP}/0", "curl -sf http://localhost:9093/-/healthy")
+    assert output.strip(), "Expected non-empty response from alertmanager /-/healthy"
+
     tempo_ip = juju.status().apps[TEMPO_APP].units[f"{TEMPO_APP}/0"].address
     assert_traces_in_tempo(tempo_ip, service_name=AM_APP)

@@ -88,7 +88,7 @@ def test_deploy(juju, charm_path: Path, tester_charm_path: Path):
         trust=True,
     )
     juju.deploy(
-        str(tester_charm_path),
+        f"./{tester_charm_path}",
         TESTER_APP_NAME,
         resources=TESTER_APP_RESOURCES,
         config={"config_file": TESTER_CHARM_CONFIG},
@@ -98,6 +98,8 @@ def test_deploy(juju, charm_path: Path, tester_charm_path: Path):
         lambda s: jubilant.all_active(s, APP_NAME, TESTER_APP_NAME)
         and jubilant.all_agents_idle(s, APP_NAME, TESTER_APP_NAME),
         timeout=1000,
+        delay=30,
+        successes=3,
     )
 
 
@@ -127,4 +129,6 @@ def test_local_config_causes_blocked(juju):
             for u in s.apps[APP_NAME].units.values()
         ),
         timeout=1000,
+        delay=30,
+        successes=3,
     )
