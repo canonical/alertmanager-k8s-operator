@@ -6,6 +6,7 @@
 import logging
 from dataclasses import dataclass
 from typing import Optional
+from urllib.parse import urlparse
 
 import yaml
 
@@ -61,6 +62,7 @@ class ConfigBuilder:
         self._key_file_path = None
 
         self._tracing_endpoint: Optional[str] = None
+        self._tracing_insecure: bool = False
         self._tracing_ca_cert_path: Optional[str] = None
 
     def set_config(self, config: Optional[dict]):
@@ -78,20 +80,30 @@ class ConfigBuilder:
         return self
 
     def set_workload_tracing(
-        self, *, endpoint: Optional[str], ca_cert_path: Optional[str] = None
+        self, *, endpoint: Optional[str], ca_cert_path: str
     ) -> "ConfigBuilder":
         """Set workload tracing config.
 
+        Parses the full URL provided by the tracing relation and derives the
+        ``host:port`` endpoint and ``insecure`` flag from it.
+        Alertmanager's ``tracing.endpoint`` must not include a scheme or path;
+        the scheme is expressed as ``insecure: true`` (HTTP) or omitted (HTTPS).
+
         Args:
-            endpoint: OTLP HTTP endpoint URL.
-                Pass None to disable tracing.
-            ca_cert_path: Path to the CA certificate file inside the workload container.
-                Required when ``endpoint`` uses ``https``.  The certificate must already
-                be present on disk (written by the charm before replanning). Leave None
-                for plain HTTP endpoints.
+            endpoint: Full OTLP HTTP URL from the tracing relation.
+                Pass ``None`` to leave tracing unconfigured.
+            ca_cert_path: Path to a CA certificate file inside the workload container,
+                used for TLS verification when ``endpoint`` uses ``https``.
         """
-        self._tracing_endpoint = endpoint
-        self._tracing_ca_cert_path = ca_cert_path
+        if endpoint is None:
+            return self
+        parsed = urlparse(endpoint)
+        # Alertmanager expects `host:port`, not a full URL with scheme+path.
+        self._tracing_endpoint = parsed.netloc
+        # insecure: true signals plain HTTP; false (default) means TLS is expected.
+        self._tracing_insecure = parsed.scheme == "http"
+        if not self._tracing_insecure:
+            self._tracing_ca_cert_path = ca_cert_path
         return self
 
     def set_tls_server_config(self, *, cert_file_path: str, key_file_path: str):
@@ -133,6 +145,7 @@ class ConfigBuilder:
                 "client_type": "http",
                 "endpoint": self._tracing_endpoint,
                 "sampling_fraction": 1.0,
+                "insecure": self._tracing_insecure,
             }
             if self._tracing_ca_cert_path:
                 tracing_cfg["tls_config"] = {"ca_file": self._tracing_ca_cert_path}

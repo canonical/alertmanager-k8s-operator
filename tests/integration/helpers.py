@@ -8,13 +8,17 @@ import grp
 import json
 import logging
 import urllib.request
-from typing import Dict, Optional, Tuple
+from pathlib import Path
+from typing import Dict, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 import requests
+import yaml
+from jubilant import Juju
 from juju.unit import Unit
 from pytest_operator.plugin import OpsTest
 from requests.auth import HTTPBasicAuth
+from tenacity import retry, stop_after_delay, wait_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -225,3 +229,48 @@ async def grafana_datasources(ops_test: OpsTest, app_name: str) -> "list[dict]":
     response.raise_for_status()
     datasources = response.json()
     return datasources
+
+
+# ---------------------------------------------------------------------------
+# Jubilant / workload-tracing helpers
+# ---------------------------------------------------------------------------
+
+_METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
+ALERTMANAGER_IMAGE: str = _METADATA["resources"]["alertmanager-image"]["upstream-source"]
+
+AM_APP = "alertmanager"
+TEMPO_APP = "tempo"
+TEMPO_WORKER_APP = "tempo-worker"
+SEAWEED_APP = "seaweed"
+TEMPO_QUERY_PORT = 3200
+
+
+def deploy_tempo_stack(juju: Juju) -> Set[str]:
+    """Deploy tempo-coordinator + tempo-worker + seaweedfs and wire their integrations.
+
+    Returns the set of application names that were deployed so callers can
+    include them in ``juju.wait`` calls.
+    """
+    juju.deploy("seaweedfs-k8s", SEAWEED_APP, channel="edge", trust=True)
+    juju.deploy("tempo-coordinator-k8s", TEMPO_APP, channel="edge", trust=True)
+    juju.deploy("tempo-worker-k8s", TEMPO_WORKER_APP, channel="edge", trust=True)
+    juju.integrate(f"{TEMPO_APP}:s3", SEAWEED_APP)
+    juju.integrate(f"{TEMPO_APP}:tempo-cluster", f"{TEMPO_WORKER_APP}:tempo-cluster")
+    return {TEMPO_APP, TEMPO_WORKER_APP, SEAWEED_APP}
+
+
+@retry(wait=wait_exponential(multiplier=2, min=2, max=30), stop=stop_after_delay(300), reraise=True)
+def assert_traces_in_tempo(tempo_ip: str, *, service_name: str) -> None:
+    """Assert that Tempo contains at least one trace from the given service.
+
+    Retried with exponential back-off for up to 5 minutes to account for span
+    flush and ingestion lag.
+    """
+    url = (
+        f"http://{tempo_ip}:{TEMPO_QUERY_PORT}/api/search"
+        f"?tags=service.name%3D{service_name}"
+    )
+    with urllib.request.urlopen(url, timeout=10) as resp:
+        data = json.loads(resp.read())
+    traces = data.get("traces", [])
+    assert traces, f"No traces from '{service_name}' found in Tempo at {tempo_ip}:{TEMPO_QUERY_PORT}."

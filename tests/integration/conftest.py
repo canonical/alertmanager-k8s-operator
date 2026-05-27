@@ -105,3 +105,24 @@ def patch_pylibjuju_series_2404():
 
     del juju.utils.ALL_SERIES_VERSIONS["noble"]
     del juju.utils.UBUNTU_SERIES["noble"]
+
+
+# ---------------------------------------------------------------------------
+# jubilant fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def charm_path() -> Path:
+    """Return the path to the built charm, from CHARM_PATH env or built on the fly."""
+    if charm_file := os.environ.get("CHARM_PATH"):
+        return Path(charm_file)
+    import subprocess
+
+    result = subprocess.run(
+        ["charmcraft", "pack", "--format=json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return Path(result.stdout.strip().splitlines()[-1])

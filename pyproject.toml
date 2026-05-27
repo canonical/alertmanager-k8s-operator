@@ -40,6 +40,9 @@ dev = [
   "websockets<14.0",
   "pytest-operator",
   "pytest-httpserver",
+  "jubilant",
+  "pytest-bdd",
+  "tenacity",
   "sh",
 ]
 

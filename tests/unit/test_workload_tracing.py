@@ -21,7 +21,7 @@ class TestConfigBuilderWorkloadTracing:
         # WHEN the config is built
         config_yaml = (
             ConfigBuilder()
-            .set_workload_tracing(endpoint=None)
+            .set_workload_tracing(endpoint=None, ca_cert_path="")
             .build()
             .alertmanager
         )
@@ -36,17 +36,18 @@ class TestConfigBuilderWorkloadTracing:
         endpoint = "http://tempo-0.tempo.svc.cluster.local:4318/v1/traces"
         config_yaml = (
             ConfigBuilder()
-            .set_workload_tracing(endpoint=endpoint)
+            .set_workload_tracing(endpoint=endpoint, ca_cert_path="")
             .build()
             .alertmanager
         )
         config = yaml.safe_load(config_yaml)
 
-        # THEN a 'tracing' section is present with the full URL, no tls_config
+        # THEN a 'tracing' section is present with host:port only, insecure=true, no tls_config
         assert config["tracing"] == {
             "client_type": "http",
-            "endpoint": endpoint,
+            "endpoint": "tempo-0.tempo.svc.cluster.local:4318",
             "sampling_fraction": 1.0,
+            "insecure": True,
         }
         assert "tls_config" not in config["tracing"]
 
@@ -62,8 +63,9 @@ class TestConfigBuilderWorkloadTracing:
         )
         config = yaml.safe_load(config_yaml)
 
-        # THEN the tracing section has tls_config.ca_file, no 'insecure' flag
-        assert config["tracing"]["endpoint"] == endpoint
+        # THEN the tracing section has host:port endpoint, insecure=false, tls_config.ca_file
+        assert config["tracing"]["endpoint"] == "tempo.svc.cluster.local:4318"
+        assert config["tracing"]["insecure"] is False
         assert config["tracing"]["tls_config"] == {"ca_file": ca_path}
 
     def test_tracing_section_absent_when_set_workload_tracing_not_called(self):
@@ -94,6 +96,41 @@ _TRACING_HTTPS_APP_DATA = json.dumps(
         }
     ]
 )
+
+
+class TestOtelResourceAttributes:
+    """Tests that OTEL_RESOURCE_ATTRIBUTES is set in the Pebble layer environment."""
+
+    def test_otel_resource_attributes_present_in_pebble_layer(self, context: Context):
+        # GIVEN a running alertmanager
+        state = begin_with_initial_hooks_isolated(context)
+
+        # WHEN update_status fires
+        state_out = context.run(context.on.update_status(), state)
+
+        # THEN the alertmanager pebble layer includes OTEL_RESOURCE_ATTRIBUTES
+        container = state_out.get_container("alertmanager")
+        plan = container.plan
+        env = plan.services["alertmanager"].environment
+        assert "OTEL_RESOURCE_ATTRIBUTES" in env
+
+    def test_otel_resource_attributes_includes_juju_topology(self, context: Context):
+        # GIVEN a running alertmanager
+        state = begin_with_initial_hooks_isolated(context)
+
+        # WHEN update_status fires
+        state_out = context.run(context.on.update_status(), state)
+
+        # THEN OTEL_RESOURCE_ATTRIBUTES contains all required Juju topology keys
+        container = state_out.get_container("alertmanager")
+        plan = container.plan
+        env = plan.services["alertmanager"].environment
+        otel_attrs = env["OTEL_RESOURCE_ATTRIBUTES"]
+        assert "juju_application=" in otel_attrs
+        assert "juju_model=" in otel_attrs
+        assert "juju_model_uuid=" in otel_attrs
+        assert "juju_unit=" in otel_attrs
+        assert "juju_charm=" in otel_attrs
 
 
 class TestWorkloadTracingScenario:
@@ -132,9 +169,10 @@ class TestWorkloadTracingScenario:
         )
         assert "tracing" in config
         assert config["tracing"]["client_type"] == "http"
-        assert config["tracing"]["endpoint"] == "http://tempo-0.tempo-endpoints.cos.svc.cluster.local:4318/v1/traces"
+        assert config["tracing"]["endpoint"] == "tempo-0.tempo-endpoints.cos.svc.cluster.local:4318"
+        assert config["tracing"]["insecure"] is True
         assert "tls_config" not in config["tracing"]
-        assert "insecure" not in config["tracing"]
+        assert "insecure" in config["tracing"]
 
     def test_https_tracing_endpoint_uses_ca_file(self, context: Context):
         # GIVEN an alertmanager charm with a tracing relation providing an HTTPS OTLP endpoint
@@ -155,10 +193,11 @@ class TestWorkloadTracingScenario:
             container.get_filesystem(context).joinpath("etc/alertmanager/alertmanager.yml").read_text()
         )
         assert "tracing" in config
-        assert config["tracing"]["endpoint"] == "https://tempo-0.tempo-endpoints.cos.svc.cluster.local:4318/v1/traces"
+        assert config["tracing"]["endpoint"] == "tempo-0.tempo-endpoints.cos.svc.cluster.local:4318"
+        assert config["tracing"]["insecure"] is False
         assert "tls_config" in config["tracing"]
         assert "ca_file" in config["tracing"]["tls_config"]
-        assert "insecure" not in config["tracing"]
+        assert "insecure" in config["tracing"]
 
     def test_tracing_removed_from_config_on_relation_broken(self, context: Context):
         # GIVEN an alertmanager charm with a tracing relation in place

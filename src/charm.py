@@ -464,7 +464,7 @@ class AlertmanagerCharm(CharmBase):
                 cert_file_path=self._server_cert_path, key_file_path=self._key_path
             )
             .set_templates(raw_templates, self._templates_path)
-            .set_workload_tracing(endpoint=tracing_endpoint, ca_cert_path=self._ca_cert_path if tracing_endpoint and urlparse(tracing_endpoint).scheme == "https" else None)
+            .set_workload_tracing(endpoint=tracing_endpoint, ca_cert_path=self._ca_cert_path)
             .build()
         )
         tls_config = self._tls_config
@@ -672,12 +672,11 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def _workload_tracing_endpoint(self) -> Optional[str]:
+
         if not self.workload_tracing.is_ready():
             return None
-        try:
-            return self.workload_tracing.get_endpoint("otlp_http")
-        except Exception:
-            return None
+        return self.workload_tracing.get_endpoint("otlp_http")
+
 
     @property
     def _tls_config(self) -> Optional[TLSConfig]:
