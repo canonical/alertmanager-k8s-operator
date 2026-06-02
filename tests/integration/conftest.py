@@ -29,19 +29,22 @@ def httpserver_listen_address():
 
 @pytest.fixture(scope="session")
 def charm_path() -> Path:
-    """Return the path to the built charm.
+    """Return the absolute path to the built charm.
 
     Reads CHARM_PATH from the environment when set (standard on CI).  Falls
     back to locating any pre-built ``*.charm`` file in the repository root,
     and finally builds one with ``charmcraft pack`` if none is found.
+
+    Returns an absolute path so that ``juju deploy`` unambiguously treats it
+    as a local charm (filenames containing ``@`` are otherwise ambiguous).
     """
     if charm_file := os.environ.get("CHARM_PATH"):
-        return Path(charm_file)
+        return Path(charm_file).resolve()
 
     existing = sorted(Path(".").glob("*.charm"))
     if existing:
-        return existing[-1]
+        return existing[-1].resolve()
 
     subprocess.run(["charmcraft", "pack"], check=True)
-    return sorted(Path(".").glob("*.charm"))[-1]
+    return sorted(Path(".").glob("*.charm"))[-1].resolve()
 
