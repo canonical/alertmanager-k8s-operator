@@ -22,7 +22,7 @@ from helpers import ALERTMANAGER_IMAGE, is_alertmanager_up
 # The charmhub charm is built for 24.04 (Python 3.12), while the local charm
 # targets 26.04 (Python 3.14). Juju refresh only replaces charm code, not the
 # container image, so the old container's Python cannot load the new venv.
-pytestmark = pytest.mark.xfail(reason="Cross-base upgrade from 24.04 to 26.04 not supported")
+pytestmark = pytest.mark.skip(reason="Cross-base upgrade from 24.04 to 26.04 not supported")
 
 logger = logging.getLogger(__name__)
 
