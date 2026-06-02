@@ -18,6 +18,12 @@ import jubilant
 import pytest
 from helpers import ALERTMANAGER_IMAGE, is_alertmanager_up
 
+# Cross-base upgrades (e.g. 24.04 -> 26.04) are not supported via juju refresh.
+# The charmhub charm is built for 24.04 (Python 3.12), while the local charm
+# targets 26.04 (Python 3.14). Juju refresh only replaces charm code, not the
+# container image, so the old container's Python cannot load the new venv.
+pytestmark = pytest.mark.xfail(reason="Cross-base upgrade from 24.04 to 26.04 not supported")
+
 logger = logging.getLogger(__name__)
 
 AM_APP = "alertmanager-k8s"
