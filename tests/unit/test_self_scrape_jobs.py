@@ -1,85 +1,78 @@
 #!/usr/bin/env python3
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
-import unittest
-from unittest.mock import PropertyMock, patch
 
-from helpers import k8s_resource_multipatch
-from ops.testing import Harness
+"""Unit tests for self-scraping job generation."""
 
-from alertmanager import WorkloadManager
-from charm import AlertmanagerCharm
+import dataclasses
+import json
+from unittest.mock import patch
+
+import pytest
+from helpers import add_relation_sequence, begin_with_initial_hooks_isolated
+from ops.testing import Context, Relation, State
 
 
-class TestWithInitialHooks(unittest.TestCase):
-    container_name: str = "alertmanager"
+@pytest.mark.parametrize("fqdn", ["localhost", "am-0.endpoints.cluster.local"])
+class TestSelfScrapingJobs:
+    """Tests for the self_scraping_job property via the self-metrics-endpoint relation."""
 
-    @patch("lightkube.core.client.GenericSyncClient")
-    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    @k8s_resource_multipatch
-    @patch.object(WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0"))
-    def setUp(self, *unused):
-        self.harness = Harness(AlertmanagerCharm)
-        self.addCleanup(self.harness.cleanup)
+    @pytest.fixture
+    def initial_state(self, context: Context, fqdn: str) -> State:
+        """Set up charm with self-metrics-endpoint relation."""
+        with patch("socket.getfqdn", new=lambda *args: fqdn):
+            state = begin_with_initial_hooks_isolated(context, leader=True)
 
-        self.harness.set_leader(True)
-        self.app_name = "am"
-        # Create the peer relation before running harness.begin_with_initial_hooks(), because
-        # otherwise it will create it for you and we don't know the rel_id
-        self.peer_rel_id = self.harness.add_relation("replicas", self.app_name)
+            # Add self-metrics-endpoint relation
+            metrics_rel = Relation("self-metrics-endpoint")
+            state = add_relation_sequence(context, state, metrics_rel)
+            yield state
 
-        self.harness.begin_with_initial_hooks()
+    def test_self_scraping_job_with_no_peers(self, initial_state: State, fqdn: str):
+        """Test self-scraping job generation with no peer units."""
+        relation = initial_state.get_relations("self-metrics-endpoint")[0]
+        scrape_jobs = json.loads(relation.local_app_data.get("scrape_jobs", "[]"))
 
-    @patch.object(AlertmanagerCharm, "_internal_url", new_callable=PropertyMock)
-    @patch.object(AlertmanagerCharm, "_scheme", new_callable=PropertyMock)
-    def test_self_scraping_job_with_no_peers(self, _mock_scheme, _mock_internal_url):
-        scheme = "https"
-        _mock_scheme.return_value = scheme
-        url_no_scheme = f"test-internal.url:{self.harness.charm._ports.api}"
-        _mock_internal_url.return_value = f"{scheme}://{url_no_scheme}"
-        jobs_expected = [
-            {
-                "metrics_path": "/metrics",
-                "scheme": scheme,
-                "static_configs": [{"targets": [url_no_scheme]}],
-            }
-        ]
+        # Should have one job with one target (this unit only)
+        assert len(scrape_jobs) == 1
+        job = scrape_jobs[0]
+        assert job["metrics_path"] == "/metrics"
+        assert job["scheme"] == "http"  # No TLS configured
+        assert len(job["static_configs"]) == 1
+        assert f"{fqdn}:9093" in job["static_configs"][0]["targets"]
 
-        jobs = self.harness.charm.self_scraping_job
-        self.assertEqual(jobs, jobs_expected)
+    def test_self_scraping_job_with_peers(self, context: Context, initial_state: State, fqdn: str):
+        """Test self-scraping job generation with peer units."""
+        # Add peer units with their addresses (must include scheme for urlparse)
+        peer_rel = initial_state.get_relations("replicas")[0]
+        peer_rel_with_units = dataclasses.replace(
+            peer_rel,
+            peers_data={
+                1: {"private_address": "http://am-1.endpoints.cluster.local"},
+                2: {"private_address": "http://am-2.endpoints.cluster.local"},
+            },
+        )
+        state = dataclasses.replace(
+            initial_state,
+            relations=[
+                peer_rel_with_units if r.id == peer_rel.id else r for r in initial_state.relations
+            ],
+        )
 
-    @patch.object(WorkloadManager, "check_config")
-    @patch.object(AlertmanagerCharm, "_internal_url", new_callable=PropertyMock)
-    @patch.object(AlertmanagerCharm, "_scheme", new_callable=PropertyMock)
-    def test_self_scraping_job_with_peers(
-        self, _mock_scheme, _mock_internal_url, _mock_check_config
-    ):
-        scheme = "https"
-        _mock_scheme.return_value = scheme
+        # Run relation_changed to trigger update
+        with patch("socket.getfqdn", new=lambda *args: fqdn):
+            state = context.run(context.on.relation_changed(peer_rel_with_units), state)
 
-        targets = [
-            f"test-internal-0.url:{self.harness.charm._ports.api}",
-            f"test-internal-1.url:{self.harness.charm._ports.api}",
-            f"test-internal-2.url:{self.harness.charm._ports.api}",
-        ]
-        metrics_path = "/metrics"
-        _mock_internal_url.return_value = f"{scheme}://{targets[0]}"
+        relation = state.get_relations("self-metrics-endpoint")[0]
+        scrape_jobs = json.loads(relation.local_app_data.get("scrape_jobs", "[]"))
 
-        jobs_expected = [
-            {
-                "metrics_path": metrics_path,
-                "scheme": scheme,
-                "static_configs": [{"targets": targets}],
-            }
-        ]
+        # Should have one job with all targets (this unit + peers)
+        assert len(scrape_jobs) == 1
+        job = scrape_jobs[0]
+        targets = job["static_configs"][0]["targets"]
 
-        # Add peers
-        for i, target in enumerate(targets[1:], 1):
-            unit_name = f"{self.app_name}/{i}"
-            self.harness.add_relation_unit(self.peer_rel_id, unit_name)
-            self.harness.update_relation_data(
-                self.peer_rel_id, unit_name, {"private_address": f"{scheme}://{target}"}
-            )
-
-        jobs = self.harness.charm.self_scraping_job
-        self.assertEqual(jobs_expected, jobs)
+        # Verify all units are included as targets
+        assert len(targets) == 3
+        assert f"{fqdn}:9093" in targets
+        assert "am-1.endpoints.cluster.local:9093" in targets
+        assert "am-2.endpoints.cluster.local:9093" in targets

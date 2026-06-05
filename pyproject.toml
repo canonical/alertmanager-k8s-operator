@@ -43,6 +43,7 @@ dev = [
   "pytest-sugar",
   "tenacity",
   "requests",
+  "vulture",
 ]
 
 # Testing tools configuration
@@ -85,7 +86,9 @@ exclude = [
 [tool.pytest.ini_options]
 minversion = "6.0"
 log_cli_level = "INFO"
-addopts = "--tb=native --verbose --capture=no --log-cli-level=INFO"
+log_level = "INFO"
+addopts = "--tb=native --capture=no --disable-warnings"
+pythonpath = ["src", "lib"]
 
 [tool.codespell]
 skip = ".git,.tox,build,venv*"

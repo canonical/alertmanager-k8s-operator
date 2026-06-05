@@ -1,39 +1,45 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+"""Tests for the RemoteConfigurationProvider library using Scenario."""
+
 import json
 import logging
-import unittest
-from unittest.mock import PropertyMock, patch
+from pathlib import Path
+from unittest.mock import patch
 
+import pytest
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     DEFAULT_RELATION_NAME,
     ConfigReadError,
     RemoteConfigurationProvider,
 )
-from ops import testing
 from ops.charm import CharmBase, CharmEvents
-from ops.framework import EventBase, EventSource, StoredState
+from ops.framework import EventBase, EventSource
+from ops.testing import Context, PeerRelation, Relation, State
 
 logger = logging.getLogger(__name__)
 
-testing.SIMULATE_CAN_CONNECT = True  # pyright: ignore
-
 TEST_APP_NAME = "provider-tester"
-METADATA = f"""
-name: {TEST_APP_NAME}
-provides:
-  {DEFAULT_RELATION_NAME}:
-    interface: alertmanager_remote_configuration
-"""
-TEST_ALERTMANAGER_CONFIG_WITHOUT_TEMPLATES_FILE_PATH = "./tests/unit/test_config/alertmanager.yml"
+TEST_CONFIG_DIR = Path(__file__).parent / "test_config"
+TEST_ALERTMANAGER_CONFIG_WITHOUT_TEMPLATES_FILE_PATH = TEST_CONFIG_DIR / "alertmanager.yml"
 TEST_ALERTMANAGER_CONFIG_WITH_TEMPLATES_FILE_PATH = (
-    "./tests/unit/test_config/alertmanager_with_templates.yml"
+    TEST_CONFIG_DIR / "alertmanager_with_templates.yml"
 )
-TEST_ALERTMANAGER_INVALID_CONFIG_FILE_PATH = "./tests/unit/test_config/alertmanager_invalid.yml"
-TEST_ALERTMANAGER_TEMPLATES_FILE_PATH = "./tests/unit/test_config/test_templates.tmpl"
-TESTER_CHARM = "test_remote_configuration_provider.RemoteConfigurationProviderCharm"
+TEST_ALERTMANAGER_INVALID_CONFIG_FILE_PATH = TEST_CONFIG_DIR / "alertmanager_invalid.yml"
+TEST_ALERTMANAGER_TEMPLATES_FILE_PATH = TEST_CONFIG_DIR / "test_templates.tmpl"
+TEST_ALERTMANAGER_EMPTY_CONFIG_FILE_PATH = TEST_CONFIG_DIR / "alertmanager_empty.yml"
+
+PROVIDER_METADATA = {
+    "name": TEST_APP_NAME,
+    "provides": {
+        DEFAULT_RELATION_NAME: {"interface": "alertmanager_remote_configuration"},
+    },
+    "peers": {
+        "replicas": {"interface": "provider_replica"},
+    },
+}
 
 
 class AlertmanagerConfigFileChangedEvent(EventBase):
@@ -45,17 +51,20 @@ class AlertmanagerConfigFileChangedCharmEvents(CharmEvents):
 
 
 class RemoteConfigurationProviderCharm(CharmBase):
-    ALERTMANAGER_CONFIG_FILE = TEST_ALERTMANAGER_CONFIG_WITHOUT_TEMPLATES_FILE_PATH
+    """Test charm that uses the RemoteConfigurationProvider library."""
+
+    ALERTMANAGER_CONFIG_FILE: Path = TEST_ALERTMANAGER_CONFIG_WITHOUT_TEMPLATES_FILE_PATH
 
     on = AlertmanagerConfigFileChangedCharmEvents()  # pyright: ignore
-    _stored = StoredState()
 
     def __init__(self, *args):
         super().__init__(*args)
-        self._stored.set_default(configuration_broken_emitted=0)
+
+        # Track configuration_broken events via peer relation data
+        self._peer_relation_name = "replicas"
 
         alertmanager_config = RemoteConfigurationProvider.load_config_file(
-            self.ALERTMANAGER_CONFIG_FILE
+            str(self.ALERTMANAGER_CONFIG_FILE)
         )
         self.remote_configuration_provider = RemoteConfigurationProvider(
             charm=self,
@@ -63,112 +72,198 @@ class RemoteConfigurationProviderCharm(CharmBase):
             relation_name=DEFAULT_RELATION_NAME,
         )
 
-        self.framework.observe(self.on.alertmanager_config_file_changed, self._update_config)
         self.framework.observe(
             self.remote_configuration_provider.on.configuration_broken,
             self._on_configuration_broken,
         )
+        # Also observe relation_changed to update config
+        self.framework.observe(
+            self.on[DEFAULT_RELATION_NAME].relation_changed, self._on_relation_changed
+        )
 
-    def _update_config(self, _):
+    def _on_relation_changed(self, _):
+        """Update config when relation changes (used to trigger config reload in tests)."""
         try:
             alertmanager_config = RemoteConfigurationProvider.load_config_file(
-                self.ALERTMANAGER_CONFIG_FILE
+                str(self.ALERTMANAGER_CONFIG_FILE)
             )
             self.remote_configuration_provider.update_relation_data_bag(alertmanager_config)
         except ConfigReadError:
             logger.warning("Error reading Alertmanager config file.")
 
     def _on_configuration_broken(self, _):
-        self._stored.configuration_broken_emitted += 1
+        if peer := self.model.get_relation(self._peer_relation_name):
+            count = int(peer.data[self.unit].get("configuration_broken_count", "0"))
+            peer.data[self.unit]["configuration_broken_count"] = str(count + 1)
 
 
-class TestAlertmanagerRemoteConfigurationProvider(unittest.TestCase):
-    def setUp(self) -> None:
-        self.harness = testing.Harness(RemoteConfigurationProviderCharm, meta=METADATA)
-        self.addCleanup(self.harness.cleanup)
-        self.harness.set_leader(True)
-        self.harness.begin_with_initial_hooks()
+@pytest.fixture
+def provider_context():
+    """Create a Context for the provider charm."""
+    return Context(charm_type=RemoteConfigurationProviderCharm, meta=PROVIDER_METADATA)
 
-    def test_config_without_templates_updates_only_alertmanager_config_in_the_data_bag(self):
-        with open(TEST_ALERTMANAGER_CONFIG_WITHOUT_TEMPLATES_FILE_PATH, "r") as config_yaml:
-            expected_config = yaml.safe_load(config_yaml)
 
-        relation_id = self.harness.add_relation(DEFAULT_RELATION_NAME, "requirer")
-        self.harness.add_relation_unit(relation_id, "requirer/0")
+def get_configuration_broken_count(state: State) -> int:
+    """Extract the configuration_broken event count from peer relation data."""
+    peers = state.get_relations("replicas")
+    if not peers:
+        return 0
+    return int(peers[0].local_unit_data.get("configuration_broken_count", "0"))
 
-        self.assertEqual(
-            json.loads(
-                self.harness.get_relation_data(relation_id, TEST_APP_NAME)["alertmanager_config"]
-            ),
-            expected_config,
-        )
-        self.assertEqual(
-            json.loads(
-                self.harness.get_relation_data(relation_id, TEST_APP_NAME)[
-                    "alertmanager_templates"
-                ]
-            ),
-            [],
-        )
 
-    @patch(f"{TESTER_CHARM}.ALERTMANAGER_CONFIG_FILE", new_callable=PropertyMock)
-    def test_config_with_templates_updates_both_alertmanager_config_and_alertmanager_templates_in_the_data_bag(  # noqa: E501
-        self, patched_alertmanager_config_file
+class TestAlertmanagerRemoteConfigurationProvider:
+    """Tests for the RemoteConfigurationProvider library."""
+
+    def test_config_without_templates_updates_only_alertmanager_config_in_the_data_bag(
+        self, provider_context: Context
     ):
-        patched_alertmanager_config_file.return_value = (
-            TEST_ALERTMANAGER_CONFIG_WITH_TEMPLATES_FILE_PATH
-        )
-        with open(TEST_ALERTMANAGER_TEMPLATES_FILE_PATH, "r") as templates_file:
-            expected_templates = templates_file.readlines()
-        relation_id = self.harness.add_relation(DEFAULT_RELATION_NAME, "requirer")
-        self.harness.add_relation_unit(relation_id, "requirer/0")
-
-        self.harness.charm.on.alertmanager_config_file_changed.emit()
-
-        self.assertEqual(
-            json.loads(
-                self.harness.get_relation_data(relation_id, TEST_APP_NAME)[
-                    "alertmanager_templates"
-                ]
-            ),
-            expected_templates,
+        """Test that config without templates only updates alertmanager_config."""
+        expected_config = yaml.safe_load(
+            TEST_ALERTMANAGER_CONFIG_WITHOUT_TEMPLATES_FILE_PATH.read_text()
         )
 
-    @patch(f"{TESTER_CHARM}.ALERTMANAGER_CONFIG_FILE", new_callable=PropertyMock)
+        # Create relation and run relation_joined
+        remote_config_rel = Relation(
+            DEFAULT_RELATION_NAME,
+            id=10,
+            remote_app_name="requirer",
+            remote_units_data={0: {}},
+        )
+        state = State(leader=True, relations=[remote_config_rel])
+        state = provider_context.run(
+            provider_context.on.relation_joined(remote_config_rel, remote_unit=0), state
+        )
+
+        # Check relation data
+        rel = state.get_relations(DEFAULT_RELATION_NAME)[0]
+        assert json.loads(rel.local_app_data["alertmanager_config"]) == expected_config
+        assert json.loads(rel.local_app_data["alertmanager_templates"]) == []
+
+    def test_config_with_templates_updates_both_in_the_data_bag(self, provider_context: Context):
+        """Test that config with templates updates both config and templates."""
+        expected_templates = TEST_ALERTMANAGER_TEMPLATES_FILE_PATH.read_text().splitlines(
+            keepends=True
+        )
+
+        # Patch the config file path before charm init
+        with patch.object(
+            RemoteConfigurationProviderCharm,
+            "ALERTMANAGER_CONFIG_FILE",
+            TEST_ALERTMANAGER_CONFIG_WITH_TEMPLATES_FILE_PATH,
+        ):
+            # Create relation
+            remote_config_rel = Relation(
+                DEFAULT_RELATION_NAME,
+                id=10,
+                remote_app_name="requirer",
+                remote_units_data={0: {}},
+            )
+            state = State(leader=True, relations=[remote_config_rel])
+            # relation_joined triggers the config load and data bag update
+            state = provider_context.run(
+                provider_context.on.relation_joined(remote_config_rel, remote_unit=0), state
+            )
+
+            # Check templates in relation data
+            rel = state.get_relations(DEFAULT_RELATION_NAME)[0]
+            assert json.loads(rel.local_app_data["alertmanager_templates"]) == expected_templates
+
     def test_invalid_config_emits_remote_configuration_broken_event(
-        self, patched_alertmanager_config_file
+        self, provider_context: Context
     ):
-        num_events = self.harness.charm._stored.configuration_broken_emitted
-        patched_alertmanager_config_file.return_value = TEST_ALERTMANAGER_INVALID_CONFIG_FILE_PATH
-        relation_id = self.harness.add_relation(DEFAULT_RELATION_NAME, "requirer")
-        self.harness.add_relation_unit(relation_id, "requirer/0")
-
-        self.harness.charm.on.alertmanager_config_file_changed.emit()
-
-        self.assertGreater(
-            self.harness.charm._stored.configuration_broken_emitted,
-            num_events,
+        """Test that invalid config emits configuration_broken event."""
+        # Add peer relation to track events
+        peer_rel = PeerRelation("replicas", id=0)
+        remote_config_rel = Relation(
+            DEFAULT_RELATION_NAME,
+            id=10,
+            remote_app_name="requirer",
+            remote_units_data={0: {}},
         )
 
-    @patch(f"{TESTER_CHARM}.ALERTMANAGER_CONFIG_FILE", new_callable=PropertyMock)
-    def test_invalid_config_clears_relation_data_bag(self, patched_alertmanager_config_file):
-        patched_alertmanager_config_file.return_value = TEST_ALERTMANAGER_INVALID_CONFIG_FILE_PATH
-        relation_id = self.harness.add_relation(DEFAULT_RELATION_NAME, "requirer")
-        self.harness.add_relation_unit(relation_id, "requirer/0")
+        # Start with valid config
+        state = State(leader=True, relations=[peer_rel, remote_config_rel])
+        state = provider_context.run(
+            provider_context.on.relation_joined(remote_config_rel, remote_unit=0), state
+        )
 
-        self.harness.charm.on.alertmanager_config_file_changed.emit()
+        initial_count = get_configuration_broken_count(state)
 
-        with self.assertRaises(KeyError):
-            _ = self.harness.get_relation_data(relation_id, TEST_APP_NAME)["alertmanager_config"]
+        # Now change to invalid config and trigger relation_changed
+        with patch.object(
+            RemoteConfigurationProviderCharm,
+            "ALERTMANAGER_CONFIG_FILE",
+            TEST_ALERTMANAGER_INVALID_CONFIG_FILE_PATH,
+        ):
+            rel_from_state = state.get_relations(DEFAULT_RELATION_NAME)[0]
+            state = provider_context.run(
+                provider_context.on.relation_changed(rel_from_state), state
+            )
 
-    @patch(f"{TESTER_CHARM}.ALERTMANAGER_CONFIG_FILE", new_callable=PropertyMock)
-    def test_empty_config_file_clears_relation_data_bag(self, patched_alertmanager_config_file):
-        test_config_file = "./tests/unit/test_config/alertmanager_empty.yml"
-        patched_alertmanager_config_file.return_value = test_config_file
-        relation_id = self.harness.add_relation(DEFAULT_RELATION_NAME, "requirer")
-        self.harness.add_relation_unit(relation_id, "requirer/0")
+        assert get_configuration_broken_count(state) > initial_count
 
-        self.harness.charm.on.alertmanager_config_file_changed.emit()
+    def test_invalid_config_clears_relation_data_bag(self, provider_context: Context):
+        """Test that invalid config clears the relation data bag."""
+        # Start with valid config
+        remote_config_rel = Relation(
+            DEFAULT_RELATION_NAME,
+            id=10,
+            remote_app_name="requirer",
+            remote_units_data={0: {}},
+        )
+        state = State(leader=True, relations=[remote_config_rel])
+        state = provider_context.run(
+            provider_context.on.relation_joined(remote_config_rel, remote_unit=0), state
+        )
 
-        with self.assertRaises(KeyError):
-            _ = self.harness.get_relation_data(relation_id, TEST_APP_NAME)["alertmanager_config"]
+        # Verify config was set
+        rel = state.get_relations(DEFAULT_RELATION_NAME)[0]
+        assert "alertmanager_config" in rel.local_app_data
+
+        # Now change to invalid config and trigger relation_changed
+        with patch.object(
+            RemoteConfigurationProviderCharm,
+            "ALERTMANAGER_CONFIG_FILE",
+            TEST_ALERTMANAGER_INVALID_CONFIG_FILE_PATH,
+        ):
+            rel_from_state = state.get_relations(DEFAULT_RELATION_NAME)[0]
+            state = provider_context.run(
+                provider_context.on.relation_changed(rel_from_state), state
+            )
+
+        # Config should be cleared
+        rel = state.get_relations(DEFAULT_RELATION_NAME)[0]
+        assert "alertmanager_config" not in rel.local_app_data
+
+    def test_empty_config_file_clears_relation_data_bag(self, provider_context: Context):
+        """Test that empty config file clears the relation data bag."""
+        # Start with valid config
+        remote_config_rel = Relation(
+            DEFAULT_RELATION_NAME,
+            id=10,
+            remote_app_name="requirer",
+            remote_units_data={0: {}},
+        )
+        state = State(leader=True, relations=[remote_config_rel])
+        state = provider_context.run(
+            provider_context.on.relation_joined(remote_config_rel, remote_unit=0), state
+        )
+
+        # Verify config was set
+        rel = state.get_relations(DEFAULT_RELATION_NAME)[0]
+        assert "alertmanager_config" in rel.local_app_data
+
+        # Now change to empty config and trigger relation_changed
+        with patch.object(
+            RemoteConfigurationProviderCharm,
+            "ALERTMANAGER_CONFIG_FILE",
+            TEST_ALERTMANAGER_EMPTY_CONFIG_FILE_PATH,
+        ):
+            rel_from_state = state.get_relations(DEFAULT_RELATION_NAME)[0]
+            state = provider_context.run(
+                provider_context.on.relation_changed(rel_from_state), state
+            )
+
+        # Config should be cleared
+        rel = state.get_relations(DEFAULT_RELATION_NAME)[0]
+        assert "alertmanager_config" not in rel.local_app_data

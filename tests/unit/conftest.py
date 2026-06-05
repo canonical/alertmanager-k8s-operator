@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from ops.testing import Context
 
-from src.alertmanager import WorkloadManager
-from src.alertmanager_client import Alertmanager
-from src.charm import AlertmanagerCharm
+from alertmanager import WorkloadManager
+from alertmanager_client import Alertmanager
+from charm import AlertmanagerCharm
 
 
 def tautology(*_, **__) -> bool:
