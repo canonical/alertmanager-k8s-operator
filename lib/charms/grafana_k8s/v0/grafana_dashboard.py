@@ -187,6 +187,7 @@ import tempfile
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import yaml
 from cosl import DashboardPath40UID, LZMABase64
 from cosl.types import type_convert_stored
@@ -415,7 +416,7 @@ class RelationInterfaceMismatchError(Exception):
         self.expected_relation_interface = expected_relation_interface
         self.actual_relation_interface = actual_relation_interface
         self.message = (
-            "The '{}' relation has '{}' as " "interface rather than the expected '{}'".format(
+            "The '{}' relation has '{}' as interface rather than the expected '{}'".format(
                 relation_name, actual_relation_interface, expected_relation_interface
             )
         )
@@ -589,10 +590,7 @@ class CharmedDashboard:
             # already in the template coming over relation data.
             # We'll store all dropdowns in the template from the provider
             # in a set. We'll add our own if they are not in this set.
-            existing_names = {
-                item.get("name")
-                for item in dict_content["templating"]["list"]
-            }
+            existing_names = {item.get("name") for item in dict_content["templating"]["list"]}
 
             for d in template_dropdowns:  # type: ignore
                 if d.get("name") not in existing_names:
@@ -969,10 +967,9 @@ class CharmedDashboard:
                 else dashboard_path
             )
         except ValueError:
-            uid =  DashboardPath40UID.generate(charm_name, str(dashboard_path))
+            uid = DashboardPath40UID.generate(charm_name, str(dashboard_path))
         else:
             uid = DashboardPath40UID.generate(charm_name, rel_path)
-
 
         logger.debug(
             "Processed dashboard '%s': replaced original uid '%s' with '%s'",
@@ -1654,7 +1651,11 @@ class GrafanaDashboardConsumer(Object):
         try:
             dashboard_version = int(as_dict["version"])
         except (KeyError, ValueError):
-            logger.warning("Dashboard '%s' (uid '%s') is missing a '.version' field or is invalid (must be integer); using '0' as fallback", dashboard_title, dashboard_uid)
+            logger.warning(
+                "Dashboard '%s' (uid '%s') is missing a '.version' field or is invalid (must be integer); using '0' as fallback",
+                dashboard_title,
+                dashboard_uid,
+            )
             dashboard_version = 0
 
         return {
@@ -1689,12 +1690,26 @@ class GrafanaDashboardConsumer(Object):
                 key = obj.get("dashboard_uid")
                 if key is None or str(key).strip() == "":
                     # At this point, we assume that a `.uid` is present so we do not render a fallback identifier here. Instead, we omit it.
-                    logger.error("dashboard '%s' from relation id '%s' is missing a '.uid' field; omitted", obj["dashboard_title"], obj["relation_id"])
+                    logger.error(
+                        "dashboard '%s' from relation id '%s' is missing a '.uid' field; omitted",
+                        obj["dashboard_title"],
+                        obj["relation_id"],
+                    )
                     continue
 
                 if key in d:
-                    d[key] = max(d[key], obj, key=lambda o: (o["dashboard_version"], o["relation_id"], o["content"]))
-                    logger.warning("deduplicate dashboard '%s' (uid '%s') - kept version '%s' from relation id '%s'", d[key]["dashboard_title"], d[key]["dashboard_uid"], d[key]["dashboard_version"], d[key]["relation_id"])
+                    d[key] = max(
+                        d[key],
+                        obj,
+                        key=lambda o: (o["dashboard_version"], o["relation_id"], o["content"]),
+                    )
+                    logger.warning(
+                        "deduplicate dashboard '%s' (uid '%s') - kept version '%s' from relation id '%s'",
+                        d[key]["dashboard_title"],
+                        d[key]["dashboard_uid"],
+                        d[key]["dashboard_version"],
+                        d[key]["relation_id"],
+                    )
                 else:
                     d[key] = obj
 

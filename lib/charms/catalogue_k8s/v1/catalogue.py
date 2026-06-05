@@ -83,7 +83,15 @@ class CatalogueItem:
             api_endpoints={"Alerts": f"{self.external_url}/api/v1/alerts"}
     """
 
-    def __init__(self, name: str, url: str, icon: str, description: str = "", api_docs: str = "", api_endpoints: Optional[Dict[str,str]] = None):
+    def __init__(
+        self,
+        name: str,
+        url: str,
+        icon: str,
+        description: str = "",
+        api_docs: str = "",
+        api_endpoints: Optional[Dict[str, str]] = None,
+    ):
         self.name = name
         self.url = url
         self.icon = icon
@@ -129,7 +137,9 @@ class CatalogueConsumer(Object):
             relation.data[self._charm.model.app]["url"] = self.unit_address(relation)
             relation.data[self._charm.model.app]["icon"] = self._item.icon
             relation.data[self._charm.model.app]["api_docs"] = self._item.api_docs
-            relation.data[self._charm.model.app]["api_endpoints"] = json.dumps(self._item.api_endpoints)
+            relation.data[self._charm.model.app]["api_endpoints"] = json.dumps(
+                self._item.api_endpoints
+            )
 
     def update_item(self, item: CatalogueItem):
         """Update the catalogue item."""
@@ -216,7 +226,9 @@ class CatalogueProvider(Object):
                 "icon": relation.data[relation.app].get("icon", ""),
                 "description": relation.data[relation.app].get("description", ""),
                 "api_docs": relation.data[relation.app].get("api_docs", ""),
-                "api_endpoints": json.loads(relation.data[relation.app].get("api_endpoints", "{}")),
+                "api_endpoints": json.loads(
+                    relation.data[relation.app].get("api_endpoints", "{}")
+                ),
             }
             for relation in self._charm.model.relations[self._relation_name]
             if relation.app and relation.units

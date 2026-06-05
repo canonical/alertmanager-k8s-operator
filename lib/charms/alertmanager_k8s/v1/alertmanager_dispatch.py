@@ -24,6 +24,7 @@ class SomeApplication(CharmBase):
     # ...
 ```
 """
+
 import logging
 from typing import Dict, Optional, Set
 from urllib.parse import urlparse

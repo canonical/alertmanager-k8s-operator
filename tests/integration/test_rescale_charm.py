@@ -53,9 +53,11 @@ def test_scale_down_to_single_unit(juju):
     current = len(juju.status().apps[AM_APP].units)
     juju.remove_unit(AM_APP, num_units=current - 1)
     juju.wait(
-        lambda s: len(s.apps[AM_APP].units) == 1
-        and jubilant.all_active(s, AM_APP)
-        and jubilant.all_agents_idle(s, AM_APP),
+        lambda s: (
+            len(s.apps[AM_APP].units) == 1
+            and jubilant.all_active(s, AM_APP)
+            and jubilant.all_agents_idle(s, AM_APP)
+        ),
         timeout=1000,
         delay=30,
         successes=3,
@@ -67,9 +69,11 @@ def test_scale_down_to_single_unit(juju):
 def test_scale_up_by_two(juju):
     juju.add_unit(AM_APP, num_units=2)
     juju.wait(
-        lambda s: len(s.apps[AM_APP].units) == 3
-        and jubilant.all_active(s, AM_APP)
-        and jubilant.all_agents_idle(s, AM_APP),
+        lambda s: (
+            len(s.apps[AM_APP].units) == 3
+            and jubilant.all_active(s, AM_APP)
+            and jubilant.all_agents_idle(s, AM_APP)
+        ),
         timeout=1000,
         delay=30,
         successes=3,
@@ -81,9 +85,11 @@ def test_scale_up_by_two(juju):
 def test_scale_down_by_two(juju):
     juju.remove_unit(AM_APP, num_units=2)
     juju.wait(
-        lambda s: len(s.apps[AM_APP].units) == 1
-        and jubilant.all_active(s, AM_APP)
-        and jubilant.all_agents_idle(s, AM_APP),
+        lambda s: (
+            len(s.apps[AM_APP].units) == 1
+            and jubilant.all_active(s, AM_APP)
+            and jubilant.all_agents_idle(s, AM_APP)
+        ),
         timeout=1000,
         delay=30,
         successes=3,

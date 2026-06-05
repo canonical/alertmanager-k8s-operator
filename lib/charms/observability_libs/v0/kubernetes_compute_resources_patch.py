@@ -411,7 +411,8 @@ class ResourcePatcher:
         """Return the resource limits that are in effect for the container in the given pod."""
         pod = self.client.get(Pod, name=pod_name, namespace=self.namespace)
         podspec = self._get_container(
-            self.container_name, pod.spec.containers  # type: ignore[attr-defined]
+            self.container_name,
+            pod.spec.containers,  # type: ignore[attr-defined]
         )
         return podspec.resources
 
@@ -489,7 +490,7 @@ class ResourcePatcher:
             and sts.status.readyReplicas < sts.spec.replicas
         ):
             logger.debug(
-                f"Waiting for {sts.spec.replicas-sts.status.readyReplicas} pods to be ready..."
+                f"Waiting for {sts.spec.replicas - sts.status.readyReplicas} pods to be ready..."
             )
             return True
 
@@ -532,7 +533,8 @@ class ResourcePatcher:
             bool: A boolean indicating if the service patch has been applied and is in effect.
         """
         return self.is_patched(resource_reqs) and equals_canonically(  # pyright: ignore
-            resource_reqs, self.get_actual(pod_name)  # pyright: ignore
+            resource_reqs,
+            self.get_actual(pod_name),  # pyright: ignore
         )
 
     def apply(self, resource_reqs: ResourceRequirements, dry_run=False) -> None:
@@ -614,7 +616,7 @@ class KubernetesComputeResourcesPatch(Object):
     def _on_config_changed(self, _):
         self._patch()
 
-    def _patch(self) -> None: # noqa: C901
+    def _patch(self) -> None:  # noqa: C901
         """Patch the Kubernetes resources created by Juju to limit cpu or mem.
 
         This method will keep on retrying to patch the kubernetes resource for a default duration of 20 seconds
@@ -666,8 +668,10 @@ class KubernetesComputeResourcesPatch(Object):
             if e.status.code == 403:
                 msg = f"Kubernetes resources patch failed: `juju trust` this application. {e}"
             elif e.status.code == 409:
-                msg = (f"Kubernetes resources patch failed: someone else (likely juju) "
-                       f"owns the resources you're trying to patch {e}")
+                msg = (
+                    f"Kubernetes resources patch failed: someone else (likely juju) "
+                    f"owns the resources you're trying to patch {e}"
+                )
             else:
                 msg = f"Kubernetes resources patch failed: {e}"
 

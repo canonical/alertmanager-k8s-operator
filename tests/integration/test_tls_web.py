@@ -29,8 +29,9 @@ def test_deploy(juju, charm_path: Path):
     juju.deploy("self-signed-certificates", CA_APP, channel="edge")
     juju.integrate(f"{AM_APP}:certificates", CA_APP)
     juju.wait(
-        lambda s: jubilant.all_active(s, AM_APP, CA_APP)
-        and jubilant.all_agents_idle(s, AM_APP, CA_APP),
+        lambda s: (
+            jubilant.all_active(s, AM_APP, CA_APP) and jubilant.all_agents_idle(s, AM_APP, CA_APP)
+        ),
         timeout=600,
         delay=30,
         successes=3,
@@ -81,8 +82,9 @@ def test_https_reachable(juju):
 def test_https_still_reachable_after_refresh(juju, charm_path: Path):
     juju.refresh(AM_APP, path=str(charm_path))
     juju.wait(
-        lambda s: jubilant.all_active(s, AM_APP, CA_APP)
-        and jubilant.all_agents_idle(s, AM_APP, CA_APP),
+        lambda s: (
+            jubilant.all_active(s, AM_APP, CA_APP) and jubilant.all_agents_idle(s, AM_APP, CA_APP)
+        ),
         timeout=600,
         delay=30,
         successes=3,

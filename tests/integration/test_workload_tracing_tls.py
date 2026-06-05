@@ -41,8 +41,9 @@ def deploy_all(juju, charm_path: Path):
     juju.deploy(SSC_APP, SSC_APP, channel="edge")
     all_apps = {AM_APP, SSC_APP} | tempo_apps
     juju.wait(
-        lambda status: jubilant.all_active(status, *all_apps)
-        and jubilant.all_agents_idle(status, *all_apps),
+        lambda status: (
+            jubilant.all_active(status, *all_apps) and jubilant.all_agents_idle(status, *all_apps)
+        ),
         timeout=900,
         delay=30,
         successes=3,
@@ -54,8 +55,10 @@ def deploy_all(juju, charm_path: Path):
 def relate_am_to_ssc(juju, deployed_apps):
     juju.integrate(f"{AM_APP}:certificates", SSC_APP)
     juju.wait(
-        lambda status: jubilant.all_active(status, *deployed_apps)
-        and jubilant.all_agents_idle(status, *deployed_apps),
+        lambda status: (
+            jubilant.all_active(status, *deployed_apps)
+            and jubilant.all_agents_idle(status, *deployed_apps)
+        ),
         timeout=300,
         delay=30,
         successes=3,
@@ -70,8 +73,10 @@ def relate_am_to_tempo(juju):
 @then("alertmanager and tempo reach active status")
 def wait_for_active(juju, deployed_apps):
     juju.wait(
-        lambda status: jubilant.all_active(status, *deployed_apps)
-        and jubilant.all_agents_idle(status, *deployed_apps),
+        lambda status: (
+            jubilant.all_active(status, *deployed_apps)
+            and jubilant.all_agents_idle(status, *deployed_apps)
+        ),
         timeout=300,
         delay=30,
         successes=3,

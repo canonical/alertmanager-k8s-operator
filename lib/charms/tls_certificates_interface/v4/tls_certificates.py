@@ -780,7 +780,7 @@ class CertificateSigningRequest:
         if x509_object:
             self._csr = x509_object
             return
-        elif raw:
+        if raw:
             try:
                 self._csr = x509.load_pem_x509_csr(raw.encode())
             except ValueError as e:
@@ -1878,7 +1878,7 @@ class TLSCertificatesRequiresV4(Object):
         """Return the unit or app object based on the mode."""
         if self.mode == Mode.UNIT:
             return self.model.unit
-        elif self.mode == Mode.APP:
+        if self.mode == Mode.APP:
             return self.model.app
         raise TLSCertificatesError("Invalid mode")
 
@@ -2147,7 +2147,7 @@ class TLSCertificatesRequiresV4(Object):
                 if provider_certificate.certificate.is_ca and not csr.is_ca:
                     logger.warning("Non CA certificate requested, got a CA certificate, ignoring")
                     continue
-                elif not provider_certificate.certificate.is_ca and csr.is_ca:
+                if not provider_certificate.certificate.is_ca and csr.is_ca:
                     logger.warning("CA certificate requested, got a non CA certificate, ignoring")
                     continue
                 if not provider_certificate.certificate.matches_private_key(self.private_key):
@@ -2299,19 +2299,17 @@ class TLSCertificatesRequiresV4(Object):
     def _get_private_key_secret_label(self) -> str:
         if self.mode == Mode.UNIT:
             return f"{LIBID}-private-key-{self._get_unit_number()}-{self.relationship_name}"
-        elif self.mode == Mode.APP:
+        if self.mode == Mode.APP:
             return f"{LIBID}-private-key-{self.relationship_name}"
-        else:
-            raise TLSCertificatesError("Invalid mode. Must be Mode.UNIT or Mode.APP.")
+        raise TLSCertificatesError("Invalid mode. Must be Mode.UNIT or Mode.APP.")
 
     def _get_csr_secret_label(self, csr: CertificateSigningRequest) -> str:
         csr_in_sha256_hex = csr.get_sha256_hex()
         if self.mode == Mode.UNIT:
             return f"{LIBID}-certificate-{self._get_unit_number()}-{csr_in_sha256_hex}"
-        elif self.mode == Mode.APP:
+        if self.mode == Mode.APP:
             return f"{LIBID}-certificate-{csr_in_sha256_hex}"
-        else:
-            raise TLSCertificatesError("Invalid mode. Must be Mode.UNIT or Mode.APP.")
+        raise TLSCertificatesError("Invalid mode. Must be Mode.UNIT or Mode.APP.")
 
     def _get_unit_number(self) -> str:
         return self.model.unit.name.split("/")[1]

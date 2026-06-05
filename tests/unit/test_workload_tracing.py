@@ -78,7 +78,6 @@ class TestConfigBuilderWorkloadTracing:
         assert "tracing" not in config
 
 
-
 _TRACING_HTTP_APP_DATA = json.dumps(
     [
         {
@@ -146,7 +145,9 @@ class TestWorkloadTracingScenario:
         # THEN the alertmanager config written to the container has no 'tracing' section
         container = state_out.get_container("alertmanager")
         config = yaml.safe_load(
-            container.get_filesystem(context).joinpath("etc/alertmanager/alertmanager.yml").read_text()
+            container.get_filesystem(context)
+            .joinpath("etc/alertmanager/alertmanager.yml")
+            .read_text()
         )
         assert "tracing" not in config
 
@@ -165,11 +166,15 @@ class TestWorkloadTracingScenario:
         # THEN the alertmanager config has a tracing section with the full URL, no tls_config
         container = state_out.get_container("alertmanager")
         config = yaml.safe_load(
-            container.get_filesystem(context).joinpath("etc/alertmanager/alertmanager.yml").read_text()
+            container.get_filesystem(context)
+            .joinpath("etc/alertmanager/alertmanager.yml")
+            .read_text()
         )
         assert "tracing" in config
         assert config["tracing"]["client_type"] == "http"
-        assert config["tracing"]["endpoint"] == "tempo-0.tempo-endpoints.cos.svc.cluster.local:4318"
+        assert (
+            config["tracing"]["endpoint"] == "tempo-0.tempo-endpoints.cos.svc.cluster.local:4318"
+        )
         assert config["tracing"]["insecure"] is True
         assert "tls_config" not in config["tracing"]
         assert "insecure" in config["tracing"]
@@ -190,10 +195,14 @@ class TestWorkloadTracingScenario:
         # not an insecure flag — TLS is verified via the system CA bundle
         container = state_out.get_container("alertmanager")
         config = yaml.safe_load(
-            container.get_filesystem(context).joinpath("etc/alertmanager/alertmanager.yml").read_text()
+            container.get_filesystem(context)
+            .joinpath("etc/alertmanager/alertmanager.yml")
+            .read_text()
         )
         assert "tracing" in config
-        assert config["tracing"]["endpoint"] == "tempo-0.tempo-endpoints.cos.svc.cluster.local:4318"
+        assert (
+            config["tracing"]["endpoint"] == "tempo-0.tempo-endpoints.cos.svc.cluster.local:4318"
+        )
         assert config["tracing"]["insecure"] is False
         assert "tls_config" in config["tracing"]
         assert "ca_file" in config["tracing"]["tls_config"]
@@ -212,7 +221,9 @@ class TestWorkloadTracingScenario:
         # Verify tracing is present before breaking
         container = state.get_container("alertmanager")
         config_before = yaml.safe_load(
-            container.get_filesystem(context).joinpath("etc/alertmanager/alertmanager.yml").read_text()
+            container.get_filesystem(context)
+            .joinpath("etc/alertmanager/alertmanager.yml")
+            .read_text()
         )
         assert "tracing" in config_before
 
@@ -226,6 +237,8 @@ class TestWorkloadTracingScenario:
         # THEN the tracing section is removed from the config
         container = state_out.get_container("alertmanager")
         config_after = yaml.safe_load(
-            container.get_filesystem(context).joinpath("etc/alertmanager/alertmanager.yml").read_text()
+            container.get_filesystem(context)
+            .joinpath("etc/alertmanager/alertmanager.yml")
+            .read_text()
         )
         assert "tracing" not in config_after

@@ -149,7 +149,7 @@ class AlertmanagerCharm(CharmBase):
             charm=self,
             source_type="alertmanager",
             source_url=self.ingress.url or self._service_url,
-            is_ingress_per_app=True, # We want only one alertmanager datasource (unit) to be listed in grafana.
+            is_ingress_per_app=True,  # We want only one alertmanager datasource (unit) to be listed in grafana.
             refresh_event=[
                 self.ingress.on.ready,
                 self.ingress.on.revoked,
@@ -676,7 +676,6 @@ class AlertmanagerCharm(CharmBase):
         if not self.workload_tracing.is_ready():
             return None
         return self.workload_tracing.get_endpoint("otlp_http")
-
 
     @property
     def _tls_config(self) -> Optional[TLSConfig]:

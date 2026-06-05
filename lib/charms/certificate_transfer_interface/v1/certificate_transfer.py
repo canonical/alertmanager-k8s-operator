@@ -480,12 +480,11 @@ class CertificateTransferProvides(Object):
             if relation.data.get(relation.app, {}).get("version", "0") == "1":
                 databag = relation.data[self.model.app]
                 return ProviderApplicationData().load(databag).certificates
-            else:
-                databag = relation.data[self.model.unit]
-                certs = ProviderUnitDataV0.load(databag).chain
-                if certs is None:
-                    return set()
-                return set(certs)
+            databag = relation.data[self.model.unit]
+            certs = ProviderUnitDataV0.load(databag).chain
+            if certs is None:
+                return set()
+            return set(certs)
         except DataValidationError as e:
             logger.error(
                 (

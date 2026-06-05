@@ -44,4 +44,3 @@ def charm_path() -> Path:
 
     subprocess.run(["charmcraft", "pack"], check=True)
     return sorted(Path(".").glob("*.charm"))[-1]
-

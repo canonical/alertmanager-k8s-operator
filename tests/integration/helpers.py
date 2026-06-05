@@ -139,21 +139,19 @@ def deploy_tempo_stack(juju: Juju) -> Set[str]:
     return {TEMPO_APP, TEMPO_WORKER_APP, SEAWEED_APP}
 
 
-@retry(wait=wait_exponential(multiplier=2, min=2, max=30), stop=stop_after_delay(300), reraise=True)
+@retry(
+    wait=wait_exponential(multiplier=2, min=2, max=30), stop=stop_after_delay(300), reraise=True
+)
 def assert_traces_in_tempo(tempo_ip: str, *, service_name: str) -> None:
     """Assert that Tempo contains at least one trace from the given service.
 
     Retried with exponential back-off for up to 5 minutes to account for span
     flush and ingestion lag.
     """
-    url = (
-        f"http://{tempo_ip}:{TEMPO_QUERY_PORT}/api/search"
-        f"?tags=service.name%3D{service_name}"
-    )
+    url = f"http://{tempo_ip}:{TEMPO_QUERY_PORT}/api/search?tags=service.name%3D{service_name}"
     with urllib.request.urlopen(url, timeout=10) as resp:
         data = json.loads(resp.read())
     traces = data.get("traces", [])
-    assert (
-        traces
-    ), f"No traces from '{service_name}' found in Tempo at {tempo_ip}:{TEMPO_QUERY_PORT}."
-
+    assert traces, (
+        f"No traces from '{service_name}' found in Tempo at {tempo_ip}:{TEMPO_QUERY_PORT}."
+    )

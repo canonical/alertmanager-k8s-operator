@@ -95,8 +95,10 @@ def test_deploy(juju, charm_path: Path, tester_charm_path: Path):
         trust=True,
     )
     juju.wait(
-        lambda s: jubilant.all_active(s, APP_NAME, TESTER_APP_NAME)
-        and jubilant.all_agents_idle(s, APP_NAME, TESTER_APP_NAME),
+        lambda s: (
+            jubilant.all_active(s, APP_NAME, TESTER_APP_NAME)
+            and jubilant.all_agents_idle(s, APP_NAME, TESTER_APP_NAME)
+        ),
         timeout=1000,
         delay=30,
         successes=3,
@@ -116,7 +118,9 @@ def test_remote_configuration_applied(juju):
         config_file_path="/etc/alertmanager/alertmanager.yml",
     )
     expected_config = _add_juju_details_to_alertmanager_config(TESTER_CHARM_CONFIG)
-    diff = DeepDiff(yaml.safe_load(actual_config), yaml.safe_load(expected_config), ignore_order=True)
+    diff = DeepDiff(
+        yaml.safe_load(actual_config), yaml.safe_load(expected_config), ignore_order=True
+    )
     assert diff == {}, f"Config mismatch: {diff}"
 
 
@@ -124,8 +128,7 @@ def test_local_config_causes_blocked(juju):
     juju.config(APP_NAME, {"config_file": "tests/integration/am_config.yaml"})
     juju.wait(
         lambda s: all(
-            u.workload_status.current == "blocked"
-            for u in s.apps[APP_NAME].units.values()
+            u.workload_status.current == "blocked" for u in s.apps[APP_NAME].units.values()
         ),
         timeout=1000,
         delay=30,

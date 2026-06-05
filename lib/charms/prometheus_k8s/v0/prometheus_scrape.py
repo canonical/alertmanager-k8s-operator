@@ -667,7 +667,12 @@ class PrometheusConfig:
                         _, unit_path, _ = hosts.get(unit_name, ("", "", ""))
                         modified_scrape_jobs.append(
                             PrometheusConfig._build_per_unit_job(
-                                job, static_config, unit_targets_list, unit_name, unit_path, topology
+                                job,
+                                static_config,
+                                unit_targets_list,
+                                unit_name,
+                                unit_path,
+                                topology,
                             )
                         )
 
@@ -679,7 +684,12 @@ class PrometheusConfig:
                         ]
                         modified_scrape_jobs.append(
                             PrometheusConfig._build_per_unit_job(
-                                job, static_config, resolved_targets, unit_name, unit_path, topology
+                                job,
+                                static_config,
+                                resolved_targets,
+                                unit_name,
+                                unit_path,
+                                topology,
                             )
                         )
 
@@ -1707,12 +1717,14 @@ class MetricsEndpointProvider(Object):
                 unit_fqdn = unit_address
                 path = ""
 
-            relation.data[self._charm.unit].update({
-                "prometheus_scrape_unit_address": unit_address,
-                "prometheus_scrape_unit_path": path,
-                "prometheus_scrape_unit_name": str(self._charm.model.unit.name),
-                "prometheus_scrape_unit_fqdn": unit_fqdn,
-            })
+            relation.data[self._charm.unit].update(
+                {
+                    "prometheus_scrape_unit_address": unit_address,
+                    "prometheus_scrape_unit_path": path,
+                    "prometheus_scrape_unit_name": str(self._charm.model.unit.name),
+                    "prometheus_scrape_unit_fqdn": unit_fqdn,
+                }
+            )
 
     def _is_valid_unit_address(self, address: str) -> bool:
         """Validate a unit address.
@@ -1824,6 +1836,7 @@ class PrometheusRulesProvider(Object):
                 alert_rules_as_dict,
                 sort_keys=True,  # sort, to prevent unnecessary relation_changed events
             )
+
 
 class CosTool:
     """Uses cos-tool to inject label matchers into alert rule expressions and validate rules."""

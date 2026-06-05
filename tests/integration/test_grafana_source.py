@@ -30,8 +30,10 @@ def test_deploy(juju, charm_path: Path):
     juju.deploy("grafana-k8s", GRAFANA_APP, channel="dev/edge", trust=True)
     juju.integrate(f"{GRAFANA_APP}:grafana-source", AM_APP)
     juju.wait(
-        lambda s: jubilant.all_active(s, AM_APP, GRAFANA_APP)
-        and jubilant.all_agents_idle(s, AM_APP, GRAFANA_APP),
+        lambda s: (
+            jubilant.all_active(s, AM_APP, GRAFANA_APP)
+            and jubilant.all_agents_idle(s, AM_APP, GRAFANA_APP)
+        ),
         timeout=600,
         delay=30,
         successes=3,
@@ -61,8 +63,10 @@ def test_deploy_traefik_and_integrate(juju):
     juju.deploy("traefik-k8s", TRAEFIK_APP, channel="edge", trust=True)
     juju.integrate(f"{TRAEFIK_APP}:ingress", AM_APP)
     juju.wait(
-        lambda s: jubilant.all_active(s, AM_APP, GRAFANA_APP, TRAEFIK_APP)
-        and jubilant.all_agents_idle(s, AM_APP, GRAFANA_APP, TRAEFIK_APP),
+        lambda s: (
+            jubilant.all_active(s, AM_APP, GRAFANA_APP, TRAEFIK_APP)
+            and jubilant.all_agents_idle(s, AM_APP, GRAFANA_APP, TRAEFIK_APP)
+        ),
         timeout=600,
         delay=30,
         successes=3,

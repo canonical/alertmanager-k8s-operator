@@ -29,8 +29,10 @@ def test_deploy(juju, charm_path: Path):
     )
     juju.deploy("loki-k8s", LOKI_APP, channel="dev/edge", trust=True)
     juju.wait(
-        lambda s: jubilant.all_active(s, APP_NAME, LOKI_APP)
-        and jubilant.all_agents_idle(s, APP_NAME, LOKI_APP),
+        lambda s: (
+            jubilant.all_active(s, APP_NAME, LOKI_APP)
+            and jubilant.all_agents_idle(s, APP_NAME, LOKI_APP)
+        ),
         timeout=600,
         delay=30,
         successes=3,
@@ -40,8 +42,10 @@ def test_deploy(juju, charm_path: Path):
 def test_logging_integration(juju):
     juju.integrate(f"{APP_NAME}:logging", f"{LOKI_APP}:logging")
     juju.wait(
-        lambda s: jubilant.all_active(s, APP_NAME, LOKI_APP)
-        and jubilant.all_agents_idle(s, APP_NAME, LOKI_APP),
+        lambda s: (
+            jubilant.all_active(s, APP_NAME, LOKI_APP)
+            and jubilant.all_agents_idle(s, APP_NAME, LOKI_APP)
+        ),
         timeout=300,
         delay=30,
         successes=3,

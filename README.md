@@ -207,3 +207,25 @@ the [official Alertmanager documentation](https://www.prometheus.io/docs/alertin
   a tutorial for running Prometheus, Grafana and Alertmanager with LXD.
 - [Alertmanager README](https://github.com/prometheus/alertmanager)
 - [PromCon 2018: Life of an Alert](https://youtube.com/watch?v=PUdjca23Qa4)
+
+<!-- BEGIN_TF_DOCS -->
+## Requirements
+
+No requirements.
+
+## Providers
+
+No providers.
+
+## Modules
+
+No modules.
+
+## Inputs
+
+No inputs.
+
+## Outputs
+
+No outputs.
+<!-- END_TF_DOCS -->
