@@ -33,7 +33,7 @@ assumes:
   - juju >= 3.6
 
 platforms:
-  ubuntu@24.04:amd64:
+  ubuntu@26.04:amd64:
 
 parts:
   charm:
@@ -180,7 +180,7 @@ resources:
       OCI image for alertmanager. This charms makes the following assumptions about the image:
       - location of executable "alertmanager" is in the path
       - has `update-ca-certificates`
-    upstream-source: ubuntu/alertmanager@sha256:ce3060fdfe05fc923f21e3271bf98397f497bd3b5733dded77ccac9795672b24  # renovate: oci-image tag: 0.31-24.04
+    upstream-source: ubuntu/alertmanager@sha256:6d137784294d137394683ec56519eafce6d0bd91c4c62439197bb1c898d1a76e  # renovate: oci-image tag: 0.31-26.04
 
 config:
   options:

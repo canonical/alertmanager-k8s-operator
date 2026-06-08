@@ -38,7 +38,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 3
+LIBPATCH = 4
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class ConfigReadError(Exception):
 def config_main_keys_are_valid(config: Optional[dict]) -> bool:
     """Checks whether main keys in the Alertmanager's config file are valid.
 
-    This method facilitates the basic sanity check of Alertmanager's configuration. It checks
+    This method facilitates the basic confidence check of Alertmanager's configuration. It checks
     whether given configuration contains only allowed main keys or not. `templates` have been
     removed from the list of allowed main keys to reflect the fact that `alertmanager-k8s` doesn't
     accept it as part of config (see `alertmanager-k8s` description for more details).
@@ -408,7 +408,7 @@ class RemoteConfigurationProvider(Object):
     def update_relation_data_bag(self, alertmanager_config: Optional[dict]) -> None:
         """Updates relation data bag with Alertmanager config and templates.
 
-        Before updating relation data bag, basic sanity check of given configuration is done.
+        Before updating relation data bag, basic confidence check of given configuration is done.
 
         Args:
             alertmanager_config: Alertmanager configuration dictionary.
