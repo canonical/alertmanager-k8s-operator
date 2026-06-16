@@ -93,7 +93,7 @@ To verify Alertmanager is using the expected configuration you can use the
 [`show-config`](https://charmhub.io/alertmanager-k8s/actions#show-config) action:
 
 ```shell
-juju run-action alertmanager-k8s/0 show-config --wait
+juju run alertmanager-k8s/0 show-config
 ```
 
 
