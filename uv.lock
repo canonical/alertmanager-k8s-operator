@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.8, <4"
 resolution-markers = [
     "python_full_version >= '3.11'",
@@ -1247,9 +1247,10 @@ wheels = [
 
 [[package]]
 name = "lightkube-extensions"
-version = "0.0.1"
-source = { git = "https://github.com/canonical/lightkube-extensions.git?rev=main#f82588c9f9b981fef931cc06441fd8df6e162fee" }
+version = "999.999.999"
+source = { git = "https://github.com/canonical/lightkube-extensions.git?rev=main#37b32d699dffe9e1f796d5d8e431fd57849c248e" }
 dependencies = [
+    { name = "charmed-service-mesh-helpers" },
     { name = "jinja2" },
     { name = "lightkube" },
 ]
