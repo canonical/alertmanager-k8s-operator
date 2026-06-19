@@ -9,12 +9,23 @@ import subprocess
 from pathlib import Path
 
 import jubilant
+import lightkube
 import pytest
-from helpers import ALERTMANAGER_IMAGE, is_alertmanager_up
+import yaml
+from helpers import (
+    ALERTMANAGER_IMAGE,
+    assert_security_context,
+    generate_container_securitycontext_map,
+    get_pod_names,
+    is_alertmanager_up,
+)
 
 logger = logging.getLogger(__name__)
 
 AM_APP = "alertmanager"
+
+METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
+CONTAINERS_SECURITY_CONTEXT_MAP = generate_container_securitycontext_map(METADATA)
 
 
 @pytest.mark.juju_setup
@@ -30,6 +41,20 @@ def test_deploy(juju, charm_path: Path):
         timeout=1000,
         delay=30,
         successes=3,
+    )
+
+
+@pytest.mark.parametrize("container_name", list(CONTAINERS_SECURITY_CONTEXT_MAP.keys()))
+def test_container_security_context(juju, container_name: str):
+    """Test that container security context has the correct UID/GID set."""
+    lightkube_client = lightkube.Client()
+    pod_name = get_pod_names(juju.model, AM_APP)[0]
+    assert_security_context(
+        lightkube_client,
+        pod_name,
+        container_name,
+        CONTAINERS_SECURITY_CONTEXT_MAP,
+        juju.model,
     )
 
 

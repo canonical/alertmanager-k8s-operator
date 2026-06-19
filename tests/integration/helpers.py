@@ -8,12 +8,14 @@ import logging
 import subprocess
 import urllib.request
 from pathlib import Path
-from typing import Set
+from typing import Dict, List, Optional, Set, TypedDict
 from urllib.parse import urlparse
 
+import lightkube
 import requests
 import yaml
 from jubilant import Juju
+from lightkube.resources.core_v1 import Pod
 from requests.auth import HTTPBasicAuth
 from tenacity import retry, stop_after_delay, wait_exponential
 
@@ -156,4 +158,69 @@ def assert_traces_in_tempo(tempo_ip: str, *, service_name: str) -> None:
     assert (
         traces
     ), f"No traces from '{service_name}' found in Tempo at {tempo_ip}:{TEMPO_QUERY_PORT}."
+
+
+# ---------------------------------------------------------------------------
+# Security context helpers
+# ---------------------------------------------------------------------------
+
+
+class ContainerSecurityContext(TypedDict):
+    """TypedDict representing Kubernetes container security context settings."""
+
+    runAsUser: Optional[int]  # noqa: N815
+    runAsGroup: Optional[int]  # noqa: N815
+
+
+def generate_container_securitycontext_map(
+    metadata_yaml: dict, juju_user_id: int = 170
+) -> "dict[str, ContainerSecurityContext]":
+    """Generate a mapping of container names to their expected security context UID/GID."""
+    c_uid_map: "dict[str, ContainerSecurityContext]" = {}
+    for k, v in metadata_yaml.get("containers", {}).items():
+        c_uid_map[k] = ContainerSecurityContext(
+            runAsUser=v["uid"],
+            runAsGroup=v["gid"],
+        )
+    c_uid_map["charm"] = ContainerSecurityContext(
+        runAsUser=juju_user_id, runAsGroup=juju_user_id
+    )
+    return c_uid_map
+
+
+def get_pod_names(model: str, application_name: str) -> "list[str]":
+    """Retrieve names of all pods belonging to a specific Juju application."""
+    cmd = [
+        "kubectl",
+        "get",
+        "pods",
+        f"-n{model}",
+        f"-lapp.kubernetes.io/name={application_name}",
+        "--no-headers",
+        "-o=custom-columns=NAME:.metadata.name",
+    ]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE)
+    stdout = proc.stdout.decode("utf8")
+    return stdout.split()
+
+
+def assert_security_context(
+    lightkube_client: lightkube.Client,
+    pod_name: str,
+    container_name: str,
+    container_securitycontext_map: Dict[str, ContainerSecurityContext],
+    model_name: str,
+) -> None:
+    """Assert that a container's security context matches expected UID/GID settings."""
+    pod = lightkube_client.get(Pod, pod_name, namespace=model_name)
+    assert pod.spec is not None, f"Pod '{pod_name}' has no spec"
+    containers: List = pod.spec.containers or []
+    container = next((c for c in containers if c.name == container_name), None)
+    assert container is not None, f"Container '{container_name}' not found in pod '{pod_name}'"
+    security_context = container.securityContext
+    for key, value in container_securitycontext_map.get(container_name, {}).items():
+        assert getattr(security_context, key) == value, (
+            f"Container '{container_name}': expected {key}={value}, "
+            f"got {getattr(security_context, key)}"
+        )
 
