@@ -173,7 +173,7 @@ class ContainerSecurityContext(TypedDict):
 
 
 def generate_container_securitycontext_map(
-    metadata_yaml: dict, juju_user_id: int = 170
+    metadata_yaml: dict, juju_user_id: int = 171
 ) -> "dict[str, ContainerSecurityContext]":
     """Generate a mapping of container names to their expected security context UID/GID."""
     c_uid_map: "dict[str, ContainerSecurityContext]" = {}

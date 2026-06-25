@@ -94,8 +94,10 @@ class AlertmanagerCharm(CharmBase):
 
     _server_cert_path = "/etc/alertmanager/alertmanager.cert.pem"
     _key_path = "/etc/alertmanager/alertmanager.key.pem"
-    _ca_cert_path = "/usr/local/share/ca-certificates/cos-ca.crt"
-    _recv_ca_cert_folder_path = "/usr/local/share/ca-certificates/juju_receive-ca-cert"
+    _certs_folder = "/usr/local/share/ca-certificates"
+    _ca_cert_path = f"{_certs_folder}/cos-ca.crt"
+    _local_cert_path = f"./certs"
+    _recv_ca_cert_folder_path = f"{_certs_folder}/juju_receive-ca-cert"
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -223,6 +225,8 @@ class AlertmanagerCharm(CharmBase):
             for hostname in self._get_peer_hostnames(include_this_unit=False)
         ]
 
+        ca_cert_path = Path(self._local_cert_path) / Path(self._ca_cert_path).name
+
         self.alertmanager_workload = WorkloadManager(
             self,
             container_name=self._container_name,
@@ -234,7 +238,7 @@ class AlertmanagerCharm(CharmBase):
             config_path=self._config_path,
             web_config_path=self._web_config_path,
             tls_enabled=lambda: self._tls_available,
-            cafile=self._ca_cert_path if Path(self._ca_cert_path).exists() else None,
+            cafile=ca_cert_path if ca_cert_path.exists() else None,
         )
         self.framework.observe(
             # The workload manager too observes pebble ready, but still need this here because
@@ -617,7 +621,7 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _update_ca_certs(self):
-        ca_cert_path = Path(self._ca_cert_path)
+        ca_cert_path = Path(self._local_cert_path) / Path(self._ca_cert_path).name
         if tls_config := self._tls_config:
             ca_cert_path.parent.mkdir(exist_ok=True, parents=True)
             ca_cert_path.write_text(tls_config.ca_cert)
@@ -625,7 +629,7 @@ class AlertmanagerCharm(CharmBase):
             ca_cert_path.unlink(missing_ok=True)
 
         # Handle certificates received via the receive-ca-cert relation
-        recv_ca_folder = Path(self._recv_ca_cert_folder_path)
+        recv_ca_folder =  Path(self._local_cert_path) / Path(self._recv_ca_cert_folder_path).name
         ca_certs = self._cert_transfer.get_all_certificates()
 
         # Workload container: clean up and write current certs

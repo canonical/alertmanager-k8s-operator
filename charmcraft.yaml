@@ -44,26 +44,6 @@ parts:
     override-build: |
       craftctl default
       git describe --always > $CRAFT_PART_INSTALL/version
-    override-prime: |
-      craftctl default
-      # Allow the non-root charm user (uid/gid 170) to write CA certificates
-      # and run update-ca-certificates in the charm container.
-      # Paths written by the charm directly (not via Pebble):
-      #   /usr/local/share/ca-certificates/ -- cert files from tls/receive-ca-cert relations
-      #   /etc/ssl/certs/                   -- updated by update-ca-certificates --fresh
-      #   /etc/ca-certificates.conf         -- updated by update-ca-certificates --fresh
-      CHARM_UID=170
-      CHARM_GID=170
-      mkdir -p "$CRAFT_PRIME/usr/local/share/ca-certificates"
-      chown ${CHARM_UID}:${CHARM_GID} "$CRAFT_PRIME/usr/local/share/ca-certificates"
-      chmod 755 "$CRAFT_PRIME/usr/local/share/ca-certificates"
-      if [ -d "$CRAFT_PRIME/etc/ssl/certs" ]; then
-        chown ${CHARM_UID}:${CHARM_GID} "$CRAFT_PRIME/etc/ssl/certs"
-        chmod 755 "$CRAFT_PRIME/etc/ssl/certs"
-      fi
-      if [ -f "$CRAFT_PRIME/etc/ca-certificates.conf" ]; then
-        chown ${CHARM_UID}:${CHARM_GID} "$CRAFT_PRIME/etc/ca-certificates.conf"
-      fi
 
 charm-user: sudoer
 
