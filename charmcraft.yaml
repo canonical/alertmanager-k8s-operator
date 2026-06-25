@@ -33,7 +33,7 @@ assumes:
   - juju >= 3.6
 
 platforms:
-  ubuntu@26.04:amd64:
+  ubuntu@24.04:amd64:
 
 parts:
   charm:
@@ -65,7 +65,7 @@ parts:
         chown ${CHARM_UID}:${CHARM_GID} "$CRAFT_PRIME/etc/ca-certificates.conf"
       fi
 
-charm-user: non-root
+charm-user: sudoer
 
 containers:
   alertmanager:  # container key used by pebble

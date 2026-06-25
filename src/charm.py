@@ -648,7 +648,7 @@ class AlertmanagerCharm(CharmBase):
         # Workload container
         self.container.exec(["update-ca-certificates", "--fresh"], timeout=30).wait()
         # Charm container
-        subprocess.run(["update-ca-certificates", "--fresh"], check=True)
+        subprocess.run(["sudo","update-ca-certificates", "--fresh"], check=True)
 
     def _get_peer_hostnames(self, include_this_unit=True) -> List[str]:
         """Returns a list of the hostnames of the peer units.
