@@ -238,7 +238,7 @@ class AlertmanagerCharm(CharmBase):
             config_path=self._config_path,
             web_config_path=self._web_config_path,
             tls_enabled=lambda: self._tls_available,
-            cafile=ca_cert_path if ca_cert_path.exists() else None,
+            cafile=str(ca_cert_path) if ca_cert_path.exists() else None,
         )
         self.framework.observe(
             # The workload manager too observes pebble ready, but still need this here because
