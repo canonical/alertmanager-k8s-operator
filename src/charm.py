@@ -96,7 +96,7 @@ class AlertmanagerCharm(CharmBase):
     _key_path = "/etc/alertmanager/alertmanager.key.pem"
     _certs_folder = "/usr/local/share/ca-certificates"
     _ca_cert_path = f"{_certs_folder}/cos-ca.crt"
-    _local_cert_path = f"./certs"
+    _local_cert_path = "./certs"
     _recv_ca_cert_folder_path = f"{_certs_folder}/juju_receive-ca-cert"
 
     def __init__(self, *args):
