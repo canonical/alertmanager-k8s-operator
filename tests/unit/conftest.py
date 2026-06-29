@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 from unittest.mock import patch
 
 import pytest
@@ -29,20 +30,26 @@ def tautology(*_, **__) -> bool:
 
 @pytest.fixture(autouse=True)
 def alertmanager_charm():
-    with patch("lightkube.core.client.GenericSyncClient"), patch.multiple(
-        "charm.KubernetesComputeResourcesPatch",
-        _namespace="test-namespace",
-        _patch=tautology,
-        is_ready=tautology,
-    ), patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", "")), patch.object(
-        WorkloadManager, "reload", lambda *a, **kw: None
-    ), patch(
-        "alertmanager.Alertmanager.config", lambda *a, **kw: {}
-    ), patch(
-        "alertmanager.Alertmanager.status", lambda *a, **kw: {}
-    ), patch.object(
-        WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0")
-    ), patch("subprocess.run"):
+    with ExitStack() as stack:
+        stack.enter_context(patch("lightkube.core.client.GenericSyncClient"))
+        stack.enter_context(
+            patch.multiple(
+                "charm.KubernetesComputeResourcesPatch",
+                _namespace="test-namespace",
+                _patch=tautology,
+                is_ready=tautology,
+            )
+        )
+        stack.enter_context(
+            patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
+        )
+        stack.enter_context(patch.object(WorkloadManager, "reload", lambda *a, **kw: None))
+        stack.enter_context(
+            patch.object(
+                WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0")
+            )
+        )
+        stack.enter_context(patch("subprocess.run"))
         yield AlertmanagerCharm
 
 
