@@ -221,6 +221,7 @@ class AlertmanagerCharm(CharmBase):
             api_port=self.api_port,
             ha_port=self._ports.ha,
             web_external_url=self._external_url,
+            web_internal_url=self._internal_url,
             web_route_prefix="/",
             config_path=self._config_path,
             web_config_path=self._web_config_path,
@@ -510,7 +511,7 @@ class AlertmanagerCharm(CharmBase):
 
         # Update config file
         try:
-            self.alertmanager_workload.update_config(self._render_manifest())
+            config_changed = self.alertmanager_workload.update_config(self._render_manifest())
         except (ConfigUpdateFailure, ConfigError) as e:
             self.unit.status = BlockedStatus(str(e))
             return
@@ -518,12 +519,13 @@ class AlertmanagerCharm(CharmBase):
         # Update pebble layer
         self.alertmanager_workload.update_layer()
 
-        # Reload or restart the service
-        try:
-            self.alertmanager_workload.reload()
-        except ConfigUpdateFailure as e:
-            self.unit.status = BlockedStatus(str(e))
-            return
+        # Reload or restart the service only if config changed
+        if config_changed:
+            try:
+                self.alertmanager_workload.reload()
+            except ConfigUpdateFailure as e:
+                self.unit.status = BlockedStatus(str(e))
+                return
 
         self.catalog.update_item(item=self._catalogue_item)
 

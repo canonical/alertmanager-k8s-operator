@@ -104,8 +104,8 @@ class ConfigBuilder:
         # The special value '...' disables aggregation entirely. Do not add topology in that case.
         # Ref: https://prometheus.io/docs/alerting/latest/configuration/#route
         if group_by != {"..."}:
-            group_by = list(group_by.union(["juju_application", "juju_model", "juju_model_uuid"]))
-        route["group_by"] = list(group_by)
+            group_by = group_by.union(["juju_application", "juju_model", "juju_model_uuid"])
+        route["group_by"] = sorted(group_by)
         config["route"] = route
         return yaml.safe_dump(config)
 

@@ -15,6 +15,7 @@ from ops.pebble import (  # type: ignore
     ChangeError,
     ExecError,
     Layer,
+    PathError,
 )
 
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
@@ -52,6 +53,24 @@ class ConfigFileSystemState:
             else:
                 container.push(filepath, content, make_dirs=True)
 
+    def has_changes(self, container: Container) -> bool:
+        """Return True if any file in the manifest differs from what's in the container."""
+        for filepath, content in self._manifest.items():
+            try:
+                existing = container.pull(filepath).read()
+            except PathError:
+                existing = None
+
+            if content is None:
+                # File should be removed; check if it still exists.
+                if existing is not None:
+                    return True
+            else:
+                # File should exist with given content; check if it differs.
+                if existing != content:
+                    return True
+        return False
+
 
 class WorkloadManagerError(Exception):
     """Base class for exceptions raised by WorkloadManager."""
@@ -84,6 +103,7 @@ class WorkloadManager(Object):
         api_port: int,
         ha_port: int,
         web_external_url: str,
+        web_internal_url: str,
         web_route_prefix: str,
         config_path: str,
         web_config_path: str,
@@ -102,7 +122,7 @@ class WorkloadManager(Object):
 
         self._api_port = api_port
         self._ha_port = ha_port
-        self.api = Alertmanager(endpoint_url=web_external_url, cafile=cafile)
+        self.api = Alertmanager(endpoint_url=web_internal_url, cafile=cafile)
         self._web_external_url = web_external_url
         self._web_route_prefix = web_route_prefix
         self._config_path = config_path
@@ -244,17 +264,21 @@ class WorkloadManager(Object):
                 str(e),
             )
 
-    def update_config(self, manifest: ConfigFileSystemState) -> None:
+    def update_config(self, manifest: ConfigFileSystemState) -> bool:
         """Update alertmanager config files to reflect changes in configuration.
 
-        After pushing a new config, a hot-reload is attempted. If hot-reload fails, the service is
-        restarted.
+        Returns:
+            True if any config file was changed; False otherwise.
 
         Raises:
           ConfigUpdateFailure, if failed to update configuration file.
         """
         if not self.is_ready:
             raise ContainerNotReady("cannot update config")
+
+        if not manifest.has_changes(self._container):
+            logger.debug("no config changes to apply")
+            return False
 
         logger.debug("applying config changes")
         manifest.apply(self._container)
@@ -264,6 +288,8 @@ class WorkloadManager(Object):
             self.check_config()
         except WorkloadManagerError as e:
             raise ConfigUpdateFailure("Failed to validate config (run check-config action)") from e
+
+        return True
 
     def restart_service(self) -> bool:
         """Helper function for restarting the underlying service.
