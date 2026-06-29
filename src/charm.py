@@ -24,7 +24,7 @@ from charms.certificate_transfer_interface.v1.certificate_transfer import (
     CertificateTransferRequires,
 )
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
-from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
+from charms.grafana_k8s.v1.grafana_source import GrafanaSourceProvider
 from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshConsumer, UnitPolicy
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
@@ -148,8 +148,7 @@ class AlertmanagerCharm(CharmBase):
         self.grafana_source_provider = GrafanaSourceProvider(
             charm=self,
             source_type="alertmanager",
-            source_url=self.ingress.url or self._service_url,
-            is_ingress_per_app=True, # We want only one alertmanager datasource (unit) to be listed in grafana.
+            app_datasource_url=self.ingress.url or self._service_url,
             refresh_event=[
                 self.ingress.on.ready,
                 self.ingress.on.revoked,
@@ -540,7 +539,7 @@ class AlertmanagerCharm(CharmBase):
         #  - https://github.com/canonical/prometheus-k8s-operator/issues/530,
         self.alertmanager_provider.update(external_url=self._internal_url)
 
-        self.grafana_source_provider.update_source(self._external_url)
+        self.grafana_source_provider.update_app_source(self.ingress.url or self._service_url)
 
         self.ingress.provide_ingress_requirements(scheme=self._scheme, port=self.api_port)
         self._scraping.update_scrape_job_spec(self.self_scraping_job)
