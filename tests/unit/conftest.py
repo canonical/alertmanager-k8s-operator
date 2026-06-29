@@ -4,7 +4,7 @@ import pytest
 from charms.tempo_coordinator_k8s.v0.charm_tracing import charm_tracing_disabled
 from ops.testing import Context
 
-from alertmanager import Alertmanager, WorkloadManager
+from alertmanager import WorkloadManager
 from src.charm import AlertmanagerCharm
 
 
