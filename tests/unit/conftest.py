@@ -4,7 +4,7 @@ import pytest
 from charms.tempo_coordinator_k8s.v0.charm_tracing import charm_tracing_disabled
 from ops.testing import Context
 
-from src.alertmanager import WorkloadManager
+from alertmanager import Alertmanager, WorkloadManager
 from src.charm import AlertmanagerCharm
 
 
@@ -35,6 +35,12 @@ def alertmanager_charm():
         _patch=tautology,
         is_ready=tautology,
     ), patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", "")), patch.object(
+        WorkloadManager, "reload", lambda *a, **kw: None
+    ), patch(
+        "alertmanager.Alertmanager.config", lambda *a, **kw: {}
+    ), patch(
+        "alertmanager.Alertmanager.status", lambda *a, **kw: {}
+    ), patch.object(
         WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0")
     ), patch("subprocess.run"):
         yield AlertmanagerCharm
