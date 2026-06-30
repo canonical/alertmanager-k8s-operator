@@ -23,7 +23,10 @@ class TestWithInitialHooks(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
 
         self.harness.set_leader(True)
-        self.app_name = "am"
+        # The "replicas" peer relation's remote app is this charm's own app; using a name
+        # other than the real app name makes Harness emit a "Remote unit name invalid"
+        # UserWarning (an error under -W error).
+        self.app_name = "alertmanager-k8s"
         # Create the peer relation before running harness.begin_with_initial_hooks(), because
         # otherwise it will create it for you and we don't know the rel_id
         self.peer_rel_id = self.harness.add_relation("replicas", self.app_name)

@@ -26,6 +26,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import ops.charm
+import pydantic
 from ops.charm import CharmBase, RelationJoinedEvent, RelationRole
 from ops.framework import EventBase, EventSource, Object, ObjectEvents, StoredState
 from pydantic import BaseModel, ValidationError
@@ -38,7 +39,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 9
+LIBPATCH = 10
 
 PYDEPS = ["pydantic < 2"]
 
@@ -47,19 +48,46 @@ INTERFACE_NAME = "karma_dashboard"
 
 logger = logging.getLogger(__name__)
 
+# This library was written against pydantic v1, but charms that vendor it may install
+# pydantic v2 (it is a transitive dependency of several common charm libs). Under v2 the
+# v1-style class-based `Config` raises ``PydanticDeprecatedSince20``, which a charm running
+# its tests under ``-W error`` would surface as a hard error at import time.
+PYDANTIC_V2 = int(pydantic.version.VERSION.split(".")[0]) >= 2
 
-class _KarmaDashboardProviderUnitDataV0(BaseModel):
-    name: str
-    uri: str
-    cluster: str = ""
-    proxy: bool = True
 
-    class Config:
-        json_encoders = {
-            # We need this because relation data values must be strings, not <class 'bool'>
-            # Note: In pydantic>=2, can use `field_serializer`.
-            bool: lambda v: "true" if v else "false"
-        }
+def _model_dump(model: BaseModel) -> Dict[str, Any]:
+    """Dump a pydantic model to a dict, across pydantic v1 and v2."""
+    return model.model_dump() if PYDANTIC_V2 else model.dict()
+
+
+if PYDANTIC_V2:
+
+    class _KarmaDashboardProviderUnitDataV0(BaseModel):
+        name: str
+        uri: str
+        cluster: str = ""
+        proxy: bool = True
+
+        # Under pydantic v1 the ``Config.json_encoders`` below coerced ``bool`` to the
+        # ``"true"``/``"false"`` strings that relation data requires. That coercion is only
+        # consulted by ``.json()``, which this library never calls -- callers convert ``proxy``
+        # to a string explicitly (see ``_set_alertmanager_data``) -- so under v2 no custom
+        # serializer config is needed, and omitting it avoids the deprecated class-based config.
+
+else:
+
+    class _KarmaDashboardProviderUnitDataV0(BaseModel):  # type: ignore[no-redef]
+        name: str
+        uri: str
+        cluster: str = ""
+        proxy: bool = True
+
+        class Config:
+            json_encoders = {
+                # We need this because relation data values must be strings, not <class 'bool'>
+                # Note: In pydantic>=2, can use `field_serializer`.
+                bool: lambda v: "true" if v else "false"
+            }
 
 
 class KarmaAlertmanagerConfigChanged(EventBase):
@@ -212,7 +240,7 @@ class KarmaConsumer(RelationManagerBase):
                         )
                     else:
                         # Now convert relation data into config file format. Luckily it's trivial.
-                        config = data.dict()
+                        config = _model_dump(data)
                         if config and config not in servers:
                             servers.append(config)
 
@@ -328,8 +356,7 @@ class KarmaProvider(RelationManagerBase):
             cluster=f"{self.charm.model.name}_{self.charm.app.name}",
             proxy=True,
         )
-        # TODO Use `data.model_dump()` when we switch to pydantic 2
-        as_dict = data.dict()
+        as_dict = _model_dump(data)
         # Replace bool with str, otherwise:
         # ops.model.RelationDataTypeError: relation data values must be strings, not <class 'bool'>
         as_dict["proxy"] = "true" if as_dict["proxy"] else "false"
