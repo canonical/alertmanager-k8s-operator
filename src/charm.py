@@ -375,20 +375,20 @@ class AlertmanagerCharm(CharmBase):
         filepaths = self._render_manifest().manifest.keys()
 
         try:
-            results = [
-                {
-                    "path": filepath,
-                    "content": str(self.container.pull(filepath).read()),
-                }
-                for filepath in filepaths
-                if self.container.exists(filepath)
-            ]
-            content = self.container.pull(self._config_path)
+            results = []
+            for filepath in filepaths:
+                if self.container.exists(filepath):
+                    # Close the pulled file handle promptly; otherwise it is left for the
+                    # garbage collector, which emits a ResourceWarning (an error under -W error).
+                    with self.container.pull(filepath) as f:
+                        results.append({"path": filepath, "content": str(f.read())})
+            with self.container.pull(self._config_path) as content:
+                config_content = str(content.read())
             # juju requires keys to be lowercase alphanumeric (can't use self._config_path)
             event.set_results(
                 {
                     "path": self._config_path,
-                    "content": str(content.read()),
+                    "content": config_content,
                     # This already includes the above, but keeping both for backwards compat.
                     "configs": str(results),
                 }

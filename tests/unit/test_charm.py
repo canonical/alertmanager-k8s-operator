@@ -84,9 +84,8 @@ class TestWithInitialHooks(unittest.TestCase):
     def test_topology_added_if_user_provided_config_without_group_by(self, *unused):
         new_config = yaml.dump({"not a real config": "but good enough for testing"})
         self.harness.update_config({"config_file": new_config})
-        updated_config = yaml.safe_load(
-            self.harness.charm.container.pull(self.harness.charm._config_path)
-        )
+        with self.harness.charm.container.pull(self.harness.charm._config_path) as f:
+            updated_config = yaml.safe_load(f)
 
         self.assertEqual(updated_config["not a real config"], "but good enough for testing")
         self.assertListEqual(
@@ -100,9 +99,8 @@ class TestWithInitialHooks(unittest.TestCase):
     def test_topology_added_if_user_provided_config_with_group_by(self, *unused):
         new_config = yaml.dump({"route": {"group_by": ["alertname", "juju_model"]}})
         self.harness.update_config({"config_file": new_config})
-        updated_config = yaml.safe_load(
-            self.harness.charm.container.pull(self.harness.charm._config_path)
-        )
+        with self.harness.charm.container.pull(self.harness.charm._config_path) as f:
+            updated_config = yaml.safe_load(f)
 
         self.assertListEqual(
             sorted(updated_config["route"]["group_by"]),
@@ -119,9 +117,8 @@ class TestWithInitialHooks(unittest.TestCase):
         """
         new_config = yaml.dump({"route": {"group_by": ["..."]}})
         self.harness.update_config({"config_file": new_config})
-        updated_config = yaml.safe_load(
-            self.harness.charm.container.pull(self.harness.charm._config_path)
-        )
+        with self.harness.charm.container.pull(self.harness.charm._config_path) as f:
+            updated_config = yaml.safe_load(f)
 
         self.assertListEqual(
             updated_config["route"]["group_by"],
@@ -162,12 +159,11 @@ class TestWithInitialHooks(unittest.TestCase):
         self.harness.update_config({"config_file": new_config})
         templates = '{{ define "some.tmpl.variable" }}whatever it is{{ end}}'
         self.harness.update_config({"templates_file": templates})
-        updated_templates = self.harness.charm.container.pull(self.harness.charm._templates_path)
-        self.assertEqual(templates, updated_templates.read())
+        with self.harness.charm.container.pull(self.harness.charm._templates_path) as f:
+            self.assertEqual(templates, f.read())
 
-        updated_config = yaml.safe_load(
-            self.harness.charm.container.pull(self.harness.charm._config_path)
-        )
+        with self.harness.charm.container.pull(self.harness.charm._config_path) as f:
+            updated_config = yaml.safe_load(f)
         self.assertEqual(updated_config["templates"], [f"{self.harness.charm._templates_path}"])
 
 

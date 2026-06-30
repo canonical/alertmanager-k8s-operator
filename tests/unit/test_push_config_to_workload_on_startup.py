@@ -54,15 +54,13 @@ class TestPushConfigToWorkloadOnStartup(unittest.TestCase):
         self.harness.set_leader(is_leader)
 
         # THEN amtool config is rendered
-        amtool_config = yaml.safe_load(
-            self.harness.charm.container.pull(self.harness.charm._amtool_config_path)
-        )
+        with self.harness.charm.container.pull(self.harness.charm._amtool_config_path) as f:
+            amtool_config = yaml.safe_load(f)
         self.assertTrue(validators.url(amtool_config["alertmanager.url"], simple_host=True))
 
         # AND alertmanager config is rendered
-        am_config = yaml.safe_load(
-            self.harness.charm.container.pull(self.harness.charm._config_path)
-        )
+        with self.harness.charm.container.pull(self.harness.charm._config_path) as f:
+            am_config = yaml.safe_load(f)
         self.assertGreaterEqual(am_config.keys(), {"global", "route", "receivers"})
 
         # AND path to config file is part of pebble layer command

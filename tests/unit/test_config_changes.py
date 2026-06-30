@@ -24,6 +24,11 @@ class TestConfigFileSystemStateHasChanges(unittest.TestCase):
 
     def setUp(self):
         self.container = MagicMock()
+        # has_changes() uses `with container.pull(p) as f: f.read()`, so make the
+        # pull result a context manager that yields itself; tests configure .read on it.
+        pull_result = self.container.pull.return_value
+        pull_result.__enter__.return_value = pull_result
+        pull_result.__exit__.return_value = False
 
     def test_file_does_not_exist(self):
         """A file that doesn't exist in the container is a change."""
@@ -68,6 +73,8 @@ class TestConfigFileSystemStateHasChanges(unittest.TestCase):
         """One differing file among many is a change."""
         def pull_side_effect(path):
             mock = MagicMock()
+            mock.__enter__.return_value = mock
+            mock.__exit__.return_value = False
             if path == "/etc/config.yml":
                 mock.read.return_value = "old content"
             else:
