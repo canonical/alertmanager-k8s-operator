@@ -20,11 +20,18 @@ This is a Terraform module facilitating the deployment of alertmanager-k8s, usin
 
 No modules.
 
+## Resources
+
+| Name | Type |
+|------|------|
+| [juju_application.alertmanager](https://registry.terraform.io/providers/juju/juju/latest/docs/resources/application) | resource |
+
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_app_name"></a> [app\_name](#input\_app\_name) | Name to give the deployed application | `string` | `"alertmanager"` | no |
+| <a name="input_base"></a> [base](#input\_base) | The operating system on which to deploy. E.g. ubuntu@26.04. Check Charmhub for per-charm base support. | `string` | `"ubuntu@26.04"` | no |
 | <a name="input_channel"></a> [channel](#input\_channel) | Channel that the charm is deployed from | `string` | n/a | yes |
 | <a name="input_config"></a> [config](#input\_config) | Map of the charm configuration options | `map(string)` | `{}` | no |
 | <a name="input_constraints"></a> [constraints](#input\_constraints) | String listing constraints for this application | `string` | `"arch=amd64"` | no |

@@ -9,6 +9,7 @@ resource "juju_application" "alertmanager" {
   units              = var.units
 
   charm {
+    base     = var.base
     name     = "alertmanager-k8s"
     channel  = var.channel
     revision = var.revision
