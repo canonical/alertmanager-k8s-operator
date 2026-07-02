@@ -99,10 +99,11 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
             app_or_unit="remote-config-provider",
             key_values={"alertmanager_config": json.dumps(remote_config)},
         )
-        config = self.harness.charm.container.pull(self.harness.charm._config_path)
+        with self.harness.charm.container.pull(self.harness.charm._config_path) as config:
+            actual_config = yaml.safe_load(config.read())
 
         self.assertEqual(
-            DeepDiff(yaml.safe_load(config.read()), expected_config, ignore_order=True),
+            DeepDiff(actual_config, expected_config, ignore_order=True),
             {},
         )
 
@@ -137,9 +138,8 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
             app_or_unit="remote-config-provider",
             key_values={"alertmanager_config": json.dumps(invalid_config)},
         )
-        config = self.harness.charm.container.pull(self.harness.charm._config_path)
-
-        self.assertNotIn("invalid_config", yaml.safe_load(config.read()))
+        with self.harness.charm.container.pull(self.harness.charm._config_path) as config:
+            self.assertNotIn("invalid_config", yaml.safe_load(config.read()))
 
     @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
     @k8s_resource_multipatch
@@ -158,6 +158,5 @@ class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
                 "alertmanager_templates": json.dumps([test_template]),
             },
         )
-        updated_templates = self.harness.charm.container.pull(self.harness.charm._templates_path)
-
-        self.assertEqual(updated_templates.read(), test_template)
+        with self.harness.charm.container.pull(self.harness.charm._templates_path) as updated_templates:
+            self.assertEqual(updated_templates.read(), test_template)
