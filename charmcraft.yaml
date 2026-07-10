@@ -45,7 +45,7 @@ parts:
       craftctl default
       git describe --always > $CRAFT_PART_INSTALL/version
 
-charm-user: sudoer
+charm-user: non-root
 
 containers:
   alertmanager:  # container key used by pebble
