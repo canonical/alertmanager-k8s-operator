@@ -2,8 +2,8 @@ groups:
 - name: AlertmanagerNotificationsFailed
   rules:
   - alert: AlertmanagerNotificationsFailed
-    expr: rate(alertmanager_notifications_failed_total{integration=~".*"}[5m]) > 0
-    for: 0m
+    expr: increase(alertmanager_notifications_failed_total[5m]) > 5
+    for: 10m
     labels:
       severity: warning
     annotations:

@@ -24,7 +24,7 @@ from charms.certificate_transfer_interface.v1.certificate_transfer import (
     CertificateTransferRequires,
 )
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
-from charms.grafana_k8s.v0.grafana_source import GrafanaSourceProvider
+from charms.grafana_k8s.v1.grafana_source import GrafanaSourceProvider
 from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshConsumer, UnitPolicy
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
@@ -150,8 +150,7 @@ class AlertmanagerCharm(CharmBase):
         self.grafana_source_provider = GrafanaSourceProvider(
             charm=self,
             source_type="alertmanager",
-            source_url=self.ingress.url or self._service_url,
-            is_ingress_per_app=True, # We want only one alertmanager datasource (unit) to be listed in grafana.
+            app_datasource_url=self.ingress.url or self._service_url,
             refresh_event=[
                 self.ingress.on.ready,
                 self.ingress.on.revoked,
@@ -234,6 +233,7 @@ class AlertmanagerCharm(CharmBase):
             api_port=self.api_port,
             ha_port=self._ports.ha,
             web_external_url=self._external_url,
+            web_internal_url=self._internal_url,
             web_route_prefix="/",
             config_path=self._config_path,
             web_config_path=self._web_config_path,
@@ -485,6 +485,30 @@ class AlertmanagerCharm(CharmBase):
             }
         )
 
+    def _update_workload_config(self) -> bool:
+        """Update alertmanager config and reload if changed.
+
+        Returns True if the charm should continue (no blockers), False if blocked.
+        """
+        try:
+            config_changed = self.alertmanager_workload.update_config(self._render_manifest())
+        except (ConfigUpdateFailure, ConfigError) as e:
+            self.unit.status = BlockedStatus(str(e))
+            return False
+
+        # Update pebble layer
+        self.alertmanager_workload.update_layer()
+
+        # Reload or restart the service only if config changed
+        if config_changed:
+            try:
+                self.alertmanager_workload.reload()
+            except ConfigUpdateFailure as e:
+                self.unit.status = BlockedStatus(str(e))
+                return False
+
+        return True
+
     def _common_exit_hook(self, update_ca_certs: bool = False) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self.resources_patch.is_ready():
@@ -519,7 +543,7 @@ class AlertmanagerCharm(CharmBase):
         #  - https://github.com/canonical/prometheus-k8s-operator/issues/530,
         self.alertmanager_provider.update(external_url=self._internal_url)
 
-        self.grafana_source_provider.update_source(self._external_url)
+        self.grafana_source_provider.update_app_source(self.ingress.url or self._service_url)
 
         self.ingress.provide_ingress_requirements(scheme=self._scheme, port=self.api_port)
         self._scraping.update_scrape_job_spec(self.self_scraping_job)
@@ -533,20 +557,7 @@ class AlertmanagerCharm(CharmBase):
         self.karma_provider.target = self._external_url
 
         # Update config file
-        try:
-            self.alertmanager_workload.update_config(self._render_manifest())
-        except (ConfigUpdateFailure, ConfigError) as e:
-            self.unit.status = BlockedStatus(str(e))
-            return
-
-        # Update pebble layer
-        self.alertmanager_workload.update_layer()
-
-        # Reload or restart the service
-        try:
-            self.alertmanager_workload.reload()
-        except ConfigUpdateFailure as e:
-            self.unit.status = BlockedStatus(str(e))
+        if not self._update_workload_config():
             return
 
         self.catalog.update_item(item=self._catalogue_item)
