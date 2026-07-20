@@ -8,7 +8,7 @@ from pathlib import Path
 
 import jubilant
 import pytest
-from helpers import ALERTMANAGER_IMAGE, grafana_datasources
+from helpers import RESOURCES, grafana_datasources
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ def test_deploy(juju, charm_path: Path):
     juju.deploy(
         str(charm_path),
         AM_APP,
-        resources={"alertmanager-image": ALERTMANAGER_IMAGE},
+        resources=RESOURCES,
         num_units=2,
         trust=True,
     )

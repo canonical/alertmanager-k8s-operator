@@ -51,7 +51,8 @@ def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) 
             Exec(["/usr/bin/amtool", "check-config", "/etc/alertmanager/alertmanager.yml"]),
         },
     )
-    state = State(config={"config_file": ""}, containers=[container])
+    exporter_container = Container("silence-exporter", can_connect=False)
+    state = State(config={"config_file": ""}, containers=[container, exporter_container])
     peer_rel = PeerRelation("replicas")
 
     state = context.run(context.on.install(), state)
@@ -69,7 +70,8 @@ def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) 
 
     # state = state.with_can_connect("alertmanger")
     container = dataclasses.replace(container, can_connect=True)
-    state = dataclasses.replace(state, containers=[container])
+    exporter_container = dataclasses.replace(exporter_container, can_connect=True)
+    state = dataclasses.replace(state, containers=[container, exporter_container])
     state = context.run(context.on.pebble_ready(container), state)
 
     state = context.run(context.on.start(), state)

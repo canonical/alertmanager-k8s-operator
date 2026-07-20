@@ -16,7 +16,7 @@ from pathlib import Path
 
 import jubilant
 import pytest
-from helpers import ALERTMANAGER_IMAGE, is_alertmanager_up
+from helpers import RESOURCES, is_alertmanager_up
 
 # Cross-base upgrades (e.g. 24.04 -> 26.04) are not supported via juju refresh.
 # The charmhub charm is built for 24.04 (Python 3.12), while the local charm
@@ -43,7 +43,7 @@ def test_deploy(juju):
 
 
 def test_upgrade_in_isolation(juju, charm_path: Path):
-    juju.refresh(AM_APP, path=str(charm_path), resources={"alertmanager-image": ALERTMANAGER_IMAGE})
+    juju.refresh(AM_APP, path=str(charm_path), resources=RESOURCES)
     juju.wait(
         lambda s: jubilant.all_active(s, AM_APP) and jubilant.all_agents_idle(s, AM_APP),
         timeout=1000,
@@ -66,7 +66,7 @@ def test_upgrade_with_relations(juju, charm_path: Path):
         successes=3,
     )
 
-    juju.refresh(AM_APP, path=str(charm_path), resources={"alertmanager-image": ALERTMANAGER_IMAGE})
+    juju.refresh(AM_APP, path=str(charm_path), resources=RESOURCES)
     juju.wait(
         lambda s: jubilant.all_active(s, AM_APP, PROM_APP, KARMA_APP)
         and jubilant.all_agents_idle(s, AM_APP, PROM_APP, KARMA_APP),
@@ -88,7 +88,7 @@ def test_upgrade_with_multiple_units(juju, charm_path: Path):
         successes=3,
     )
 
-    juju.refresh(AM_APP, path=str(charm_path), resources={"alertmanager-image": ALERTMANAGER_IMAGE})
+    juju.refresh(AM_APP, path=str(charm_path), resources=RESOURCES)
     juju.wait(
         lambda s: jubilant.all_active(s, AM_APP, PROM_APP, KARMA_APP)
         and jubilant.all_agents_idle(s, AM_APP, PROM_APP, KARMA_APP),

@@ -12,7 +12,7 @@ from pathlib import Path
 import jubilant
 import pytest
 import yaml
-from helpers import ALERTMANAGER_IMAGE, is_alertmanager_up
+from helpers import RESOURCES, is_alertmanager_up
 from werkzeug.wrappers import Request, Response
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ def test_deploy(juju, charm_path: Path, httpserver):
     juju.deploy(
         str(charm_path),
         AM_APP,
-        resources={"alertmanager-image": ALERTMANAGER_IMAGE},
+        resources=RESOURCES,
         config={"config_file": yaml.safe_dump(aconfig), "templates_file": TEMPLATE},
         trust=True,
     )

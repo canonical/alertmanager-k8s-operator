@@ -51,7 +51,7 @@ from ops.model import (
     Relation,
     WaitingStatus,
 )
-from ops.pebble import PathError, ProtocolError  # type: ignore
+from ops.pebble import ChangeError, Layer, PathError, ProtocolError  # type: ignore
 
 from alertmanager import (
     ConfigFileSystemState,
@@ -83,7 +83,17 @@ class AlertmanagerCharm(CharmBase):
     _relations = SimpleNamespace(
         alerting="alerting", peer="replicas", remote_config="remote_configuration"
     )
-    _ports = SimpleNamespace(api=9093, ha=9094)
+    _ports = SimpleNamespace(api=9093, ha=9094, exporter=9095)
+
+    # The silence-expiry exporter runs as a sidecar container in the alertmanager pod.
+    _exporter_container_name = _exporter_service_name = "silence-exporter"
+    _exporter_layer_name = "silence-exporter"
+    # Path, inside the sidecar container, where the exporter script is pushed by the charm.
+    _exporter_script_path = "/exporter.py"
+    # Path, inside the sidecar container, where the CA cert is pushed (only used when TLS is on).
+    _exporter_ca_cert_path = "/usr/local/share/ca-certificates/cos-ca.crt"
+    # How often (seconds) the exporter polls the alertmanager API for silences.
+    _exporter_scrape_interval = 30
 
     # path, inside the workload container, to the alertmanager and amtool configuration files
     # the amalgamated templates file goes in the same folder as the main configuration file
@@ -100,6 +110,7 @@ class AlertmanagerCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         self.container = self.unit.get_container(self._container_name)
+        self._exporter_container = self.unit.get_container(self._exporter_container_name)
         self._fqdn = socket.getfqdn()
 
         self._csr_attributes = CertificateRequestAttributes(
@@ -208,7 +219,7 @@ class AlertmanagerCharm(CharmBase):
                 ),
                 UnitPolicy(
                     relation="self-metrics-endpoint",
-                    ports=[self.api_port],
+                    ports=[self.api_port, self._ports.exporter],
                 ),
             ],
         )
@@ -242,6 +253,10 @@ class AlertmanagerCharm(CharmBase):
             # a callback).
             self.on.alertmanager_pebble_ready,  # pyright: ignore
             self._on_pebble_ready,
+        )
+        self.framework.observe(
+            self.on.silence_exporter_pebble_ready,  # pyright: ignore
+            self._on_silence_exporter_pebble_ready,
         )
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
@@ -283,6 +298,7 @@ class AlertmanagerCharm(CharmBase):
         planned_ports = {
             OpenedPort("tcp", self._ports.api),
             OpenedPort("tcp", self._ports.ha),
+            OpenedPort("tcp", self._ports.exporter),
         }
         actual_ports = self.unit.opened_ports()
 
@@ -316,23 +332,38 @@ class AlertmanagerCharm(CharmBase):
 
     @property
     def self_scraping_job(self):
-        """The self-monitoring scrape job."""
+        """The self-monitoring scrape jobs.
+
+        Returns two jobs:
+        - the alertmanager API job (:9093), scraped with the same scheme alertmanager serves; and
+        - the silence-expiry exporter job (:9095), always plaintext http (in-cluster).
+        """
         # We assume that scraping, especially self-monitoring, is in-cluster.
         # This assumption is necessary because the local CA signs CSRs with FQDN as the SAN DNS.
         # If prometheus were to scrape an ingress URL instead, it would error out with:
         # x509: cannot validate certificate.
-        peer_api_netlocs = [
-            f"{hostname}:{self._ports.api}"
-            for hostname in self._get_peer_hostnames(include_this_unit=True)
-        ]
+        peer_hostnames = self._get_peer_hostnames(include_this_unit=True)
+        peer_api_netlocs = [f"{hostname}:{self._ports.api}" for hostname in peer_hostnames]
 
-        config = {
+        alertmanager_job = {
             "scheme": self._scheme,
             "metrics_path": "/metrics",
             "static_configs": [{"targets": peer_api_netlocs}],
         }
 
-        return [config]
+        # Silences are HA-replicated, so every unit's exporter reports the same silences; the
+        # resulting series are distinguished by the `instance` label. The exporter serves plain
+        # http /metrics (in-cluster), independent of alertmanager's TLS state.
+        peer_exporter_netlocs = [
+            f"{hostname}:{self._ports.exporter}" for hostname in peer_hostnames
+        ]
+        exporter_job = {
+            "scheme": "http",
+            "metrics_path": "/metrics",
+            "static_configs": [{"targets": peer_exporter_netlocs}],
+        }
+
+        return [alertmanager_job, exporter_job]
 
     def _resource_reqs_from_config(self) -> ResourceRequirements:
         limits = {
@@ -505,6 +536,67 @@ class AlertmanagerCharm(CharmBase):
 
         return True
 
+    def _silence_exporter_layer(self, environment: dict) -> Layer:
+        """Return the Pebble layer that runs the silence-expiry exporter."""
+        return Layer(
+            {
+                "summary": "silence exporter layer",
+                "description": "pebble config layer for the silence-expiry exporter",
+                "services": {
+                    self._exporter_service_name: {
+                        "override": "replace",
+                        "summary": "alertmanager silence-expiry exporter",
+                        "command": f"python3 {self._exporter_script_path}",
+                        "startup": "enabled",
+                        "environment": environment,
+                    }
+                },
+            }
+        )
+
+    def _configure_silence_exporter(self) -> None:
+        """Push the exporter script (and CA when needed) and (re)configure its Pebble service.
+
+        Mirrors the config-file push pattern used for the alertmanager container: the exporter
+        script lives in the charm source and is pushed into the sidecar, then run by Pebble.
+        """
+        if not self._exporter_container.can_connect():
+            logger.debug("silence-exporter container not ready; skipping configuration")
+            return
+
+        # Push the exporter script from the charm source into the sidecar container.
+        script = (Path(__file__).parent / "silence_exporter.py").read_text()
+        self._exporter_container.push(self._exporter_script_path, script, make_dirs=True)
+
+        environment = {
+            "AM_URL": self._internal_url,
+            "EXPORTER_PORT": str(self._ports.exporter),
+            "SCRAPE_INTERVAL": str(self._exporter_scrape_interval),
+        }
+
+        # When alertmanager serves TLS, the exporter must hit the local API over https and
+        # validate it with the CA. Push the CA into the sidecar and point the exporter at it.
+        if tls_config := self._tls_config:
+            self._exporter_container.push(
+                self._exporter_ca_cert_path, tls_config.ca_cert, make_dirs=True
+            )
+            environment["AM_CA_PATH"] = self._exporter_ca_cert_path
+        else:
+            try:
+                self._exporter_container.remove_path(
+                    self._exporter_ca_cert_path, recursive=True
+                )
+            except (PathError, ProtocolError):
+                pass
+
+        self._exporter_container.add_layer(
+            self._exporter_layer_name, self._silence_exporter_layer(environment), combine=True
+        )
+        try:
+            self._exporter_container.replan()
+        except ChangeError as e:
+            logger.error("Failed to replan silence-exporter: %s", str(e))
+
     def _common_exit_hook(self, update_ca_certs: bool = False) -> None:
         """Event processing hook that is common to all events to ensure idempotency."""
         if not self.resources_patch.is_ready():
@@ -556,6 +648,10 @@ class AlertmanagerCharm(CharmBase):
         if not self._update_workload_config():
             return
 
+        # (Re)configure the silence-expiry exporter sidecar. Done after the workload config so
+        # the exporter picks up the current scheme/url and TLS state.
+        self._configure_silence_exporter()
+
         self.catalog.update_item(item=self._catalogue_item)
 
         self.unit.status = ActiveStatus()
@@ -568,6 +664,10 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
+        self._common_exit_hook()
+
+    def _on_silence_exporter_pebble_ready(self, _):
+        """Event handler for the silence-exporter container's PebbleReadyEvent."""
         self._common_exit_hook()
 
     def _on_config_changed(self, _):

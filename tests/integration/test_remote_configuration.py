@@ -20,7 +20,7 @@ import jubilant
 import pytest
 import yaml
 from deepdiff import DeepDiff  # type: ignore[import]
-from helpers import ALERTMANAGER_IMAGE, get_alertmanager_config_from_file
+from helpers import RESOURCES, get_alertmanager_config_from_file
 
 TESTER_CHARM_PATH = "./tests/integration/remote_configuration_tester"
 TESTER_APP_METADATA = yaml.safe_load(
@@ -84,7 +84,7 @@ def test_deploy(juju, charm_path: Path, tester_charm_path: Path):
     juju.deploy(
         str(charm_path),
         APP_NAME,
-        resources={"alertmanager-image": ALERTMANAGER_IMAGE},
+        resources=RESOURCES,
         trust=True,
     )
     juju.deploy(

@@ -10,7 +10,7 @@ from pathlib import Path
 import jubilant
 import pytest
 import requests
-from helpers import ALERTMANAGER_IMAGE, get_unit_address
+from helpers import RESOURCES, get_unit_address
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ def test_deploy(juju, charm_path: Path):
     juju.deploy(
         str(charm_path),
         APP_NAME,
-        resources={"alertmanager-image": ALERTMANAGER_IMAGE},
+        resources=RESOURCES,
         trust=True,
     )
     juju.deploy("loki-k8s", LOKI_APP, channel="dev/edge", trust=True)

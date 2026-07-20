@@ -54,6 +54,11 @@ containers:
         # across container restarts.
         # This path is passed to alertmanager via the `--storage.path` cli argument.
         location: /alertmanager
+  silence-exporter:  # container key used by pebble
+    resource: silence-exporter-image
+    # Sidecar that polls the local Alertmanager API for active silences and exposes their
+    # expiry timestamps as Prometheus metrics on :9095. The exporter script is pushed from the
+    # charm (same pattern used for config files) and run by Pebble.
 
 storage:
   data:
@@ -181,6 +186,17 @@ resources:
       - location of executable "alertmanager" is in the path
       - has `update-ca-certificates`
     upstream-source: ubuntu/alertmanager@sha256:6d137784294d137394683ec56519eafce6d0bd91c4c62439197bb1c898d1a76e  # renovate: oci-image tag: 0.31-26.04
+  silence-exporter-image:
+    type: oci-image
+    description: |
+      OCI image hosting the silence-expiry exporter sidecar. This is a Canonical-maintained
+      chiselled Python rock (https://hub.docker.com/r/ubuntu/python). The charm makes the
+      following assumptions about the image:
+      - `python3` is on the PATH
+      - Pebble is the entrypoint (standard for Canonical rocks)
+      The exporter itself is pushed to the container by the charm and needs only the Python
+      standard library (no pip dependencies).
+    upstream-source: ubuntu/python:3.12-24.04_stable  # renovate: oci-image tag: 3.12-24.04
 
 config:
   options:

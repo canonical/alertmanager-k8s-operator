@@ -35,14 +35,21 @@ class TestWithInitialHooks(unittest.TestCase):
     def test_self_scraping_job_with_no_peers(self, _mock_scheme, _mock_internal_url):
         scheme = "https"
         _mock_scheme.return_value = scheme
-        url_no_scheme = f"test-internal.url:{self.harness.charm._ports.api}"
-        _mock_internal_url.return_value = f"{scheme}://{url_no_scheme}"
+        host = "test-internal.url"
+        api_netloc = f"{host}:{self.harness.charm._ports.api}"
+        exporter_netloc = f"{host}:{self.harness.charm._ports.exporter}"
+        _mock_internal_url.return_value = f"{scheme}://{api_netloc}"
         jobs_expected = [
             {
                 "metrics_path": "/metrics",
                 "scheme": scheme,
-                "static_configs": [{"targets": [url_no_scheme]}],
-            }
+                "static_configs": [{"targets": [api_netloc]}],
+            },
+            {
+                "metrics_path": "/metrics",
+                "scheme": "http",
+                "static_configs": [{"targets": [exporter_netloc]}],
+            },
         ]
 
         jobs = self.harness.charm.self_scraping_job
@@ -57,25 +64,29 @@ class TestWithInitialHooks(unittest.TestCase):
         scheme = "https"
         _mock_scheme.return_value = scheme
 
-        targets = [
-            f"test-internal-0.url:{self.harness.charm._ports.api}",
-            f"test-internal-1.url:{self.harness.charm._ports.api}",
-            f"test-internal-2.url:{self.harness.charm._ports.api}",
-        ]
+        hosts = ["test-internal-0.url", "test-internal-1.url", "test-internal-2.url"]
+        api_targets = [f"{host}:{self.harness.charm._ports.api}" for host in hosts]
+        exporter_targets = [f"{host}:{self.harness.charm._ports.exporter}" for host in hosts]
         metrics_path = "/metrics"
-        _mock_internal_url.return_value = f"{scheme}://{targets[0]}"
+        _mock_internal_url.return_value = f"{scheme}://{api_targets[0]}"
 
         jobs_expected = [
             {
                 "metrics_path": metrics_path,
                 "scheme": scheme,
-                "static_configs": [{"targets": targets}],
-            }
+                "static_configs": [{"targets": api_targets}],
+            },
+            {
+                "metrics_path": metrics_path,
+                "scheme": "http",
+                "static_configs": [{"targets": exporter_targets}],
+            },
         ]
 
         # Add peers
-        for i, target in enumerate(targets[1:], 1):
+        for i, host in enumerate(hosts[1:], 1):
             unit_name = f"{self.app_name}/{i}"
+            target = f"{host}:{self.harness.charm._ports.api}"
             self.harness.add_relation_unit(self.peer_rel_id, unit_name)
             self.harness.update_relation_data(
                 self.peer_rel_id, unit_name, {"private_address": f"{scheme}://{target}"}

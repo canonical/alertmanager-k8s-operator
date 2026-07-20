@@ -16,7 +16,7 @@ from pathlib import Path
 
 import jubilant
 import pytest
-from helpers import ALERTMANAGER_IMAGE, get_leader_unit_num, is_alertmanager_up
+from helpers import RESOURCES, get_leader_unit_num, is_alertmanager_up
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def test_deploy(juju, charm_path: Path):
     juju.deploy(
         str(charm_path),
         AM_APP,
-        resources={"alertmanager-image": ALERTMANAGER_IMAGE},
+        resources=RESOURCES,
         num_units=10,
         trust=True,
     )

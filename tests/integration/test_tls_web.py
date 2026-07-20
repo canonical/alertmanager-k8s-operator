@@ -10,7 +10,7 @@ from pathlib import Path
 
 import jubilant
 import pytest
-from helpers import ALERTMANAGER_IMAGE, curl, get_unit_address
+from helpers import RESOURCES, curl, get_unit_address
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def test_deploy(juju, charm_path: Path):
     juju.deploy(
         str(charm_path),
         AM_APP,
-        resources={"alertmanager-image": ALERTMANAGER_IMAGE},
+        resources=RESOURCES,
         trust=True,
     )
     juju.deploy("self-signed-certificates", CA_APP, channel="edge")

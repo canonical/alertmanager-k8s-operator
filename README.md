@@ -191,9 +191,25 @@ juju refresh alertmanager-k8s \
   --resource alertmanager-image=quay.io/prometheus/alertmanager
 ```
 
+The charm also runs a small **silence-expiry exporter** as a sidecar container
+(`silence-exporter`), backed by the Canonical-maintained [ubuntu/python] rock.
+The exporter polls the local Alertmanager API for active silences and exposes,
+on port `9095`, an `alertmanager_silence_endsat_timestamp_seconds` metric per
+active silence (plus an `alertmanager_silence_exporter_scrape_error` self-health
+metric). These are scraped automatically as a second job on the existing
+`self-metrics-endpoint` relation, and a built-in `SilenceExpiringSoon` alert
+rule fires when a silence is due to expire within the next 72 hours.
+
+To limit cardinality, only the `id` and `created_by` labels are exposed (the
+free-text `comment` is deliberately dropped). Note that silences are
+HA-replicated across units, so in a clustered deployment every unit's exporter
+reports the same silences; the resulting series are distinguished by the
+`instance` label.
+
 
 [ubuntu/prometheus-alertmanager]: https://hub.docker.com/r/ubuntu/prometheus-alertmanager
 [quay.io/prometheus/alertmanager]: https://quay.io/repository/prometheus/alertmanager?tab=tags
+[ubuntu/python]: https://hub.docker.com/r/ubuntu/python
 
 
 ## Official alertmanager documentation

@@ -21,6 +21,15 @@ logger = logging.getLogger(__name__)
 
 _METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 ALERTMANAGER_IMAGE: str = _METADATA["resources"]["alertmanager-image"]["upstream-source"]
+SILENCE_EXPORTER_IMAGE: str = _METADATA["resources"]["silence-exporter-image"]["upstream-source"]
+
+# All OCI image resources required to deploy the charm from a local `.charm` file. Local charm
+# deploys don't consume `upstream-source` from charmcraft.yaml, so every resource must be passed
+# explicitly via `juju deploy/refresh --resource`.
+RESOURCES = {
+    "alertmanager-image": ALERTMANAGER_IMAGE,
+    "silence-exporter-image": SILENCE_EXPORTER_IMAGE,
+}
 
 AM_APP = "alertmanager"
 TEMPO_APP = "tempo"

@@ -8,8 +8,8 @@ from pathlib import Path
 
 import jubilant
 from helpers import (
-    ALERTMANAGER_IMAGE,
     AM_APP,
+    RESOURCES,
     TEMPO_APP,
     assert_traces_in_tempo,
     deploy_tempo_stack,
@@ -29,7 +29,7 @@ def deploy_am_and_tempo(juju, charm_path: Path):
     juju.deploy(
         str(charm_path),
         AM_APP,
-        resources={"alertmanager-image": ALERTMANAGER_IMAGE},
+        resources=RESOURCES,
         trust=True,
     )
     tempo_apps = deploy_tempo_stack(juju)

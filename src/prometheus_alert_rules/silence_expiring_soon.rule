@@ -1,0 +1,15 @@
+groups:
+- name: SilenceExpiringSoon
+  rules:
+  - alert: SilenceExpiringSoon
+    expr: |
+      (alertmanager_silence_endsat_timestamp_seconds - time()) > 0
+      and
+      (alertmanager_silence_endsat_timestamp_seconds - time()) < 259200
+    for: 0m
+    labels:
+      severity: warning
+    annotations:
+      summary: Alertmanager silence {{ $labels.id }} expires in < 72h (model {{ $labels.juju_model }})
+      description: |
+        Silence {{ $labels.id }} created by {{ $labels.created_by }} ends at {{ $value | humanizeTimestamp }}.
