@@ -16,5 +16,5 @@ permissions:
 jobs:
   pull-request:
     name: PR
-    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
+    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@feat/tf-docs-lint
     secrets: inherit
