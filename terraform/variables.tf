@@ -1,5 +1,5 @@
 variable "app_name" {
-  description = "Name to give the deployed application"
+  description = "FIXME: revert once done testing"
   type        = string
   default     = "alertmanager"
 }
