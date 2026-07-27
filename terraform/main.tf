@@ -1,3 +1,4 @@
+# FIXME: revert once done testing
 resource "juju_application" "alertmanager" {
   name               = var.app_name
   config             = var.config
