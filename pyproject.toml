@@ -6,7 +6,7 @@ version = "0.0"
 requires-python = "~=3.14.0"
 
 dependencies = [
-  "ops[tracing]",
+  "ops[tracing]>=3.8",
   "pyyaml",
   "lightkube>=0.11",  # observability_libs
   "lightkube-models",  # observability_libs
@@ -32,7 +32,7 @@ dev = [
   "deepdiff",
   "hypothesis",
   "validators>=0.21.2",
-  "ops[testing]",
+  "ops[testing]>=3.8",
   "pytest-interface-tester>0.3",
   # Integration
   "pytest-jubilant",
@@ -74,7 +74,7 @@ convention = "google"
 # Static analysis tools configuration
 [tool.pyright]
 extraPaths = ["src", "lib"]
-pythonVersion = "3.8"
+pythonVersion = "3.14"
 pythonPlatform = "All"
 exclude = [
   "tests/integration/remote_configuration_tester/**",
@@ -84,6 +84,33 @@ exclude = [
 minversion = "6.0"
 log_cli_level = "INFO"
 addopts = "--tb=native --verbose --capture=no --log-cli-level=INFO"
+# Treat warnings (deprecations, ResourceWarnings, etc.) as errors so the unit suite catches
+# them before they become breakages. Every ignore below is narrow and justified; see the
+# Charm Tech -Werror rollout notes.
+filterwarnings = [
+    "error",
+    # -- Deprecations owned by other (vendored) charm libs. The real fix belongs upstream; until
+    #    those libs are released we cannot promote these to errors here. --
+    # charms.tempo_coordinator_k8s.v0.tracing still uses pydantic-v1 idioms under pydantic v2.
+    # Upstream: canonical/tempo-coordinator-k8s-operator.
+    "ignore:The .__fields__. attribute is deprecated:DeprecationWarning",
+    "ignore:Accessing the 'model_fields' attribute on the instance is deprecated:DeprecationWarning",
+    "ignore:The .dict. method is deprecated:DeprecationWarning",
+    # charms.loki_k8s.v1.loki_push_api and charms.tls_certificates_interface.v4.tls_certificates
+    # call the deprecated ops JujuVersion.from_environ().
+    # Upstream: canonical/loki-k8s-operator, canonical/tls-certificates-interface.
+    "ignore:JujuVersion.from_environ:DeprecationWarning",
+    # charms.tls_certificates_interface.v4.tls_certificates calls the deprecated cryptography
+    # generate_private_key(). Upstream: canonical/tls-certificates-interface.
+    "ignore:generate_private_key:DeprecationWarning",
+    # -- Intentional ops deprecation: these tests still use Harness. Migrating them to
+    #    Scenario (Context) would remove this; tracked as a follow-up. --
+    "ignore:Harness is deprecated:PendingDeprecationWarning",
+    # urllib's HTTPError finalizer emits a ResourceWarning on Python 3.14 when a unit-test mock
+    # raises HTTPError(fp=None) (tests/unit/test_alertmanager_client.py); a test/stdlib artifact,
+    # not a charm resource leak.
+    "ignore:Implicitly cleaning up <HTTPError:ResourceWarning",
+]
 
 [tool.codespell]
 skip = ".git,.tox,build,venv*"
