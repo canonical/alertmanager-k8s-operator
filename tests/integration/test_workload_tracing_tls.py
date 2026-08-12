@@ -86,7 +86,7 @@ def healthy_produces_trace(juju):
     am_fqdn = f"{AM_APP}-0.{AM_APP}-endpoints.{juju.model}.svc.cluster.local"
     output = juju.ssh(
         f"{AM_APP}/0",
-        f"curl -sf --cacert /usr/local/share/ca-certificates/cos-ca.crt https://{am_fqdn}:9093/-/healthy",
+        f"curl -sf --cacert /var/lib/juju/agents/unit-alertmanager-0/charm/certs/cos-ca.crt https://{am_fqdn}:9093/-/healthy",
         container="charm",
     )
     assert output.strip(), "Expected non-empty response from alertmanager /-/healthy"
