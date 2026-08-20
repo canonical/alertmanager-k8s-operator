@@ -229,6 +229,20 @@ config:
         host or a bare A record, this may be omitted.
         If the URL has a path portion, Alertmanager will use it to prefix all HTTP
         endpoints.
+    check_silence_expiry:
+      type: boolean
+      default: false
+      description: |
+        When enabled, the charm periodically checks for silences that are about to expire
+        and injects "SilenceExpiringSoon" alerts into Alertmanager. These alerts flow through
+        the normal alertmanager pipeline and are delivered to whatever receivers are configured,
+        giving operators advance notice before a silence lapses.
+
+        The injected alert includes the silence ID and creator in its labels, and is
+        automatically resolved when the silence is extended beyond the threshold or expires.
+
+        By default, silences expiring within 1 hour are flagged. This threshold is not yet
+        configurable.
     cpu:
       description: |
         K8s cpu resource limit, e.g. "1" or "500m". Default is unset (no limit). This value is used

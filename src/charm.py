@@ -8,6 +8,7 @@ import logging
 import socket
 import subprocess
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import List, Optional, Tuple, cast
@@ -58,6 +59,7 @@ from alertmanager import (
     ConfigUpdateFailure,
     WorkloadManager,
     WorkloadManagerError,
+    _parse_duration,
 )
 from config_builder import ConfigBuilder, ConfigError
 
@@ -84,6 +86,7 @@ class AlertmanagerCharm(CharmBase):
         alerting="alerting", peer="replicas", remote_config="remote_configuration"
     )
     _ports = SimpleNamespace(api=9093, ha=9094)
+    _default_silence_expiry_threshold = timedelta(hours=1)
 
     # path, inside the workload container, to the alertmanager and amtool configuration files
     # the amalgamated templates file goes in the same folder as the main configuration file
@@ -578,6 +581,122 @@ class AlertmanagerCharm(CharmBase):
         """Event handler for ConfigChangedEvent."""
         self._common_exit_hook(update_ca_certs=True)
 
+    def _check_silence_expiry(self) -> None:
+        """Inject alerts for silences expiring within the configured threshold.
+
+        When ``check_silence_expiry`` is enabled, this method queries the Alertmanager API
+        for active silences that will expire soon, and injects (or resolves) synthetic
+        ``SilenceExpiringSoon`` alerts via the Alertmanager v1 API.
+
+        The injected alert's fingerprint is derived from its labels (``alertname``,
+        ``silence_id``, ``created_by``), which means:
+        - Repeated calls for the same silence produce the same fingerprint (idempotent).
+        - Extending a silence creates a new fingerprint (old resolved, new injected).
+        - When the silence expires entirely, the alert is resolved on the next cycle.
+
+        The ``endsAt`` timestamp on resolved alerts is set 5 minutes into the future,
+        matching Alertmanager's ``resolve_timeout`` default, to ensure delivery.
+        """
+        try:
+            threshold = _parse_duration("1h")
+        except ValueError:
+            threshold = self._default_silence_expiry_threshold
+
+        try:
+            expiring = self.alertmanager_workload.get_expiring_silences(threshold)
+        except Exception:
+            logger.warning("Failed to check silence expiry", exc_info=True)
+            return
+
+        expiring_ids = {s["id"] for s in expiring if "id" in s}
+        alerts_to_fire = [self._make_expiry_alert(s) for s in expiring if "id" in s]
+        alerts_to_resolve = self._resolve_stale_expiry_alerts(expiring_ids)
+
+        all_alerts = alerts_to_fire + alerts_to_resolve
+        if not all_alerts:
+            return
+
+        try:
+            self.alertmanager_workload.api.set_alerts(all_alerts)
+            if alerts_to_fire:
+                logger.info(
+                    "Injected %d SilenceExpiringSoon alert(s) for silences: %s",
+                    len(alerts_to_fire),
+                    ", ".join(sorted(expiring_ids)),
+                )
+            if alerts_to_resolve:
+                logger.info(
+                    "Resolved %d stale SilenceExpiringSoon alert(s)",
+                    len(alerts_to_resolve),
+                )
+        except Exception:
+            logger.warning("Failed to inject silence expiry alerts", exc_info=True)
+
+    @staticmethod
+    def _make_expiry_alert(silence: dict) -> dict:
+        """Build a ``SilenceExpiringSoon`` alert dict for a single expiring silence."""
+        silence_id = silence.get("id", "unknown")
+        created_by = silence.get("createdBy", "unknown")
+        ends_at = silence.get("endsAt", "unknown")
+
+        matchers = silence.get("matchers", [])
+        matchers_str = ", ".join(
+            f'{m.get("name", "")}'
+            f'{"!=" if not m.get("isEqual", True) else "=" if not m.get("isRegex", False) else "~"}'
+            f'{m.get("value", "")}'
+            for m in matchers
+        )
+
+        return {
+            "labels": {
+                "alertname": "SilenceExpiringSoon",
+                "silence_id": silence_id,
+                "created_by": created_by,
+            },
+            "annotations": {
+                "summary": f"Alertmanager silence {silence_id} expires at {ends_at}",
+                "description": (
+                    f"Silence created by {created_by} will expire soon. "
+                    f"Matchers: {{{matchers_str}}}. "
+                    f"Extend the silence to avoid re-firing alerts."
+                ),
+            },
+        }
+
+    def _resolve_stale_expiry_alerts(self, expiring_ids: set) -> list:
+        """Return resolved alerts for ``SilenceExpiringSoon`` alerts no longer needed.
+
+        Queries current alerts, finds ``SilenceExpiringSoon`` ones whose ``silence_id``
+        is not in *expiring_ids*, and returns resolved alert dicts for them.
+        """
+        try:
+            existing = self.alertmanager_workload.api.get_alerts()
+        except Exception:
+            logger.debug("Could not fetch existing alerts for deduplication", exc_info=True)
+            return []
+
+        resolve_alerts = []
+        for alert in existing:
+            labels = alert.get("labels", {})
+            if labels.get("alertname") != "SilenceExpiringSoon":
+                continue
+            silence_id = labels.get("silence_id", "")
+            if silence_id in expiring_ids:
+                continue
+            resolve_alerts.append(
+                {
+                    "labels": labels,
+                    "annotations": {
+                        "summary": f"Alertmanager silence {silence_id} is no longer expiring soon",
+                    },
+                    # Set endsAt 5 min into the future to ensure delivery.
+                    "endsAt": (
+                        datetime.now(timezone.utc) + timedelta(minutes=5)
+                    ).isoformat(),
+                }
+            )
+        return resolve_alerts
+
     def _on_peer_relation_joined(self, _):
         """Event handler for replica's RelationChangedEvent."""
         self._common_exit_hook()
@@ -603,7 +722,7 @@ class AlertmanagerCharm(CharmBase):
     def _on_update_status(self, _):
         """Event handler for UpdateStatusEvent.
 
-        Logs list of peers, uptime and version info.
+        Logs list of peers, uptime and version info, and checks silence expiry if enabled.
         """
         try:
             status = self.alertmanager_workload.api.status()
@@ -616,6 +735,10 @@ class AlertmanagerCharm(CharmBase):
             )
         except ConnectionError as e:
             logger.error("Failed to obtain status: %s", str(e))
+
+        # Check for silences expiring soon and inject alerts if enabled.
+        if self.config.get("check_silence_expiry"):
+            self._check_silence_expiry()
 
         # Calling the common hook to make sure a single unit set its IP in case all events fired
         # before an IP address was ready, leaving UpdateStatue as the last resort.

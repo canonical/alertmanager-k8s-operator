@@ -7,6 +7,7 @@
 import logging
 import os
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Dict, List, Optional, Tuple
 
 from cosl import JujuTopology
@@ -22,6 +23,34 @@ from ops.pebble import (  # type: ignore
 from alertmanager_client import Alertmanager, AlertmanagerBadResponse
 
 logger = logging.getLogger(__name__)
+
+# Duration unit multipliers (Prometheus-style: 1h, 30m, 15s, etc.).
+_DURATION_UNITS = {
+    "s": 1,
+    "m": 60,
+    "h": 3600,
+    "d": 86400,
+    "w": 604800,
+    "y": 31536000,
+}
+
+
+def _parse_duration(duration_str: str) -> timedelta:
+    """Parse a duration string (e.g. '1h', '30m', '15s') into a timedelta.
+
+    Supports Prometheus-style duration suffixes: s, m, h, d, w, y.
+    Plain numbers are interpreted as seconds.
+
+    Raises:
+        ValueError: If the duration string cannot be parsed.
+    """
+    duration_str = duration_str.strip()
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([smhdwy])?", duration_str)
+    if not match:
+        raise ValueError(f"invalid duration string: '{duration_str}'")
+    value = float(match.group(1))
+    unit = match.group(2) or "s"
+    return timedelta(seconds=value * _DURATION_UNITS[unit])
 
 
 class ConfigFileSystemState:
@@ -192,6 +221,40 @@ class WorkloadManager(Object):
             output, err = str(e.stdout), str(e.stderr)
         # let ChangeError raise
         return output, err
+
+    def get_expiring_silences(self, threshold: timedelta) -> list:
+        """Return active silences whose ``endsAt`` is within *threshold* of now.
+
+        Each silence in the returned list is a dict from the Alertmanager ``/api/v2/silences``
+        endpoint (keys include ``id``, ``endsAt``, ``createdBy``, ``comment``, ``matchers``, etc.).
+
+        Returns an empty list if the Alertmanager API is unreachable.
+        """
+        if not self.is_ready:
+            return []
+        try:
+            silences = self.api.get_silences()
+        except (AlertmanagerBadResponse, ConnectionError, Exception) as e:
+            logger.warning("Failed to fetch silences for expiry check: %s", e)
+            return []
+
+        now = datetime.now(timezone.utc)
+        cutoff = now + threshold
+        expiring = []
+        for silence in silences:
+            status = silence.get("status", {})
+            if status.get("state") != "active":
+                continue
+            ends_at_str = silence.get("endsAt", "")
+            if not ends_at_str:
+                continue
+            try:
+                ends_at = datetime.fromisoformat(ends_at_str.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if now < ends_at <= cutoff:
+                expiring.append(silence)
+        return expiring
 
     def _alertmanager_layer(self) -> Layer:
         """Returns Pebble configuration layer for alertmanager."""
