@@ -9,13 +9,27 @@ import tempfile
 from pathlib import Path
 
 import jubilant
+import lightkube
 import pytest
-from helpers import ALERTMANAGER_IMAGE, curl, get_unit_address
+import yaml
+from helpers import (
+    ALERTMANAGER_IMAGE,
+    assert_security_context,
+    curl,
+    generate_container_securitycontext_map,
+    get_pod_names,
+    get_unit_address,
+)
 
 logger = logging.getLogger(__name__)
 
 AM_APP = "alertmanager"
 CA_APP = "ca"
+METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
+CONTAINERS_SECURITY_CONTEXT_MAP = generate_container_securitycontext_map(
+    METADATA,
+    juju_user_id=171 if METADATA.get("charm-user") == "sudoer" else 170,
+)
 
 
 @pytest.mark.juju_setup
@@ -41,6 +55,28 @@ def test_tls_files_exist(juju):
     config_path = "/etc/alertmanager/"
     stdout = juju.ssh(f"{AM_APP}/0", f"ls {config_path}", container="alertmanager")
     logger.info("Contents of %s: %s", config_path, stdout)
+
+
+@pytest.mark.parametrize("container_name", list(CONTAINERS_SECURITY_CONTEXT_MAP))
+def test_container_security_context(juju, container_name: str):
+    lightkube_client = lightkube.Client()
+    pod_name = get_pod_names(lightkube_client, juju.model, AM_APP)[0]
+    assert_security_context(
+        lightkube_client,
+        pod_name,
+        container_name,
+        CONTAINERS_SECURITY_CONTEXT_MAP,
+        juju.model,
+    )
+
+
+def test_charm_ca_certificate_installed(juju):
+    output = juju.ssh(
+        f"{AM_APP}/0",
+        "id -u && test -f /usr/local/share/ca-certificates/cos-ca.crt",
+        container="charm",
+    )
+    assert output.strip().splitlines()[0] == "171"
 
 
 def test_server_cert_san(juju):

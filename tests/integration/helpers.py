@@ -8,12 +8,14 @@ import logging
 import subprocess
 import urllib.request
 from pathlib import Path
-from typing import Set
+from typing import Dict, List, Set, TypedDict
 from urllib.parse import urlparse
 
+import lightkube
 import requests
 import yaml
 from jubilant import Juju
+from lightkube.resources.core_v1 import Pod
 from requests.auth import HTTPBasicAuth
 from tenacity import retry, stop_after_delay, wait_exponential
 
@@ -27,6 +29,63 @@ TEMPO_APP = "tempo"
 TEMPO_WORKER_APP = "tempo-worker"
 SEAWEED_APP = "seaweed"
 TEMPO_QUERY_PORT = 3200
+
+
+class ContainerSecurityContext(TypedDict):
+    """Expected Kubernetes security context for a container."""
+
+    runAsUser: int  # noqa: N815
+    runAsGroup: int  # noqa: N815
+
+
+def generate_container_securitycontext_map(
+    metadata_yaml: dict, juju_user_id: int = 170
+) -> Dict[str, ContainerSecurityContext]:
+    """Build expected UID/GID settings from charmcraft metadata."""
+    security_contexts = {
+        container_name: ContainerSecurityContext(
+            runAsUser=container_spec["uid"],
+            runAsGroup=container_spec["gid"],
+        )
+        for container_name, container_spec in metadata_yaml.get("containers", {}).items()
+    }
+    security_contexts["charm"] = ContainerSecurityContext(
+        runAsUser=juju_user_id,
+        runAsGroup=juju_user_id,
+    )
+    return security_contexts
+
+
+def get_pod_names(client: lightkube.Client, model: str, application_name: str) -> List[str]:
+    """Return pod names belonging to a Juju application."""
+    pod_names = []
+    for pod in client.list(
+        Pod,
+        namespace=model,
+        labels={"app.kubernetes.io/name": application_name},
+    ):
+        if pod.metadata and pod.metadata.name:
+            pod_names.append(pod.metadata.name)
+    return pod_names
+
+
+def assert_security_context(
+    client: lightkube.Client,
+    pod_name: str,
+    container_name: str,
+    security_contexts: Dict[str, ContainerSecurityContext],
+    model: str,
+) -> None:
+    """Assert that a pod container has the expected UID and GID."""
+    pod = client.get(Pod, pod_name, namespace=model)
+    assert pod.spec is not None
+    containers = pod.spec.containers
+    container = next((item for item in containers if item.name == container_name), None)
+    assert container is not None, f"Container {container_name} not found in pod {pod_name}"
+    security_context = container.securityContext
+    assert security_context is not None
+    for key, expected_value in security_contexts[container_name].items():
+        assert getattr(security_context, key) == expected_value
 
 
 def get_unit_address(juju: Juju, app_name: str, unit_num: int) -> str:

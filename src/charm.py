@@ -5,6 +5,7 @@
 """A Juju charm for alertmanager."""
 
 import logging
+import shutil
 import socket
 import subprocess
 from dataclasses import dataclass
@@ -96,6 +97,7 @@ class AlertmanagerCharm(CharmBase):
     _key_path = "/etc/alertmanager/alertmanager.key.pem"
     _ca_cert_path = "/usr/local/share/ca-certificates/cos-ca.crt"
     _recv_ca_cert_folder_path = "/usr/local/share/ca-certificates/juju_receive-ca-cert"
+    _charm_ca_cert_folder_path = "/tmp/alertmanager-ca-certificates"
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -628,15 +630,19 @@ class AlertmanagerCharm(CharmBase):
         self._common_exit_hook()
 
     def _update_ca_certs(self):
-        ca_cert_path = Path(self._ca_cert_path)
+        charm_ca_folder = Path(self._charm_ca_cert_folder_path)
+        charm_ca_folder.mkdir(exist_ok=True, parents=True)
+        for cert_path in charm_ca_folder.iterdir():
+            if cert_path.is_dir():
+                shutil.rmtree(cert_path)
+            else:
+                cert_path.unlink()
+
         if tls_config := self._tls_config:
-            ca_cert_path.parent.mkdir(exist_ok=True, parents=True)
-            ca_cert_path.write_text(tls_config.ca_cert)
-        else:
-            ca_cert_path.unlink(missing_ok=True)
+            (charm_ca_folder / "cos-ca.crt").write_text(tls_config.ca_cert)
 
         # Handle certificates received via the receive-ca-cert relation
-        recv_ca_folder = Path(self._recv_ca_cert_folder_path)
+        recv_ca_folder = charm_ca_folder / "juju_receive-ca-cert"
         ca_certs = self._cert_transfer.get_all_certificates()
 
         # Workload container: clean up and write current certs
@@ -648,9 +654,6 @@ class AlertmanagerCharm(CharmBase):
             self.container.push(f"{self._recv_ca_cert_folder_path}/{i}.crt", cert, make_dirs=True)
 
         # Charm container: clean up and write current certs
-        if recv_ca_folder.exists():
-            for f in recv_ca_folder.iterdir():
-                f.unlink()
         if ca_certs:
             recv_ca_folder.mkdir(parents=True, exist_ok=True)
             for i, cert in enumerate(ca_certs):
@@ -659,7 +662,35 @@ class AlertmanagerCharm(CharmBase):
         # Workload container
         self.container.exec(["update-ca-certificates", "--fresh"], timeout=30).wait()
         # Charm container
-        subprocess.run(["update-ca-certificates", "--fresh"], check=True)
+        subprocess.run(["sudo", "rm", "-f", self._ca_cert_path], check=True)
+        subprocess.run(["sudo", "rm", "-rf", self._recv_ca_cert_folder_path], check=True)
+        if tls_config:
+            subprocess.run(
+                [
+                    "sudo",
+                    "install",
+                    "-D",
+                    "-m",
+                    "644",
+                    str(charm_ca_folder / "cos-ca.crt"),
+                    self._ca_cert_path,
+                ],
+                check=True,
+            )
+        for cert_path in sorted(recv_ca_folder.glob("*.crt")):
+            subprocess.run(
+                [
+                    "sudo",
+                    "install",
+                    "-D",
+                    "-m",
+                    "644",
+                    str(cert_path),
+                    f"{self._recv_ca_cert_folder_path}/{cert_path.name}",
+                ],
+                check=True,
+            )
+        subprocess.run(["sudo", "update-ca-certificates", "--fresh"], check=True)
 
     def _get_peer_hostnames(self, include_this_unit=True) -> List[str]:
         """Returns a list of the hostnames of the peer units.

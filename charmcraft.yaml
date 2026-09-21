@@ -32,6 +32,8 @@ assumes:
   - k8s-api
   - juju >= 3.6
 
+charm-user: sudoer
+
 platforms:
   ubuntu@26.04:amd64:
 
@@ -48,6 +50,8 @@ parts:
 containers:
   alertmanager:  # container key used by pebble
     resource: alertmanager-image
+    uid: 584792
+    gid: 584792
     mounts:
       - storage: data
         # nflogs and silences files go here. With a mounted storage for silences, they persist
@@ -180,7 +184,7 @@ resources:
       OCI image for alertmanager. This charms makes the following assumptions about the image:
       - location of executable "alertmanager" is in the path
       - has `update-ca-certificates`
-    upstream-source: ubuntu/alertmanager@sha256:44b195504d5ebbd1e0b1433d8d0bae841c58467767d75e3cc10d3bcde0b29f21  # renovate: oci-image tag: 0.34-26.04
+    upstream-source: edeusebio85/alertmanager@sha256:0a1d14b7a8d310c92cf0f858c8a33a18d7687ac7952d87d59c39139985969024  # renovate: oci-image tag: 0.34-nonroot
 
 config:
   options:
