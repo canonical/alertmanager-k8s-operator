@@ -136,10 +136,12 @@ juju deploy ./alertmanager-k8s.charm \
 - All lifecycle events call a common hook, `_common_exit_hook` after executing
   their own business logic. This pattern simplifies state tracking and improves
   consistency.
-- On startup, the charm waits for `PebbleReadyEvent` and for an IP address to
-  become available before starting the alertmanager service and declaring
-  `ActiveStatus`. The charm must be related to an alertmanager instance,
-  otherwise the charm will go into blocked state.
+- On startup, the charm waits for the Kubernetes resource-limit patch to apply
+  and for the workload container to be reachable (`PebbleReadyEvent`) before
+  starting the alertmanager service and declaring `ActiveStatus`. No relations
+  are required; the charm goes into blocked state if the Alertmanager
+  configuration is invalid, the resource patch fails, or the external URL is
+  invalid.
 
 ## Design choices
 - The `alertmanager.yml` config file is created in its entirety by the charm
