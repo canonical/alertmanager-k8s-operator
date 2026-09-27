@@ -103,8 +103,6 @@ The alert should then be listed,
 curl http://$alertmanager_ip:9093/api/v1/alerts
 ```
 
-and visible on a karma dashboard, if configured.
-
 Relations between alertmanager and prometheus can be verified by
 [querying prometheus](https://prometheus.io/docs/prometheus/latest/querying/api/#alertmanagers)
 for active alertmanagers:
@@ -139,7 +137,7 @@ juju deploy ./alertmanager-k8s.charm \
   their own business logic. This pattern simplifies state tracking and improves
   consistency.
 - On startup, the charm waits for `PebbleReadyEvent` and for an IP address to
-  become available before starting the karma service and declaring
+  become available before starting the alertmanager service and declaring
   `ActiveStatus`. The charm must be related to an alertmanager instance,
   otherwise the charm will go into blocked state.
 
