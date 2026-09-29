@@ -2,10 +2,12 @@ from contextlib import ExitStack
 from unittest.mock import patch
 
 import pytest
-from ops.testing import Context
+from ops.testing import Container, Context, Exec, PeerRelation, State
 
 from alertmanager import WorkloadManager
 from src.charm import AlertmanagerCharm
+
+FQDN = "fqdn"
 
 
 def tautology(*_, **__) -> bool:
@@ -40,3 +42,57 @@ def alertmanager_charm():
 @pytest.fixture(scope="function")
 def context(alertmanager_charm):
     return Context(charm_type=alertmanager_charm)
+
+
+@pytest.fixture
+def fqdn():
+    """The hostname the charm sees. Override in a test module to vary it."""
+    return FQDN
+
+
+@pytest.fixture(autouse=True)
+def patch_fqdn(fqdn):
+    with patch("socket.getfqdn", new=lambda *args: fqdn):
+        yield
+
+
+@pytest.fixture
+def port(alertmanager_charm):
+    return alertmanager_charm._ports.api
+
+
+@pytest.fixture
+def container() -> Container:
+    """A ready alertmanager container."""
+    return Container(
+        "alertmanager",
+        can_connect=True,
+        execs={
+            Exec(["update-ca-certificates", "--fresh"]),
+            Exec(
+                ["alertmanager", "--version"],
+                stdout="alertmanager, version 0.23.0 (branch: HEAD, ...",
+            ),
+            Exec(["/usr/bin/amtool", "check-config", "/etc/alertmanager/alertmanager.yml"]),
+        },
+    )
+
+
+@pytest.fixture
+def peer_relation() -> PeerRelation:
+    return PeerRelation("replicas")
+
+
+@pytest.fixture
+def base_state(container, peer_relation) -> State:
+    """A leader alertmanager unit with a ready container and its peer relation.
+
+    The charm reconciles its entire world on every event, so a single event run
+    against this state is enough to exercise startup behaviour.
+    """
+    return State(
+        leader=True,
+        config={"config_file": ""},
+        containers=[container],
+        relations=[peer_relation],
+    )

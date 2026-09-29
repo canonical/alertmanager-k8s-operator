@@ -2,101 +2,73 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Unit tests for config change detection."""
+"""Feature: config files are only rewritten, and alertmanager only reloaded, on real changes."""
 
 import dataclasses
-import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import ops
 import pytest
-from helpers import begin_with_initial_hooks_isolated
-from ops.pebble import PathError
+from ops.testing import Context, State
 
 from alertmanager import ConfigFileSystemState, WorkloadManager
 
-ops.testing.SIMULATE_CAN_CONNECT = True  # pyright: ignore
-CONTAINER_NAME = "alertmanager"
+CONFIG_PATH = "/etc/config.yml"
+OTHER_PATH = "/etc/other.yml"
 
 
-class TestConfigFileSystemStateHasChanges(unittest.TestCase):
-    """Tests for ConfigFileSystemState.has_changes()."""
-
-    def setUp(self):
-        self.container = MagicMock()
-
-    def test_file_does_not_exist(self):
-        """A file that doesn't exist in the container is a change."""
-        self.container.pull.side_effect = PathError("not found", "not found")
-        manifest = ConfigFileSystemState({"/etc/config.yml": "content"})
-        self.assertTrue(manifest.has_changes(self.container))
-
-    def test_file_exists_with_same_content(self):
-        """A file with identical content is not a change."""
-        self.container.pull.return_value.read.return_value = "content"
-        manifest = ConfigFileSystemState({"/etc/config.yml": "content"})
-        self.assertFalse(manifest.has_changes(self.container))
-
-    def test_file_exists_with_different_content(self):
-        """A file with different content is a change."""
-        self.container.pull.return_value.read.return_value = "old content"
-        manifest = ConfigFileSystemState({"/etc/config.yml": "new content"})
-        self.assertTrue(manifest.has_changes(self.container))
-
-    def test_file_should_be_removed_and_exists(self):
-        """A file marked for removal that still exists is a change."""
-        self.container.pull.return_value.read.return_value = "content"
-        manifest = ConfigFileSystemState({"/etc/config.yml": None})
-        self.assertTrue(manifest.has_changes(self.container))
-
-    def test_file_should_be_removed_and_does_not_exist(self):
-        """A file marked for removal that is already gone is not a change."""
-        self.container.pull.side_effect = PathError("not found", "not found")
-        manifest = ConfigFileSystemState({"/etc/config.yml": None})
-        self.assertFalse(manifest.has_changes(self.container))
-
-    def test_multiple_files_no_changes(self):
-        """Multiple files all matching is not a change."""
-        self.container.pull.return_value.read.return_value = "content"
-        manifest = ConfigFileSystemState({
-            "/etc/config.yml": "content",
-            "/etc/other.yml": "content",
-        })
-        self.assertFalse(manifest.has_changes(self.container))
-
-    def test_multiple_files_one_change(self):
-        """One differing file among many is a change."""
-        def pull_side_effect(path):
-            mock = MagicMock()
-            if path == "/etc/config.yml":
-                mock.read.return_value = "old content"
-            else:
-                mock.read.return_value = "content"
-            return mock
-
-        self.container.pull.side_effect = pull_side_effect
-        manifest = ConfigFileSystemState({
-            "/etc/config.yml": "new content",
-            "/etc/other.yml": "content",
-        })
-        self.assertTrue(manifest.has_changes(self.container))
+@pytest.fixture
+def workload_container(context: Context, base_state: State):
+    """The workload container, with an empty filesystem to push files into."""
+    with context(context.on.update_status(), base_state) as mgr:
+        yield mgr.charm.container
 
 
-class TestCharmReloadConditional:
-    """Tests that charm only reloads when config actually changes."""
+@pytest.mark.parametrize(
+    "on_disk, manifest, expect_changes",
+    [
+        pytest.param({}, {CONFIG_PATH: "content"}, True, id="file-missing"),
+        pytest.param({CONFIG_PATH: "content"}, {CONFIG_PATH: "content"}, False, id="file-same"),
+        pytest.param(
+            {CONFIG_PATH: "old content"}, {CONFIG_PATH: "new content"}, True, id="file-differs"
+        ),
+        # A manifest entry of `None` means the file should be removed.
+        pytest.param({CONFIG_PATH: "content"}, {CONFIG_PATH: None}, True, id="stale-file-present"),
+        pytest.param({}, {CONFIG_PATH: None}, False, id="stale-file-absent"),
+        pytest.param(
+            {CONFIG_PATH: "content", OTHER_PATH: "content"},
+            {CONFIG_PATH: "content", OTHER_PATH: "content"},
+            False,
+            id="many-files-same",
+        ),
+        pytest.param(
+            {CONFIG_PATH: "old content", OTHER_PATH: "content"},
+            {CONFIG_PATH: "new content", OTHER_PATH: "content"},
+            True,
+            id="many-files-one-differs",
+        ),
+    ],
+)
+def test_has_changes_compares_the_manifest_against_the_container(
+    workload_container, on_disk, manifest, expect_changes
+):
+    # GIVEN a container with these files on disk
+    for path, content in on_disk.items():
+        workload_container.push(path, content, make_dirs=True)
 
-    @pytest.fixture
-    def initial_state(self, context):
-        return begin_with_initial_hooks_isolated(context, leader=True)
+    # WHEN the wanted manifest is compared against it
+    # THEN it reports whether anything needs writing
+    assert ConfigFileSystemState(manifest).has_changes(workload_container) is expect_changes
 
-    def test_common_exit_hook_reloads_on_config_change(self, context, initial_state):
-        """_common_exit_hook reloads when config changes."""
-        with patch.object(WorkloadManager, "reload") as mock_reload:
-            # Change config from default
-            state = dataclasses.replace(
-                initial_state,
-                config={"config_file": "global:\n  resolve_timeout: 10m\n"}
-            )
-            state = context.run(context.on.config_changed(), state)
-            # Config changed from default, so reload should be called
-            mock_reload.assert_called_once()
+
+def test_alertmanager_is_reloaded_when_the_config_changes(context: Context, base_state: State):
+    # GIVEN a charm whose config differs from what is on disk
+    state_in = dataclasses.replace(
+        base_state, config={"config_file": "global:\n  resolve_timeout: 10m\n"}
+    )
+
+    # WHEN the charm reconciles
+    with patch.object(WorkloadManager, "reload") as reload:
+        context.run(context.on.config_changed(), state_in)
+
+    # THEN alertmanager is reloaded to pick up the new config
+    reload.assert_called_once()
