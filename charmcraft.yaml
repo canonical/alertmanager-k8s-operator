@@ -15,7 +15,7 @@ description: |
   Key features:
 
   - Native high-availability clustering by simply scaling the application with Juju.
-  - Seamless integration with Prometheus, Loki, Grafana, Karma, Traefik, and other charms
+  - Seamless integration with Prometheus, Loki, Grafana, Traefik, and other charms
     in the COS ecosystem through Juju relations.
   - Built-in Grafana dashboards and Prometheus alert rules for self-monitoring.
   - TLS support via the certificates relation.
@@ -70,14 +70,6 @@ provides:
     optional: true
     description: |
       Integrates with other charms to send notifications when alert rules are triggered.
-  karma-dashboard:
-    interface: karma_dashboard
-    optional: true
-    description: |
-      Links an entire Alertmanager cluster to a Karma[1] dashboard.
-      Scaling alertmanager would automatically cause karma to group alerts by cluster.
-
-      [1] https://charmhub.io/karma-k8s
   self-metrics-endpoint:
     interface: prometheus_scrape
     optional: true

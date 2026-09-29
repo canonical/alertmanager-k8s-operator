@@ -58,7 +58,8 @@ class ConfigFileSystemState:
         """Return True if any file in the manifest differs from what's in the container."""
         for filepath, content in self._manifest.items():
             try:
-                existing = container.pull(filepath).read()
+                with container.pull(filepath) as f:
+                    existing = f.read()
             except PathError:
                 existing = None
 
