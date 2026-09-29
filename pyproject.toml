@@ -31,7 +31,6 @@ dev = [
   "pytest",
   "coverage[toml]",
   "deepdiff",
-  "hypothesis",
   "validators>=0.21.2",
   "ops[testing]",
   "pytest-interface-tester>0.3",

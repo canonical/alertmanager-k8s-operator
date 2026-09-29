@@ -1,48 +1,49 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from unittest.mock import patch
+"""Feature: the charm survives the lifecycle events it does not otherwise assert on."""
+
+import dataclasses
 
 import pytest
-from helpers import add_relation_sequence, begin_with_initial_hooks_isolated
 from ops.testing import Context, Relation, State
 
-"""Some brute-force tests, so that other tests can remain focused."""
+
+@pytest.mark.parametrize("event", ["install", "start", "update_status", "stop", "remove"])
+def test_charm_handles_lifecycle_events_without_erroring(
+    context: Context, base_state: State, event: str
+):
+    # GIVEN a ready charm
+    # WHEN a lifecycle event fires
+    # THEN the charm does not raise
+    context.run(getattr(context.on, event)(), base_state)
 
 
-def test_startup_shutdown_sequence(context: Context):
-    state = begin_with_initial_hooks_isolated(context)
-    state = context.run(context.on.update_status(), state)
-
-    for peer_rel in state.get_relations("replicas"):
-        state = context.run(context.on.relation_departed(peer_rel, remote_unit=2), state)
-
-    state = context.run(context.on.stop(), state)
-    context.run(context.on.remove(), state)
+def test_charm_handles_a_departing_peer_without_erroring(
+    context: Context, base_state: State, peer_relation
+):
+    # GIVEN a ready charm with a peer
+    # WHEN that peer departs
+    # THEN the charm does not raise
+    context.run(context.on.relation_departed(peer_relation, remote_unit=2), base_state)
 
 
 @pytest.mark.parametrize("fqdn", ["localhost", "am-0.endpoints.cluster.local"])
 @pytest.mark.parametrize("leader", [True, False])
-class TestAlertingRelationDataUniformity:
-    """Scenario: The charm is related to several different prometheus apps."""
+def test_every_related_app_gets_the_same_alerting_data(
+    context: Context, base_state: State, leader: bool
+):
+    """Alertmanager advertises itself identically to each consumer, regardless of who asks."""
+    # GIVEN a charm related to several prometheus apps
+    prom_relations = [Relation("alerting", remote_app_name=f"prom-{i}") for i in range(3)]
+    state_in = dataclasses.replace(
+        base_state, leader=leader, relations=[*base_state.relations, *prom_relations]
+    )
 
-    @pytest.fixture
-    def post_startup(self, context, fqdn, leader) -> State:
-        with patch("socket.getfqdn", new=lambda *args: fqdn):
-            state = begin_with_initial_hooks_isolated(context, leader=leader)
+    # WHEN the charm reconciles
+    state = context.run(context.on.config_changed(), state_in)
 
-            # Add several relations TODO: how to obtain the next rel_id automatically?
-            prom_rels = [Relation("alerting", id=rel_id) for rel_id in (10, 11, 12)]
-            for prom_rel in prom_rels:
-                state = add_relation_sequence(context, state, prom_rel)
-            return state
-
-    def test_relation_data_is_the_same_for_all_related_apps(self, post_startup, fqdn):
-        # GIVEN an isolated alertmanager charm after the startup sequence is complete
-        state = post_startup
-
-        # THEN the "alerting" relation data has the same contents for all related apps
-        relations = state.get_relations("alerting")
-        for i in range(1, len(relations)):
-            assert relations[0].local_unit_data == relations[i].local_unit_data
-            assert relations[0].local_app_data == relations[i].local_app_data
+    # THEN all "alerting" relations carry identical data
+    relations = state.get_relations("alerting")
+    assert len({tuple(sorted(r.local_unit_data.items())) for r in relations}) == 1
+    assert len({tuple(sorted(r.local_app_data.items())) for r in relations}) == 1

@@ -2,26 +2,29 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Helper functions for writing tests."""
+"""Helper functions for reading values out of an output State."""
 
-import dataclasses
-from unittest.mock import patch
+from typing import List, Optional
 
-from ops.testing import Container, Context, Exec, PeerRelation, Relation, State
+from ops.testing import Container, Context, State
 
-
-def no_op(*_, **__) -> None:
-    pass
+CONTAINER_NAME = "alertmanager"
+SERVICE_NAME = "alertmanager"
 
 
-def tautology(*_, **__) -> bool:
-    return True
+def container_of(state: State) -> Container:
+    """The alertmanager container in the given state."""
+    return state.get_container(CONTAINER_NAME)
 
 
-def cli_arg(plan, cli_opt):
-    plan_dict = plan.to_dict()
-    args = plan_dict["services"]["alertmanager"]["command"].split()
-    for arg in args:
+def command_of(state: State) -> str:
+    """The pebble command alertmanager is started with."""
+    return container_of(state).plan.services[SERVICE_NAME].command
+
+
+def cli_arg(state: State, cli_opt: str) -> Optional[str]:
+    """The value of a `--flag=value` argument in the pebble command, if present."""
+    for arg in command_of(state).split():
         opt_list = arg.split("=")
         if len(opt_list) == 2 and opt_list[0] == cli_opt:
             return opt_list[1]
@@ -30,61 +33,17 @@ def cli_arg(plan, cli_opt):
     return None
 
 
-k8s_resource_multipatch = patch.multiple(
-    "charm.KubernetesComputeResourcesPatch",
-    _namespace="test-namespace",
-    _patch=tautology,
-    is_ready=tautology,
-)
+def cluster_peers(state: State) -> List[str]:
+    """The sorted `--cluster.peer` addresses in the pebble command."""
+    args = command_of(state).split()
+    return sorted(arg.split("=")[1] for arg in args if arg.startswith("--cluster.peer="))
 
 
-def begin_with_initial_hooks_isolated(context: Context, *, leader: bool = True) -> State:
-    container = Container(
-        "alertmanager",
-        can_connect=False,
-        execs={
-            Exec(["update-ca-certificates", "--fresh"]),
-            Exec(
-                ["alertmanager", "--version"],
-                stdout="alertmanager, version 0.23.0 (branch: HEAD, ...",
-            ),
-            Exec(["/usr/bin/amtool", "check-config", "/etc/alertmanager/alertmanager.yml"]),
-        },
-    )
-    state = State(config={"config_file": ""}, containers=[container])
-    peer_rel = PeerRelation("replicas")
-
-    state = context.run(context.on.install(), state)
-
-    state = dataclasses.replace(state, relations=[peer_rel])
-    state = context.run(context.on.relation_created(peer_rel), state)
-
-    if leader:
-        state = dataclasses.replace(state, leader=True)
-        state = context.run(context.on.leader_elected(), state)
-    else:
-        state = dataclasses.replace(state, leader=False)
-
-    state = context.run(context.on.config_changed(), state)
-
-    # state = state.with_can_connect("alertmanger")
-    container = dataclasses.replace(container, can_connect=True)
-    state = dataclasses.replace(state, containers=[container])
-    state = context.run(context.on.pebble_ready(container), state)
-
-    state = context.run(context.on.start(), state)
-
-    return state
+def workload_path(context: Context, state: State, path: str):
+    """The host-side path of a file in the workload container."""
+    return container_of(state).get_filesystem(context).joinpath(path.lstrip("/"))
 
 
-def add_relation_sequence(context: Context, state: State, relation: Relation):
-    """Helper to simulate a relation-added sequence."""
-    # TODO consider adding to scenario.sequences
-    state_with_relation = dataclasses.replace(state, relations={*state.relations, relation})
-    state_after_relation_created = context.run(context.on.relation_created(relation), state_with_relation)
-    state_after_relation_joined = context.run(context.on.relation_joined(relation), state_after_relation_created)
-    state_after_relation_changed = context.run(
-        context.on.relation_changed(state_after_relation_joined.get_relation(relation.id)),
-        state_after_relation_joined,
-    )
-    return state_after_relation_changed
+def workload_file(context: Context, state: State, path: str) -> str:
+    """The contents of a file written to the workload container."""
+    return workload_path(context, state, path).read_text()

@@ -1,29 +1,22 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import json
-import logging
-import unittest
-from typing import cast
-from unittest.mock import patch
+"""Feature: alertmanager can take its config from a relation instead of from charm config."""
 
+import dataclasses
+import json
+from typing import cast
+
+import pytest
 import yaml
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     DEFAULT_RELATION_NAME,
 )
 from deepdiff import DeepDiff  # type: ignore[import]
-from helpers import k8s_resource_multipatch
-from ops import testing
+from helpers import workload_file
 from ops.model import BlockedStatus
+from ops.testing import Context, Relation, State
 
-from alertmanager import WorkloadManager
-from charm import AlertmanagerCharm
-
-logger = logging.getLogger(__name__)
-
-testing.SIMULATE_CAN_CONNECT = True  # pyright: ignore
-
-TEST_ALERTMANAGER_CONFIG_FILE = "/test/rules/dir/config_file.yml"
 TEST_ALERTMANAGER_DEFAULT_CONFIG = """route:
   receiver: placeholder
 receivers:
@@ -41,123 +34,88 @@ route:
 """
 
 
-@patch("subprocess.run")
-class TestAlertmanagerRemoteConfigurationRequirer(unittest.TestCase):
-    @patch("subprocess.run")
-    @patch("lightkube.core.client.GenericSyncClient")
-    @patch.object(AlertmanagerCharm, "_update_ca_certs", lambda *a, **kw: None)
-    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    @k8s_resource_multipatch
-    def setUp(self, *_) -> None:
-        self.harness = testing.Harness(AlertmanagerCharm)
-        self.addCleanup(self.harness.cleanup)
-        self.harness.set_leader(True)
+def remote_configuration(**app_data) -> Relation:
+    """A relation over which a provider publishes an alertmanager config."""
+    return Relation(
+        DEFAULT_RELATION_NAME, remote_app_name="remote-config-provider", remote_app_data=app_data
+    )
 
-        self.harness.handle_exec("alertmanager", ["update-ca-certificates", "--fresh"], result="")
-        self.harness.handle_exec(
-            "alertmanager",
-            [WorkloadManager._amtool_path, "check-config", AlertmanagerCharm._config_path],
-            result="",
-        )
 
-        # TODO: Once we're on ops 2.0.0+ this can be removed as begin_with_initial_hooks()
-        # now does it.
-        self.harness.set_can_connect("alertmanager", True)
+@pytest.fixture
+def remote_config() -> dict:
+    return yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
 
-        # In ops 2.0.0+, we need to mock the version, as begin_with_initial_hooks() now triggers
-        # pebble-ready, which attempts to obtain the workload version.
-        patcher = patch.object(
-            WorkloadManager, "_alertmanager_version", property(lambda *_: "0.0.0")
-        )
-        self.mock_version = patcher.start()
-        self.addCleanup(patcher.stop)
 
-        self.harness.begin_with_initial_hooks()
+def test_a_config_from_the_relation_is_rendered_with_juju_topology(
+    context: Context, base_state: State, alertmanager_charm, remote_config
+):
+    # GIVEN a provider publishing a valid alertmanager config
+    relation = remote_configuration(alertmanager_config=json.dumps(remote_config))
+    state_in = dataclasses.replace(base_state, relations=[*base_state.relations, relation])
 
-        self.relation_id = self.harness.add_relation(
-            DEFAULT_RELATION_NAME, "remote-config-provider"
-        )
-        self.harness.add_relation_unit(self.relation_id, "remote-config-provider/0")
+    # WHEN the charm reconciles
+    state = context.run(context.on.relation_changed(relation), state_in)
 
-    @k8s_resource_multipatch
-    def test_valid_config_pushed_to_relation_data_bag_updates_alertmanager_config(
-        self,
-        *_,
-    ):
-        expected_config = remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
-        # add juju topology to "group_by"
-        route = cast(dict, expected_config.get("route", {}))
-        route["group_by"] = list(
-            set(route.get("group_by", [])).union(
-                ["juju_application", "juju_model", "juju_model_uuid"]
-            )
-        )
-        expected_config["route"] = route
+    # THEN the workload runs that config, with juju topology merged into its grouping
+    expected = dict(remote_config)
+    route = cast(dict, expected.get("route", {}))
+    route["group_by"] = list(
+        set(route.get("group_by", [])).union(["juju_application", "juju_model", "juju_model_uuid"])
+    )
+    expected["route"] = route
 
-        self.harness.update_relation_data(
-            relation_id=self.relation_id,
-            app_or_unit="remote-config-provider",
-            key_values={"alertmanager_config": json.dumps(remote_config)},
-        )
-        config = self.harness.charm.container.pull(self.harness.charm._config_path)
+    rendered = yaml.safe_load(workload_file(context, state, alertmanager_charm._config_path))
+    assert DeepDiff(rendered, expected, ignore_order=True) == {}
 
-        self.assertEqual(
-            DeepDiff(yaml.safe_load(config.read()), expected_config, ignore_order=True),
-            {},
-        )
 
-    @k8s_resource_multipatch
-    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    def test_configs_available_from_both_relation_data_bag_and_charm_config_block_charm(
-        self,
-        *_,
-    ):
-        sample_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
-        self.harness.update_relation_data(
-            relation_id=self.relation_id,
-            app_or_unit="remote-config-provider",
-            key_values={"alertmanager_config": json.dumps(sample_remote_config)},
-        )
-        self.harness.update_config({"config_file": TEST_ALERTMANAGER_DEFAULT_CONFIG})
+def test_charm_blocks_when_config_comes_from_both_the_relation_and_charm_config(
+    context: Context, base_state: State, remote_config
+):
+    # GIVEN a provider publishing a config AND a user-provided config
+    relation = remote_configuration(alertmanager_config=json.dumps(remote_config))
+    state_in = dataclasses.replace(
+        base_state,
+        relations=[*base_state.relations, relation],
+        config={"config_file": TEST_ALERTMANAGER_DEFAULT_CONFIG},
+    )
 
-        self.assertEqual(
-            self.harness.charm.unit.status, BlockedStatus("Multiple configs detected")
-        )
+    # WHEN the charm reconciles
+    state = context.run(context.on.relation_changed(relation), state_in)
 
-    @patch("config_builder.default_config", yaml.safe_load(TEST_ALERTMANAGER_DEFAULT_CONFIG))
-    @k8s_resource_multipatch
-    def test_invalid_config_pushed_to_the_relation_data_bag_does_not_update_alertmanager_config(
-        self,
-        *_,
-    ):
-        invalid_config = yaml.safe_load("some: invalid_config")
+    # THEN the charm blocks rather than silently picking one
+    assert state.unit_status == BlockedStatus("Multiple configs detected")
 
-        self.harness.update_relation_data(
-            relation_id=self.relation_id,
-            app_or_unit="remote-config-provider",
-            key_values={"alertmanager_config": json.dumps(invalid_config)},
-        )
-        config = self.harness.charm.container.pull(self.harness.charm._config_path)
 
-        self.assertNotIn("invalid_config", yaml.safe_load(config.read()))
+def test_an_invalid_config_from_the_relation_is_not_rendered(
+    context: Context, base_state: State, alertmanager_charm
+):
+    # GIVEN a provider publishing an invalid alertmanager config
+    relation = remote_configuration(
+        alertmanager_config=json.dumps(yaml.safe_load("some: invalid_config"))
+    )
+    state_in = dataclasses.replace(base_state, relations=[*base_state.relations, relation])
 
-    @patch.object(WorkloadManager, "check_config", lambda *a, **kw: ("ok", ""))
-    @k8s_resource_multipatch
-    def test_templates_pushed_to_relation_data_bag_are_saved_to_templates_file_in_alertmanager(
-        self,
-        *_,
-    ):
-        sample_remote_config = yaml.safe_load(TEST_ALERTMANAGER_REMOTE_CONFIG)
-        test_template = '{{define "myTemplate"}}do something{{end}}'
+    # WHEN the charm reconciles
+    state = context.run(context.on.relation_changed(relation), state_in)
 
-        self.harness.update_relation_data(
-            relation_id=self.relation_id,
-            app_or_unit="remote-config-provider",
-            key_values={
-                "alertmanager_config": json.dumps(sample_remote_config),
-                "alertmanager_templates": json.dumps([test_template]),
-            },
-        )
-        updated_templates = self.harness.charm.container.pull(self.harness.charm._templates_path)
+    # THEN the invalid config does not reach the workload
+    rendered = yaml.safe_load(workload_file(context, state, alertmanager_charm._config_path))
+    assert "some" not in rendered
 
-        self.assertEqual(updated_templates.read(), test_template)
+
+def test_templates_from_the_relation_are_written_to_the_workload(
+    context: Context, base_state: State, alertmanager_charm, remote_config
+):
+    # GIVEN a provider publishing both a config and a template
+    template = '{{define "myTemplate"}}do something{{end}}'
+    relation = remote_configuration(
+        alertmanager_config=json.dumps(remote_config),
+        alertmanager_templates=json.dumps([template]),
+    )
+    state_in = dataclasses.replace(base_state, relations=[*base_state.relations, relation])
+
+    # WHEN the charm reconciles
+    state = context.run(context.on.relation_changed(relation), state_in)
+
+    # THEN the template is written to the workload
+    assert workload_file(context, state, alertmanager_charm._templates_path) == template
