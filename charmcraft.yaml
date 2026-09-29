@@ -95,6 +95,7 @@ provides:
       Configures Grafana to be able to use this Alertmanager instance as a datasource.
   provide-cmr-mesh:  # server-side-for-cmr-mesh
     interface: cross_model_mesh
+    optional: true
     description: |
       Allow cross-model applications to make HTTP requests to alertmanager via the service mesh.
       This relation provides additional data required by the service mesh to create cross-model authorization policies
@@ -150,6 +151,7 @@ requires:
   service-mesh:
     limit: 1
     interface: service_mesh
+    optional: true
     description: |
       Subscribe this charm into a service mesh and create authorization policies.
       We forward to the beacon our authorization policies.
@@ -164,6 +166,7 @@ requires:
     # TODO: remove this relation when this is fixed:
     #   https://github.com/canonical/istio-beacon-k8s-operator/issues/91
     interface: cross_model_mesh
+    optional: true
     description: |
       Allow a cross-model application access to alertmanager via the service mesh.
       This relation provides additional data required by the service mesh to enforce cross-model authorization policies.
