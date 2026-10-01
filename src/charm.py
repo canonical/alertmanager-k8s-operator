@@ -26,6 +26,7 @@ from charms.certificate_transfer_interface.v1.certificate_transfer import (
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v1.grafana_source import GrafanaSourceProvider
 from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshConsumer, UnitPolicy
+from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
     K8sResourcePatchFailedEvent,
@@ -155,6 +156,7 @@ class AlertmanagerCharm(CharmBase):
                 self._cert_requirer.on.certificate_available,
             ],
         )
+        self.karma_provider = KarmaProvider(self, "karma-dashboard")
         self._log_forwarding = LogForwarder(self, relation_name="logging")
         self.remote_configuration = RemoteConfigurationRequirer(self)
 
@@ -372,20 +374,20 @@ class AlertmanagerCharm(CharmBase):
         filepaths = self._render_manifest().manifest.keys()
 
         try:
-            results = []
-            for filepath in filepaths:
-                if self.container.exists(filepath):
-                    # Close the pulled file handle promptly; otherwise it is left for the
-                    # garbage collector, which emits a ResourceWarning (an error under -W error).
-                    with self.container.pull(filepath) as f:
-                        results.append({"path": filepath, "content": str(f.read())})
-            with self.container.pull(self._config_path) as content:
-                config_content = str(content.read())
+            results = [
+                {
+                    "path": filepath,
+                    "content": str(self.container.pull(filepath).read()),
+                }
+                for filepath in filepaths
+                if self.container.exists(filepath)
+            ]
+            content = self.container.pull(self._config_path)
             # juju requires keys to be lowercase alphanumeric (can't use self._config_path)
             event.set_results(
                 {
                     "path": self._config_path,
-                    "content": config_content,
+                    "content": str(content.read()),
                     # This already includes the above, but keeping both for backwards compat.
                     "configs": str(results),
                 }
@@ -547,6 +549,8 @@ class AlertmanagerCharm(CharmBase):
             # relation data, but this way it is more future-proof in case we change from ingress
             # per app to ingress per unit.
             self.peer_relation.data[self.unit]["private_address"] = self._internal_url
+
+        self.karma_provider.target = self._external_url
 
         # Update config file
         if not self._update_workload_config():
