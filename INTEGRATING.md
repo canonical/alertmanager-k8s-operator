@@ -20,6 +20,23 @@ for example: [Prometheus][Prometheus operator], [Loki][Loki operator].
 juju relate alertmanager-k8s:alerting prometheus-k8s:alerting
 ```
 
+### Karma dashboard
+
+```yaml
+  karma-dashboard:
+    interface: karma_dashboard
+```
+
+The [`karma_dashboard`](https://charmhub.io/karma-k8s/libraries/karma_dashboard)
+relation interface links an entire Alertmanager cluster to a
+[Karma](https://charmhub.io/karma-k8s) dashboard.
+Scaling alertmanager would automatically cause karma to group alerts by
+cluster.
+
+```
+juju relate alertmanager-k8s:karma_dashboard karma-k8s:karma_dashboard
+```
+
 ### Self metrics endpoint
 
 
@@ -119,4 +136,5 @@ user{User} -.-> |REST API CALLS| am_config
 
 [Loki operator]: https://charmhub.io/loki-k8s
 [Prometheus operator]: https://charmhub.io/prometheus-k8s
+[Karma operator]: https://charmhub.io/karma-k8s/
 [alertmanager-configurer-k8s]: https://github.com/canonical/alertmanager-configurer-k8s-operator

@@ -12,19 +12,6 @@ import pytest
 PYTEST_HTTP_SERVER_PORT = 8000
 
 
-def pytest_collection_modifyitems(items):
-    """Exempt the integration suite from the repo-wide -Werror setting.
-
-    pyproject.toml's [tool.pytest.ini_options] filterwarnings promotes warnings
-    to errors, which is what we want for the unit tests. That setting is
-    repo-wide, though, and this suite also runs under pytest, so without this
-    the integration tests would fail on deprecations raised in pytest plugins
-    and other test tooling rather than on anything this charm controls.
-    """
-    for item in items:
-        item.add_marker(pytest.mark.filterwarnings("default"))
-
-
 @pytest.fixture(scope="session")
 def httpserver_listen_address():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
