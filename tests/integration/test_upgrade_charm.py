@@ -54,7 +54,7 @@ def test_upgrade_in_isolation(juju, charm_path: Path):
 
 
 def test_upgrade_with_relations(juju, charm_path: Path):
-    juju.deploy("prometheus-k8s", PROM_APP, channel="dev/edge", trust=True)
+    juju.deploy("prometheus-k8s", PROM_APP, channel="3.14/edge", trust=True)
     juju.deploy("karma-k8s", KARMA_APP, channel="dev/edge", trust=True)
     juju.integrate(AM_APP, f"{PROM_APP}:alertmanager")
     juju.integrate(AM_APP, KARMA_APP)
