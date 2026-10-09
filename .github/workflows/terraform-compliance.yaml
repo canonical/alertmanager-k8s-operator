@@ -15,3 +15,5 @@ jobs:
     name: Terraform module compliance
     # TODO: switch to @v2 once canonical/observability#508 is released.
     uses: canonical/observability/.github/workflows/terraform-compliance.yaml@feat/terraform-compliance
+    with:
+      fail-on-violations: true
