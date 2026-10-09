@@ -1,0 +1,17 @@
+name: Terraform compliance
+
+on:
+  pull_request:
+    paths:
+      - "**/*.tf"
+      - ".github/workflows/terraform-compliance.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compliance:
+    name: Terraform module compliance
+    # TODO: switch to @v2 once canonical/observability#508 is released.
+    uses: canonical/observability/.github/workflows/terraform-compliance.yaml@feat/terraform-compliance
