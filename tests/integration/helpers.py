@@ -61,15 +61,6 @@ def get_leader_unit_num(juju: Juju, app_name: str) -> int:
     return -1
 
 
-def get_alertmanager_config_from_file(
-    juju: Juju,
-    app_name: str,
-    config_file_path: str,
-) -> str:
-    """Read a file from inside an alertmanager container and return its content."""
-    return juju.ssh(f"{app_name}/0", f"cat {config_file_path}", container="alertmanager")
-
-
 def grafana_password(juju: Juju, app_name: str) -> str:
     """Return the Grafana admin password."""
     task = juju.run(f"{app_name}/leader", "get-admin-password")
