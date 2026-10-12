@@ -76,9 +76,6 @@ convention = "google"
 extraPaths = ["src", "lib"]
 pythonVersion = "3.8"
 pythonPlatform = "All"
-exclude = [
-  "tests/integration/remote_configuration_tester/**",
-]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
