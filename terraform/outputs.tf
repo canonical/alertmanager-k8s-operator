@@ -19,6 +19,7 @@ output "requires" {
     certificates         = "certificates",
     ingress              = "ingress",
     logging              = "logging",
+    receive_ca_cert      = "receive-ca-cert",
     remote_configuration = "remote-configuration",
     require_cmr_mesh     = "require-cmr-mesh",
     service_mesh         = "service-mesh",
