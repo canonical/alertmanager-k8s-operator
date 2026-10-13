@@ -568,7 +568,7 @@ class AlertmanagerCharm(CharmBase):
 
     def _on_pebble_ready(self, _):
         """Event handler for PebbleReadyEvent."""
-        self._common_exit_hook()
+        self._common_exit_hook(update_ca_certs=True)
 
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent."""
