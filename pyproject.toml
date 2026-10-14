@@ -41,6 +41,7 @@ dev = [
   "pytest-bdd",
   "tenacity",
   "requests",
+  "observability-clients",  # tests/integration/observability_features (blueprint)
 ]
 
 # Testing tools configuration
