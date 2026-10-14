@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = "==3.14.*"
 
 [[package]]
@@ -27,6 +27,7 @@ dev = [
     { name = "coverage" },
     { name = "deepdiff" },
     { name = "jubilant" },
+    { name = "observability-features" },
     { name = "ops", extra = ["testing"] },
     { name = "pyright" },
     { name = "pytest" },
@@ -54,6 +55,7 @@ requires-dist = [
     { name = "lightkube", specifier = ">=0.11" },
     { name = "lightkube-extensions" },
     { name = "lightkube-models" },
+    { name = "observability-features", marker = "extra == 'dev'", directory = "../observability-libs/observability-features" },
     { name = "ops", extras = ["testing"], marker = "extra == 'dev'" },
     { name = "ops", extras = ["tracing"] },
     { name = "pydantic", specifier = ">=2" },
@@ -750,6 +752,47 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/9a/8e/105de02c1322cfada6d9710d9146ef8026419d433c9d08359a2d35805811/nodeenv-1.11.0.tar.gz", hash = "sha256:3ce8fe5b71d16e8af7039ca65257354100bc772965d6bc549070649e53b1b146", size = 99301, upload-time = "2026-09-26T11:29:21.367Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/c8/12811c9b48fde162bb72b6f2e78fada9a247a09d7bb5be2050a5d099c77b/nodeenv-1.11.0-py2.py3-none-any.whl", hash = "sha256:edaa16e6c14d7cf395d75d4bbd5a26390f4dc06501a33b4e76282b02cc688a25", size = 34277, upload-time = "2026-09-26T11:29:19.933Z" },
+]
+
+[[package]]
+name = "observability-clients"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+    { name = "tenacity" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ce/00/08c1f283fab6c6c731796810831633302a7d29ba20b7fe796906b4583a85/observability_clients-0.1.2.tar.gz", hash = "sha256:a0c3193c6b9031b5072495ef980566bec6171edcce44ad0daa9b73464116dd0d", size = 58836, upload-time = "2026-09-17T08:23:02.636Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b1/dd/173ddc5cb39ea45c6fc07920456f5e1018bcd43b89aed8d538a9f7204c30/observability_clients-0.1.2-py3-none-any.whl", hash = "sha256:dd8b27c6d26c9e3f31229a6c3f0583eeabb8aaefb4fc82feca60213b2428930c", size = 14339, upload-time = "2026-09-17T08:23:01.658Z" },
+]
+
+[[package]]
+name = "observability-features"
+version = "0.1.0"
+source = { directory = "../observability-libs/observability-features" }
+dependencies = [
+    { name = "jubilant" },
+    { name = "observability-clients" },
+    { name = "pytest-bdd" },
+    { name = "tenacity" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jubilant", specifier = ">=1.0" },
+    { name = "observability-clients", specifier = ">=0.1.2" },
+    { name = "pytest-bdd", specifier = ">=8.0" },
+    { name = "tenacity", specifier = ">=9.0.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "codespell", specifier = ">=2.4.1" },
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "ruff", specifier = ">=0.14.14" },
+    { name = "ty", specifier = ">=0.0.1a25" },
+    { name = "vulture", specifier = ">=2.14" },
 ]
 
 [[package]]

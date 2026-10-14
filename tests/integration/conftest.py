@@ -8,6 +8,14 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from helpers import ALERTMANAGER_IMAGE
+from observability_features import CharmUnderTest
+
+pytest_plugins = [
+    "observability_features.steps.deployment",
+    "observability_features.steps.log_forwarding",
+    "observability_features.steps.tls",
+]
 
 PYTEST_HTTP_SERVER_PORT = 8000
 
@@ -48,3 +56,13 @@ def charm_path() -> Path:
     subprocess.run(["charmcraft", "pack"], check=True)
     return sorted(Path(".").glob("*.charm"))[-1].resolve()
 
+
+@pytest.fixture(scope="session")
+def charm_under_test(charm_path: Path) -> CharmUnderTest:
+    """Alertmanager, as seen by the shared observability-features steps."""
+    return CharmUnderTest(
+        app="alertmanager",
+        charm=str(charm_path),
+        workload_port=9093,
+        resources={"alertmanager-image": ALERTMANAGER_IMAGE},
+    )
