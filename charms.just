@@ -89,18 +89,32 @@ scan:
     @echo "Scanning for security vulnerabilities..."
     uv audit
 
-# Fetch centralized files from canonical/observability
+# Fetch centralized files from canonical/observability, at a branch, tag or commit
 [group("maintenance")]
-refresh:
+refresh ref="main":
     #!/usr/bin/env bash
+    set -euo pipefail
     which -s gh || { echo "gh not found"; exit 1; }
+    repo="repos/canonical/observability"
     refresh_folder="blueprints/charms"
-    api_path="repos/canonical/observability/contents/$refresh_folder"
     for file in charms.just .tfdocs.yaml; do
       echo "Fetching latest '$file' from canonical/observability ..."
-      gh api "$api_path/$file" --jq '.content' | base64 --decode > "$file"
+      gh api "$repo/contents/$refresh_folder/$file?ref={{ref}}" --jq '.content' | base64 --decode > "$file"
       echo "✓ $file updated"
     done
+    # Shared feature files and step definitions: mirror the whole directory, so that files
+    # removed upstream are removed here too.
+    shared_dir="tests/integration/observability_features"
+    echo "Fetching latest '$shared_dir/' from canonical/observability ..."
+    rm -rf "$shared_dir"
+    gh api "$repo/git/trees/{{ref}}?recursive=1" \
+      --jq ".tree[] | select(.type == \"blob\") | .path | select(startswith(\"$refresh_folder/$shared_dir/\"))" |
+    while read -r path; do
+      local_path="${path#"$refresh_folder/"}"
+      mkdir -p "$(dirname "$local_path")"
+      gh api "$repo/contents/$path?ref={{ref}}" --jq '.content' | base64 --decode > "$local_path"
+    done
+    echo "✓ $shared_dir updated"
 
 
 # Format the codebase
@@ -344,5 +358,31 @@ changelog from_ref="" to_ref="":
             print("\n".join(categories[key]))
             print()
 
+# Set the default track for a charm on Charmhub
+[group("release")]
+[confirm]
+set-default-track track:
+  #!/usr/bin/env bash
+  # Verify CHARMCRAFT_AUTH is specified
+  if [[ -z "$CHARMCRAFT_AUTH" ]]; then
+    echo "You must set the CHARMCRAFT_AUTH environment variable. Please run:"
+    echo '  charmcraft login --export ~/.charmcraft.auth && export CHARMCRAFT_AUTH="$(cat ~/.charmcraft.auth)"'
+    exit 1
+  fi
+  # Prepare the authentication header
+  CHARMHUB_MACAROON_HEADER="Authorization: Macaroon $(echo "$CHARMCRAFT_AUTH" | base64 -d | jq -r .v)"
+  # Send the request to change the default track
+  curl -X PATCH "https://api.charmhub.io/v1/charm/{{charm_name}}" \
+    -H "$CHARMHUB_MACAROON_HEADER" \
+    -H "Content-Type: application/json" \
+    -d '{"default-track": "{{track}}"}'
 
 
+# Close a track on Charmhub (i.e., point it to no revisions)
+[group("release")]
+[confirm]
+close-track track:
+  charmcraft close {{track}}/edge
+  charmcraft close {{track}}/beta
+  charmcraft close {{track}}/candidate
+  charmcraft close {{track}}/stable
