@@ -41,7 +41,12 @@ dev = [
   "pytest-bdd",
   "tenacity",
   "requests",
+  "observability-steps",
 ]
+
+[tool.uv.sources]
+# Spike: unreleased; expects observability-libs checked out next to this repo.
+observability-steps = { path = "../observability-libs/observability-steps" }
 
 # Testing tools configuration
 [tool.coverage.run]

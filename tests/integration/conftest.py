@@ -9,6 +9,12 @@ from pathlib import Path
 
 import pytest
 
+pytest_plugins = [
+    "observability_steps.logs",
+    "observability_steps.tls",
+    "steps.alertmanager",
+]
+
 PYTEST_HTTP_SERVER_PORT = 8000
 
 
