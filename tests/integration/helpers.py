@@ -34,6 +34,17 @@ def get_unit_address(juju: Juju, app_name: str, unit_num: int) -> str:
     return juju.status().apps[app_name].units[f"{app_name}/{unit_num}"].address
 
 
+def model_namespace(juju: Juju) -> str:
+    """Return the Kubernetes namespace of the model, which may be prefixed by its controller."""
+    assert juju.model, "Juju model not set"
+    return juju.model.rpartition(":")[-1]
+
+
+def unit_fqdn(juju: Juju, app_name: str, unit_num: int) -> str:
+    """Return the in-cluster FQDN of a unit, which its server certificate is issued for."""
+    return f"{app_name}-{unit_num}.{app_name}-endpoints.{model_namespace(juju)}.svc.cluster.local"
+
+
 def is_alertmanager_up(juju: Juju, app_name: str) -> bool:
     """Return True if all alertmanager units respond to the status endpoint."""
     app = juju.status().apps.get(app_name)
@@ -130,21 +141,24 @@ def deploy_tempo_stack(juju: Juju) -> Set[str]:
     return {TEMPO_APP, TEMPO_WORKER_APP, SEAWEED_APP}
 
 
-@retry(wait=wait_exponential(multiplier=2, min=2, max=30), stop=stop_after_delay(300), reraise=True)
-def assert_traces_in_tempo(tempo_ip: str, *, service_name: str) -> None:
-    """Assert that Tempo contains at least one trace from the given service.
+@retry(
+    wait=wait_exponential(multiplier=2, min=2, max=30), stop=stop_after_delay(300), reraise=True
+)
+def assert_traces_in_tempo(tempo_ip: str, *, juju_application: str) -> None:
+    """Assert that Tempo contains at least one trace from the given Juju application.
 
+    Searches on the `juju_application` resource attribute rather than on `service.name`,
+    so that several alertmanager applications in one model can be told apart.
     Retried with exponential back-off for up to 5 minutes to account for span
     flush and ingestion lag.
     """
     url = (
         f"http://{tempo_ip}:{TEMPO_QUERY_PORT}/api/search"
-        f"?tags=service.name%3D{service_name}"
+        f"?tags=juju_application%3D{juju_application}"
     )
     with urllib.request.urlopen(url, timeout=10) as resp:
         data = json.loads(resp.read())
     traces = data.get("traces", [])
-    assert (
-        traces
-    ), f"No traces from '{service_name}' found in Tempo at {tempo_ip}:{TEMPO_QUERY_PORT}."
-
+    assert traces, (
+        f"No traces from '{juju_application}' found in Tempo at {tempo_ip}:{TEMPO_QUERY_PORT}."
+    )
