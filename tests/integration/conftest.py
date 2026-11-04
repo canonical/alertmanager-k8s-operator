@@ -9,6 +9,16 @@ from pathlib import Path
 
 import pytest
 
+# Step definitions shared by the feature files, grouped by topic.
+pytest_plugins = [
+    "steps.alerting",
+    "steps.deployment",
+    "steps.grafana",
+    "steps.relations",
+    "steps.telemetry",
+    "steps.tls",
+]
+
 PYTEST_HTTP_SERVER_PORT = 8000
 
 
@@ -47,4 +57,3 @@ def charm_path() -> Path:
 
     subprocess.run(["charmcraft", "pack"], check=True)
     return sorted(Path(".").glob("*.charm"))[-1].resolve()
-

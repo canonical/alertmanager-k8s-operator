@@ -40,8 +40,21 @@ A typical setup using [snaps](https://snapcraft.io/) can be found in the
 
 
 ### Testing
-Unit tests are written with the Operator Framework [test harness] and
-integration tests are written using [pytest-operator] and [python-libjuju].
+Unit tests are written with the Operator Framework [test harness].
+
+Integration tests are specified in Gherkin feature files in
+[`tests/integration/features`](tests/integration/features), one file per
+capability, and run with [pytest-bdd] against a Juju model with [jubilant]. Each
+feature has a `tests/integration/test_<feature>.py` module that only loads its
+scenarios, so that every feature runs in a model of its own. All the scenarios
+of a feature share that model, so a scenario's `Given` steps must bring the
+model into the state it needs, whatever ran before.
+
+Step definitions live in [`tests/integration/steps`](tests/integration/steps),
+one module per topic, registered in `tests/integration/conftest.py`. Charms that
+alertmanager relates to are listed in `COUNTERPARTS` in `steps/relations.py`,
+so that `alertmanager is related to <name> over "<endpoint>"` works for any of
+them. Run `just features` to list the scenarios.
 
 The default test environments - lint, static and unit - will run if you start
 `tox` without arguments.
@@ -158,5 +171,5 @@ juju deploy ./alertmanager-k8s.charm \
 [Mattermost channel]: https://chat.charmhub.io/charmhub/channels/observability
 [Discourse]: https://discourse.charmhub.io/tag/alertmanager
 [test harness]: https://ops.readthedocs.io/en/latest/#module-ops.testing
-[pytest-operator]: https://github.com/charmed-kubernetes/pytest-operator/blob/main/docs/reference.md
-[python-libjuju]: https://pythonlibjuju.readthedocs.io/en/latest/
+[pytest-bdd]: https://pytest-bdd.readthedocs.io/
+[jubilant]: https://documentation.ubuntu.com/jubilant/
