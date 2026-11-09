@@ -12,12 +12,12 @@ Feature: Operations
     When the alertmanager pod is deleted
     Then alertmanager is healthy
 
-  Scenario: Alertmanager stays healthy through a refresh
+  Scenario: Alertmanager stays healthy through an upgrade
     Given alertmanager is deployed from Charmhub
     When alertmanager is refreshed to the local charm
     Then alertmanager is healthy
 
-  Scenario: Silences survive a refresh
+  Scenario: Silences survive an upgrade
     Given alertmanager is deployed from Charmhub
     And a silence has been created
     When alertmanager is refreshed to the local charm

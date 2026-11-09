@@ -1,7 +1,7 @@
 Feature: Grafana datasource
-  Alertmanager registers a single datasource in Grafana, however many units it
-  has. The datasource is served by the ingress when there is one, and by the
-  Kubernetes service otherwise.
+  Alertmanager registers itself as a datasource in Grafana over
+  "grafana-source". The datasource is served by the ingress when there is one,
+  and by the Kubernetes service otherwise.
 
   Background:
     Given alertmanager has 2 units

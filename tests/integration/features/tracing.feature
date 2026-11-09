@@ -1,7 +1,6 @@
 Feature: Tracing
-  Alertmanager sends traces to the Tempo it is related to: those of the
-  requests its workload serves over "tracing", whether it serves over HTTP or
-  HTTPS, and those of the charm's own operation over "charm-tracing".
+  Alertmanager sends traces to the Tempo it is related to: workload traces are
+  sent over "tracing", and charm traces are sent over "charm-tracing".
 
   Scenario Outline: Tempo receives alertmanager's workload traces
     Given alertmanager serves over <scheme>
