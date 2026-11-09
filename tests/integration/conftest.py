@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from helpers import AM_APP
 
 # Step definitions shared by the feature files, grouped by topic.
 pytest_plugins = [
@@ -36,6 +37,18 @@ def httpserver_listen_address():
     finally:
         s.close()
     return local_ip_address, PYTEST_HTTP_SERVER_PORT
+
+
+@pytest.fixture
+def app() -> str:
+    """The alertmanager application a scenario talks about.
+
+    Steps take the application from this fixture rather than from `AM_APP`, so that a
+    scenario that needs an application of its own (one serving over HTTPS, or one
+    deployed from Charmhub to be refreshed) can switch every later step to it, through
+    the `target_fixture` of the step that deploys it.
+    """
+    return AM_APP
 
 
 @pytest.fixture(scope="session")

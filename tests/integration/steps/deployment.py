@@ -13,10 +13,8 @@ import subprocess
 from pathlib import Path
 
 import jubilant
-import pytest
 from helpers import (
     ALERTMANAGER_IMAGE,
-    AM_APP,
     get_leader_unit_num,
     is_alertmanager_up,
     model_namespace,
@@ -25,18 +23,6 @@ from pytest_bdd import given, parsers, then, when
 
 # A refresh cannot be undone, so every scenario refreshes an alertmanager of its own.
 _charmhub_apps = (f"alertmanager-charmhub-{n}" for n in itertools.count())
-
-
-@pytest.fixture
-def app() -> str:
-    """The alertmanager application a scenario talks about.
-
-    Steps take the application from this fixture rather than from `AM_APP`, so that a
-    scenario that needs an application of its own (one serving over HTTPS, or one
-    deployed from Charmhub to be refreshed) can switch every later step to it, through
-    the `target_fixture` of the step that deploys it.
-    """
-    return AM_APP
 
 
 def wait_for_active(juju: jubilant.Juju, *apps: str, timeout: float = 1000) -> None:
