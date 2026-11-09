@@ -46,9 +46,10 @@ Integration tests are specified in Gherkin feature files in
 [`tests/integration/features`](tests/integration/features), one file per
 capability, and run with [pytest-bdd] against a Juju model with [jubilant]. Each
 feature has a `tests/integration/test_<feature>.py` module that only loads its
-scenarios, so that every feature runs in a model of its own. All the scenarios
-of a feature share that model, so a scenario's `Given` steps must bring the
-model into the state it needs, whatever ran before.
+scenarios, so that every feature runs in a model of its own, and in a CI job of
+its own: CI runs one job per `test_*.py`, so `lint` fails on a feature without
+one. All the scenarios of a feature share that model, so a scenario's `Given`
+steps must bring the model into the state it needs, whatever ran before.
 
 Step definitions live in [`tests/integration/steps`](tests/integration/steps),
 one module per topic, registered in `tests/integration/conftest.py`. Charms that
