@@ -22,7 +22,8 @@ from helpers import (
 from pytest_bdd import given, parsers, then, when
 
 # A refresh cannot be undone, so every scenario refreshes an alertmanager of its own.
-_charmhub_apps = (f"alertmanager-charmhub-{n}" for n in itertools.count())
+# Juju rejects an application name whose last hyphen-separated part is only digits.
+_charmhub_apps = (f"alertmanager-charmhub{n}" for n in itertools.count())
 
 
 def wait_for_active(juju: jubilant.Juju, *apps: str, timeout: float = 1000) -> None:
