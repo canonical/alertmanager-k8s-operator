@@ -302,7 +302,7 @@ class AlertmanagerCharm(CharmBase):
         return CatalogueItem(
             name="Alertmanager",
             icon="bell-alert",
-            url=self._external_url,
+            url=f"{self._external_url}/",
             description=(
                 "Alertmanager receives alerts from supporting applications, such as "
                 "Prometheus or Loki, then deduplicates, groups and routes them to "
