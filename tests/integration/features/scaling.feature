@@ -1,4 +1,4 @@
-Feature: High-availability clustering
+Feature: Scaling
   Alertmanager stays healthy as it is scaled up or down, including when a
   scale-down removes the leader.
 
