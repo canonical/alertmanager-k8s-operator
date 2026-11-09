@@ -27,6 +27,7 @@ dev = [
     { name = "coverage" },
     { name = "deepdiff" },
     { name = "jubilant" },
+    { name = "observability-clients" },
     { name = "ops", extra = ["testing"] },
     { name = "pyright" },
     { name = "pytest" },
@@ -34,7 +35,6 @@ dev = [
     { name = "pytest-httpserver" },
     { name = "pytest-interface-tester" },
     { name = "pytest-jubilant" },
-    { name = "requests" },
     { name = "ruff" },
     { name = "tenacity" },
     { name = "validators" },
@@ -54,6 +54,7 @@ requires-dist = [
     { name = "lightkube", specifier = ">=0.11" },
     { name = "lightkube-extensions" },
     { name = "lightkube-models" },
+    { name = "observability-clients", marker = "extra == 'dev'" },
     { name = "ops", extras = ["testing"], marker = "extra == 'dev'" },
     { name = "ops", extras = ["tracing"] },
     { name = "pydantic", specifier = ">=2" },
@@ -64,7 +65,6 @@ requires-dist = [
     { name = "pytest-interface-tester", marker = "extra == 'dev'", specifier = ">0.3" },
     { name = "pytest-jubilant", marker = "extra == 'dev'" },
     { name = "pyyaml" },
-    { name = "requests", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "tenacity" },
     { name = "tenacity", marker = "extra == 'dev'" },
@@ -754,6 +754,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e6/99/d27cfc9518f49e4cbc25c683ec7cf8704a9d31311341c291c0e78ddf791b/nodeenv-1.12.0.tar.gz", hash = "sha256:4ea7f88339310afebc3253f2c7a91b94bacf97d73a36a5c108962abdfaca501e", size = 131292, upload-time = "2026-10-31T19:03:18.847Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2d/6a/8a9ac7d5e2f7cf53c459bfef90ebc17a2f8cd54b665af96799d4c534840e/nodeenv-1.12.0-py3-none-any.whl", hash = "sha256:80644d65c10cc2be12e3e4b54b3367ff288c7ad24ae75c2dcc65454fc7449d4d", size = 39442, upload-time = "2026-10-31T19:03:17.427Z" },
+]
+
+[[package]]
+name = "observability-clients"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+    { name = "tenacity" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ce/00/08c1f283fab6c6c731796810831633302a7d29ba20b7fe796906b4583a85/observability_clients-0.1.2.tar.gz", hash = "sha256:a0c3193c6b9031b5072495ef980566bec6171edcce44ad0daa9b73464116dd0d", size = 58836, upload-time = "2026-09-17T08:23:02.636Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b1/dd/173ddc5cb39ea45c6fc07920456f5e1018bcd43b89aed8d538a9f7204c30/observability_clients-0.1.2-py3-none-any.whl", hash = "sha256:dd8b27c6d26c9e3f31229a6c3f0583eeabb8aaefb4fc82feca60213b2428930c", size = 14339, upload-time = "2026-09-17T08:23:01.658Z" },
 ]
 
 [[package]]

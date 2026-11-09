@@ -38,9 +38,9 @@ dev = [
   "pytest-jubilant",
   "pytest-httpserver",
   "jubilant",
+  "observability-clients",
   "pytest-bdd",
   "tenacity",
-  "requests",
 ]
 
 # Testing tools configuration
