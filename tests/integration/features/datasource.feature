@@ -1,15 +1,19 @@
 Feature: Grafana datasource
-  Alertmanager registers one Grafana datasource, however many units it has. It
-  points at the Kubernetes service without ingress, and elsewhere with it.
+  Alertmanager registers a single datasource in Grafana, however many units it
+  has. The datasource is served by the ingress when there is one, and by the
+  Kubernetes service otherwise.
 
   Background:
     Given alertmanager has 2 units
     And alertmanager is related to Grafana over "grafana-source"
 
-  Scenario: Without ingress, the datasource is the Kubernetes service
-    Given alertmanager has no ingress relation
-    Then Grafana has one datasource for alertmanager, at its Kubernetes service URL
+  Scenario: Grafana gets one datasource for all the units
+    Then Grafana has a single datasource for alertmanager
 
-  Scenario: With ingress, the datasource is no longer the Kubernetes service
+  Scenario: Without ingress, the datasource is served by the Kubernetes service
+    Given alertmanager has no ingress relation
+    Then the datasource is served by alertmanager's Kubernetes service
+
+  Scenario: With ingress, the datasource is served by the ingress
     Given alertmanager is related to Traefik over "ingress"
-    Then Grafana has one datasource for alertmanager, not at its Kubernetes service URL
+    Then the datasource is served by alertmanager's ingress

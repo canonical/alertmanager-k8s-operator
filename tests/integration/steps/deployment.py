@@ -24,16 +24,17 @@ from helpers import (
 from pytest_bdd import given, parsers, then, when
 
 # A refresh cannot be undone, so every scenario refreshes an alertmanager of its own.
-_charmhub_apps = (f"am-charmhub-{n}" for n in itertools.count())
+_charmhub_apps = (f"alertmanager-charmhub-{n}" for n in itertools.count())
 
 
 @pytest.fixture
 def app() -> str:
     """The alertmanager application a scenario talks about.
 
-    Scenarios that need a state another scenario of the same feature cannot share
-    (e.g. alertmanager serving over TLS) switch to an application of their own,
-    through the `target_fixture` of the step that deploys it.
+    Steps take the application from this fixture rather than from `AM_APP`, so that a
+    scenario that needs an application of its own (one serving over HTTPS, or one
+    deployed from Charmhub to be refreshed) can switch every later step to it, through
+    the `target_fixture` of the step that deploys it.
     """
     return AM_APP
 

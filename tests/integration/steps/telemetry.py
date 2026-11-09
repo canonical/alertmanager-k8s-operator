@@ -4,22 +4,15 @@
 """Steps about the telemetry alertmanager sends: logs to Loki and traces to Tempo."""
 
 import jubilant
-import requests
-from helpers import TEMPO_APP, assert_traces_in_tempo, get_unit_address, unit_fqdn
+from helpers import unit_fqdn
+from observability_clients import Loki, Tempo
 from pytest_bdd import then, when
-from tenacity import retry, stop_after_attempt, wait_fixed
+from tenacity import retry, stop_after_delay, wait_fixed
 
-from steps.relations import COUNTERPARTS, related_apps
+from steps.relations import related_apps
 
-
-@retry(wait=wait_fixed(15), stop=stop_after_attempt(20), reraise=True)
-def assert_logs_in_loki(loki_address: str, app: str) -> None:
-    response = requests.get(
-        f"http://{loki_address}:3100/loki/api/v1/query_range",
-        params={"query": f'{{juju_application="{app}"}}'},
-    )
-    response.raise_for_status()
-    assert response.json().get("data", {}).get("result", []), f"No logs from {app}"
+# Telemetry trails the events that produce it, so the steps retry until it arrives.
+_until_ingested = retry(wait=wait_fixed(15), stop=stop_after_delay(300), reraise=True)
 
 
 @when("a request is made to alertmanager's API")
@@ -35,11 +28,25 @@ def request_alertmanager(juju: jubilant.Juju, app: str):
 
 
 @then("Loki has logs from alertmanager")
-def loki_has_logs(juju: jubilant.Juju, app: str):
-    loki_app = COUNTERPARTS["Loki"].app
-    assert_logs_in_loki(get_unit_address(juju, loki_app, 0), app)
+@_until_ingested
+def loki_has_logs(loki: Loki, app: str):
+    assert loki.has_log_line(f'{{juju_application="{app}"}}'), f"No logs from {app}"
 
 
-@then("Tempo has traces from alertmanager")
-def tempo_has_traces(juju: jubilant.Juju, app: str):
-    assert_traces_in_tempo(get_unit_address(juju, TEMPO_APP, 0), juju_application=app)
+# Workload spans carry the `juju_charm` resource attribute, set through the workload's
+# OTEL_RESOURCE_ATTRIBUTES; spans of the charm itself carry `charm_type` instead. Both carry
+# `juju_application`, which tells several alertmanager applications in one model apart.
+
+
+@then("Tempo has workload traces from alertmanager")
+@_until_ingested
+def tempo_has_workload_traces(tempo: Tempo, app: str):
+    query = f'{{ resource.juju_application = "{app}" && resource.juju_charm != nil }}'
+    assert tempo.has_traces(query), f"No workload traces from {app}"
+
+
+@then("Tempo has charm traces from alertmanager")
+@_until_ingested
+def tempo_has_charm_traces(tempo: Tempo, app: str):
+    query = f'{{ resource.juju_application = "{app}" && resource.charm_type != nil }}'
+    assert tempo.has_traces(query), f"No charm traces from {app}"

@@ -12,6 +12,7 @@ import pytest
 # Step definitions shared by the feature files, grouped by topic.
 pytest_plugins = [
     "steps.alerting",
+    "steps.clients",
     "steps.deployment",
     "steps.grafana",
     "steps.relations",

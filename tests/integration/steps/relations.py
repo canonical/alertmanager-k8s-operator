@@ -34,9 +34,7 @@ class Counterpart:
 COUNTERPARTS: Dict[str, Counterpart] = {
     "a CA": Counterpart("ca", from_charmhub("self-signed-certificates", "edge", trust=False)),
     "Grafana": Counterpart("grafana", from_charmhub("grafana-k8s", "dev/edge")),
-    "Karma": Counterpart("karma", from_charmhub("karma-k8s", "dev/edge"), timeout=2500),
     "Loki": Counterpart("loki", from_charmhub("loki-k8s", "dev/edge")),
-    "Prometheus": Counterpart("prom", from_charmhub("prometheus-k8s", "dev/edge"), timeout=2500),
     # Tempo is a coordinator with workers and object storage, deployed as a stack.
     "Tempo": Counterpart(TEMPO_APP, lambda juju, _: deploy_tempo_stack(juju), timeout=900),
     "Traefik": Counterpart("traefik", from_charmhub("traefik-k8s", "edge")),

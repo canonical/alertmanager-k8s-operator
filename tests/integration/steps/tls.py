@@ -13,9 +13,10 @@ from pytest_bdd import given, parsers, then
 from steps.deployment import deploy_alertmanager
 from steps.relations import COUNTERPARTS, relate_to
 
-# Enabling TLS cannot be undone within a scenario, so an alertmanager serving
-# over HTTPS is an application of its own, next to the plain one.
-TLS_APP = "am-tls"
+# An alertmanager serving over HTTPS is an application of its own, next to the plain
+# one. Removing the CA relation would turn TLS off again, but it would restart the
+# workload, and each scenario would then depend on what the previous one left behind.
+TLS_APP = "alertmanager-tls"
 
 
 @given(parsers.parse("alertmanager serves over {scheme}"), target_fixture="app")

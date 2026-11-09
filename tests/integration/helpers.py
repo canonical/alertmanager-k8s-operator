@@ -11,11 +11,8 @@ from pathlib import Path
 from typing import Set
 from urllib.parse import urlparse
 
-import requests
 import yaml
 from jubilant import Juju
-from requests.auth import HTTPBasicAuth
-from tenacity import retry, stop_after_delay, wait_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +23,6 @@ AM_APP = "alertmanager"
 TEMPO_APP = "tempo"
 TEMPO_WORKER_APP = "tempo-worker"
 SEAWEED_APP = "seaweed"
-TEMPO_QUERY_PORT = 3200
 
 
 def get_unit_address(juju: Juju, app_name: str, unit_num: int) -> str:
@@ -76,16 +72,6 @@ def grafana_password(juju: Juju, app_name: str) -> str:
     """Return the Grafana admin password."""
     task = juju.run(f"{app_name}/leader", "get-admin-password")
     return task.results["admin-password"]
-
-
-def grafana_datasources(juju: Juju, app_name: str) -> list:
-    """Return the list of datasources configured in Grafana."""
-    address = get_unit_address(juju, app_name, 0)
-    url = f"http://{address}:3000/api/datasources"
-    admin_password = grafana_password(juju, app_name)
-    response = requests.get(url, auth=HTTPBasicAuth("admin", admin_password))
-    response.raise_for_status()
-    return response.json()
 
 
 def curl(*, cert_dir: Path, cert_path: Path, ip_addr: str, mock_url: str) -> str:
@@ -139,26 +125,3 @@ def deploy_tempo_stack(juju: Juju) -> Set[str]:
     juju.integrate(f"{TEMPO_APP}:s3", SEAWEED_APP)
     juju.integrate(f"{TEMPO_APP}:tempo-cluster", f"{TEMPO_WORKER_APP}:tempo-cluster")
     return {TEMPO_APP, TEMPO_WORKER_APP, SEAWEED_APP}
-
-
-@retry(
-    wait=wait_exponential(multiplier=2, min=2, max=30), stop=stop_after_delay(300), reraise=True
-)
-def assert_traces_in_tempo(tempo_ip: str, *, juju_application: str) -> None:
-    """Assert that Tempo contains at least one trace from the given Juju application.
-
-    Searches on the `juju_application` resource attribute rather than on `service.name`,
-    so that several alertmanager applications in one model can be told apart.
-    Retried with exponential back-off for up to 5 minutes to account for span
-    flush and ingestion lag.
-    """
-    url = (
-        f"http://{tempo_ip}:{TEMPO_QUERY_PORT}/api/search"
-        f"?tags=juju_application%3D{juju_application}"
-    )
-    with urllib.request.urlopen(url, timeout=10) as resp:
-        data = json.loads(resp.read())
-    traces = data.get("traces", [])
-    assert traces, (
-        f"No traces from '{juju_application}' found in Tempo at {tempo_ip}:{TEMPO_QUERY_PORT}."
-    )
