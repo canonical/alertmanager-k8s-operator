@@ -629,11 +629,15 @@ class AlertmanagerCharm(CharmBase):
 
     def _update_ca_certs(self):
         ca_cert_path = Path(self._ca_cert_path)
+        # Save the CA in the alertmanager container before update-ca-certificates runs below,
+        # so it is in that container's trust store.
         if tls_config := self._tls_config:
             ca_cert_path.parent.mkdir(exist_ok=True, parents=True)
             ca_cert_path.write_text(tls_config.ca_cert)
+            self.container.push(self._ca_cert_path, tls_config.ca_cert, make_dirs=True)
         else:
             ca_cert_path.unlink(missing_ok=True)
+            self.container.remove_path(self._ca_cert_path, recursive=True)
 
         # Handle certificates received via the receive-ca-cert relation
         recv_ca_folder = Path(self._recv_ca_cert_folder_path)
