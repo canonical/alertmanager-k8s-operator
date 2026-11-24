@@ -6,7 +6,8 @@ version = "0.0"
 requires-python = "~=3.14.0"
 
 dependencies = [
-  "ops[tracing]",
+  "alerta-webhook",
+  "ops-tracing>=2.23,<3",
   "pyyaml",
   "lightkube>=0.11",  # observability_libs
   "lightkube-models",  # observability_libs
@@ -20,6 +21,12 @@ dependencies = [
   "lightkube-extensions",
 ]
 
+[tool.uv]
+override-dependencies = ["ops>=2.23,<3"]
+
+[tool.uv.sources]
+alerta-webhook = { git = "https://github.com/sinapah/alerta-k8s-operator", subdirectory = "alerta_webhook" }
+
 [project.optional-dependencies]
 dev = [
   # Linting
@@ -32,7 +39,7 @@ dev = [
   "coverage[toml]",
   "deepdiff",
   "validators>=0.21.2",
-  "ops[testing]",
+  "ops-scenario",
   "pytest-interface-tester>0.3",
   # Integration
   "pytest-jubilant",

@@ -1,12 +1,25 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = "==3.14.*"
+
+[manifest]
+overrides = [{ name = "ops", specifier = ">=2.23,<3" }]
+
+[[package]]
+name = "alerta-webhook"
+version = "0.1.0"
+source = { git = "https://github.com/sinapah/alerta-k8s-operator?subdirectory=alerta_webhook#3be3774b236a165db15f0f4026ecad652f62997a" }
+dependencies = [
+    { name = "ops" },
+    { name = "pydantic" },
+]
 
 [[package]]
 name = "alertmanager-k8s"
 version = "0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "alerta-webhook" },
     { name = "charmed-service-mesh-helpers" },
     { name = "cosl" },
     { name = "cryptography" },
@@ -15,7 +28,7 @@ dependencies = [
     { name = "lightkube" },
     { name = "lightkube-extensions" },
     { name = "lightkube-models" },
-    { name = "ops", extra = ["tracing"] },
+    { name = "ops-tracing" },
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "tenacity" },
@@ -28,7 +41,7 @@ dev = [
     { name = "deepdiff" },
     { name = "jubilant" },
     { name = "observability-clients" },
-    { name = "ops", extra = ["testing"] },
+    { name = "ops-scenario" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-bdd" },
@@ -42,6 +55,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "alerta-webhook", git = "https://github.com/sinapah/alerta-k8s-operator?subdirectory=alerta_webhook" },
     { name = "charmed-service-mesh-helpers", specifier = ">=0.2.0" },
     { name = "codespell", marker = "extra == 'dev'" },
     { name = "cosl" },
@@ -55,8 +69,8 @@ requires-dist = [
     { name = "lightkube-extensions" },
     { name = "lightkube-models" },
     { name = "observability-clients", marker = "extra == 'dev'" },
-    { name = "ops", extras = ["testing"], marker = "extra == 'dev'" },
-    { name = "ops", extras = ["tracing"] },
+    { name = "ops-scenario", marker = "extra == 'dev'" },
+    { name = "ops-tracing", specifier = ">=2.23,<3" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pyright", marker = "extra == 'dev'", specifier = "<1.1.399" },
     { name = "pytest", marker = "extra == 'dev'" },
@@ -820,14 +834,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/07/78/eac419ee3d2a5904a9fa250861077b61f9d3a31d7edcb04505ac704596e7/ops-2.23.6.tar.gz", hash = "sha256:03939c2de79fc60df1273484d2b4a45b921f403d4692a95f7b702a756e68a990", size = 539598, upload-time = "2026-10-08T22:53:41.761Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/06/f68d22a4342fad0c5fea07b222b811159190b9299d57683bec6b027dba15/ops-2.23.6-py3-none-any.whl", hash = "sha256:cd5c9671c1178e81b5e5d5b09613e23799cfbd5737232e39086eae3b23a0bf6a", size = 191129, upload-time = "2026-10-08T22:53:40.096Z" },
-]
-
-[package.optional-dependencies]
-testing = [
-    { name = "ops-scenario" },
-]
-tracing = [
-    { name = "ops-tracing" },
 ]
 
 [[package]]
