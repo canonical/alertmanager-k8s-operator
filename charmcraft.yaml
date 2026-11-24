@@ -116,6 +116,12 @@ requires:
       Alertmanager typically needs a "per app" ingress, which is available in the traefik charm[1].
 
       [1] https://charmhub.io/traefik-k8s
+  alerta:
+    interface: alerta_webhook
+    optional: true
+    limit: 1
+    description: |
+      Send all alerts to an Alerta instance by way of its Prometheus webhook endpoint.
   remote-configuration:
     interface: alertmanager_remote_configuration
     optional: true

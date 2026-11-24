@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 import ops_tracing
 import yaml
+from alerta_webhook import AlertaRequirer
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -59,7 +60,7 @@ from alertmanager import (
     WorkloadManager,
     WorkloadManagerError,
 )
-from config_builder import ConfigBuilder, ConfigError
+from config_builder import ConfigBuilder, ConfigError, default_config
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +216,11 @@ class AlertmanagerCharm(CharmBase):
 
         # Core lifecycle events
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.alerta = AlertaRequirer(self, relation_name="alerta")
+        self.framework.observe(
+            self.alerta.on.alerta_changed,  # pyright: ignore
+            self._on_alerta_changed,
+        )
         self.framework.observe(self.on.start, self._on_start)
 
         peer_ha_netlocs = [
@@ -453,6 +459,8 @@ class AlertmanagerCharm(CharmBase):
 
     def _render_manifest(self) -> ConfigFileSystemState:
         raw_config, raw_templates = self._get_raw_config_and_templates()
+        base_config = raw_config if raw_config is not None else default_config
+        raw_config = self.alerta.apply_to_config(base_config)
 
         tracing_endpoint = self._workload_tracing_endpoint
 
@@ -573,6 +581,10 @@ class AlertmanagerCharm(CharmBase):
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent."""
         self._common_exit_hook(update_ca_certs=True)
+
+    def _on_alerta_changed(self, _):
+        """Event handler for alerta relation changes."""
+        self._common_exit_hook(update_ca_certs=False)
 
     def _on_start(self, _):
         """Event handler for ConfigChangedEvent."""
