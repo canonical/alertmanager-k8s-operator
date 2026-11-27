@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 import ops_tracing
 import yaml
+from charmlibs.interfaces.service_mesh import ServiceMeshConsumer, UnitPolicy
 from charms.alertmanager_k8s.v0.alertmanager_remote_configuration import (
     RemoteConfigurationRequirer,
 )
@@ -25,7 +26,6 @@ from charms.certificate_transfer_interface.v1.certificate_transfer import (
 )
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.grafana_k8s.v1.grafana_source import GrafanaSourceProvider
-from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshConsumer, UnitPolicy
 from charms.karma_k8s.v0.karma_dashboard import KarmaProvider
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.observability_libs.v0.kubernetes_compute_resources_patch import (
